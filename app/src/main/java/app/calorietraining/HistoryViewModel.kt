@@ -48,7 +48,7 @@ private fun FoodStore.historyOf(name: String): List<SessionHistory> {
     val result = mutableListOf<SessionHistory>()
     var session: Long? = null
     var sets = mutableListOf<PreviousSet>()
-    readableDatabase.rawQuery("""SELECT w.id, w.day, s.weight, s.reps, w.title
+    readableDatabase.rawQuery("""SELECT w.id, w.day, s.weight, s.reps, w.title, s.warmup
         FROM workout w JOIN lifting s ON s.session=w.id WHERE s.planned=0 AND s.exercise=?
         ORDER BY w.day DESC, w.id DESC, s.id""", arrayOf(name)).use { cursor ->
         while (cursor.moveToNext()) {
@@ -57,7 +57,7 @@ private fun FoodStore.historyOf(name: String): List<SessionHistory> {
                 sets = mutableListOf()
                 result.add(SessionHistory(session, LocalDate.parse(cursor.getString(1)), sets, cursor.getString(4)))
             }
-            sets.add(PreviousSet(cursor.getString(2), cursor.getString(3)))
+            sets.add(PreviousSet(cursor.getString(2), cursor.getString(3), cursor.getInt(5) == 1))
         }
     }
     return result

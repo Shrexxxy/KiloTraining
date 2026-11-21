@@ -67,7 +67,7 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                                         if (session.title.isNotEmpty()) Text(session.title, style = MaterialTheme.typography.titleSmall)
                                         session.sets.forEachIndexed { i, set ->
                                             val weight = if (set.weight.isBlank()) "Свой вес" else "${set.weight} кг"
-                                            Text("Подход ${i + 1} · $weight × ${set.reps}")
+                                            Text("Подход ${i + 1} · $weight × ${set.reps}" + if (set.warmup) " · разминка" else "")
                                         }
                                     }
                                 }

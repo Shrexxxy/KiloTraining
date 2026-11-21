@@ -89,7 +89,7 @@ fun FoodStore.lookup(code: String, fetch: (String) -> Product? = ::fetchProduct)
 }
 
 data class SetDraft(val id: Long? = null, val group: String = UUID.randomUUID().toString(),
-    val exercise: String = "", val weight: String = "", val reps: String = "", val planned: Boolean = false) {
+    val exercise: String = "", val weight: String = "", val reps: String = "", val planned: Boolean = false, val warmup: Boolean = false) {
     val valid get() = exercise.isNotBlank() && (weight.isBlank() || weight.amount() != null) && (reps.toIntOrNull() ?: 0) > 0
 }
 data class Workout(val id: Long,val sets: List<SetDraft>, val title: String = "")
@@ -102,6 +102,7 @@ fun FoodStore.saveSet(session: Long,set: SetDraft, planned: Boolean = false) {
         put("exercise",set.exercise.trim())
         put("weight",set.weight.trim())
         put("reps",set.reps.toInt())
+        put("warmup", if (set.warmup) 1 else 0)
         put("planned", if (planned) 1 else 0)
     }
     if(set.id == null) writableDatabase.insertOrThrow("lifting",null,values)
@@ -112,7 +113,7 @@ fun FoodStore.saveSet(session: Long,set: SetDraft, planned: Boolean = false) {
     )
 }
 
-data class PreviousSet(val weight: String, val reps: String)
+data class PreviousSet(val weight: String, val reps: String, val warmup: Boolean = false)
 
 fun FoodStore.repeatWorkout(source: Workout, date: LocalDate) {
     val target = writableDatabase.insertOrThrow("workout", null, ContentValues().apply {
@@ -127,6 +128,7 @@ fun FoodStore.repeatWorkout(source: Workout, date: LocalDate) {
             put("exercise", set.exercise)
             put("weight", set.weight)
             put("reps", set.reps.toInt())
+            put("warmup", if (set.warmup) 1 else 0)
             put("planned", 1)
         })
     }
@@ -134,7 +136,7 @@ fun FoodStore.repeatWorkout(source: Workout, date: LocalDate) {
 data class PreviousExercise(val day: LocalDate, val sets: List<PreviousSet>)
 
 fun FoodStore.previousExercise(day: LocalDate, session: Long, exercise: String): PreviousExercise? {
-    val query = """SELECT w.day, l.weight, l.reps FROM lifting l JOIN workout w ON w.id=l.session
+    val query = """SELECT w.day, l.weight, l.reps,l.warmup FROM lifting l JOIN workout w ON w.id=l.session
         WHERE l.planned=0 AND l.exercise=? AND w.id=(
             SELECT p.id FROM workout p JOIN lifting s ON s.session=p.id
             WHERE s.planned=0 AND s.exercise=? AND (p.day < ? OR (p.day=? AND p.id < ?))
@@ -145,7 +147,7 @@ fun FoodStore.previousExercise(day: LocalDate, session: Long, exercise: String):
         if (!rows.moveToFirst()) return@use null
         val lastDay = LocalDate.parse(rows.getString(0))
         PreviousExercise(lastDay, buildList {
-            do { add(PreviousSet(rows.getString(1), rows.getString(2))) } while (rows.moveToNext())
+            do { add(PreviousSet(rows.getString(1), rows.getString(2), rows.getInt(3) == 1)) } while (rows.moveToNext())
         })
     }
 }
@@ -153,7 +155,7 @@ fun FoodStore.previousExercise(day: LocalDate, session: Long, exercise: String):
 fun FoodStore.workouts(day: LocalDate): List<Workout> {
     val result = mutableListOf<Workout>()
     var sets = mutableListOf<SetDraft>()
-    readableDatabase.rawQuery("""SELECT w.id,l.id,l.exercise_group,l.exercise,l.weight,l.reps,w.title,l.planned
+    readableDatabase.rawQuery("""SELECT w.id,l.id,l.exercise_group,l.exercise,l.weight,l.reps,w.title,l.planned,l.warmup
         FROM workout w LEFT JOIN lifting l ON w.id=l.session WHERE w.day=? ORDER BY w.id,l.id""",arrayOf(day.toString())).use {
         while(it.moveToNext()) {
             val id = it.getLong(0)
@@ -161,7 +163,7 @@ fun FoodStore.workouts(day: LocalDate): List<Workout> {
                 sets = mutableListOf()
                 result.add(Workout(id, sets, it.getString(6)))
             }
-            if(!it.isNull(1)) sets.add(SetDraft(it.getLong(1),it.getString(2),it.getString(3),it.getString(4),it.getString(5),it.getInt(7) == 1))
+            if(!it.isNull(1)) sets.add(SetDraft(it.getLong(1),it.getString(2),it.getString(3),it.getString(4),it.getString(5),it.getInt(7) == 1,it.getInt(8) == 1))
         }
     }
     return result

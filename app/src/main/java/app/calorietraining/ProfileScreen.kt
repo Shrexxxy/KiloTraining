@@ -81,11 +81,12 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit, m
                     Text("Объём с отягощением: ${stats.volume.display()} кг", style = MaterialTheme.typography.bodyMedium)
                 } }
                 item { ProfileBlock("Жим штанги лёжа") {
-                    if (stats.benchSets == 0) Text("За период нет записанных подходов жима штанги лёжа.")
+                    if (stats.benchSets == 0) Text("За период нет выполненных рабочих подходов жима штанги лёжа.")
                     else {
-                        Text("Средний вес: ${stats.benchAverage?.display()} кг", style = MaterialTheme.typography.titleLarge)
-                        Text("Лучший вес: ${stats.benchMax?.display()} кг · Подходов: ${stats.benchSets}")
-                        Text("Каждый выполненный подход учитывается один раз.", style = MaterialTheme.typography.bodySmall)
+                        Text("Средний рабочий вес: ${stats.benchAverage?.display()} кг", style = MaterialTheme.typography.titleLarge)
+                        Text("Лучший рабочий вес: ${stats.benchMax?.display()} кг · Подходов: ${stats.benchSets}")
+                        Text("Лучшие подходы за период", style = MaterialTheme.typography.titleMedium)
+                        stats.benchRecords.forEach { (reps, weight) -> Text("${weight.display()} кг × $reps повт.") }
                     }
                 } }
                 item { ProfileBlock("Питание сегодня") {
@@ -97,6 +98,11 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit, m
                 item { ProfileBlock("Питание") {
                     if (stats.averageCalories != null) {
                         Text("${stats.averageCalories.display()} ккал в среднем", style = MaterialTheme.typography.titleLarge)
+                        if (stats.averageProtein != null) {
+                            Text("Белок · ${stats.averageProtein.display()} г в среднем за день")
+                            Text("Дней с полными данными по белку: ${stats.proteinDays} из ${stats.foodDays}",
+                                style = MaterialTheme.typography.bodySmall)
+                        } else Text("Для среднего белка нужен хотя бы один день с белком во всех записях.")
                         Text("Дней с записями: ${stats.foodDays}")
                     } else Text("За период нет записей питания.")
                     HorizontalDivider()

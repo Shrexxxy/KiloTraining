@@ -20,11 +20,26 @@ private fun recentMaxima(sessions: List<SessionHistory>, measure: (PreviousSet) 
         session.sets.mapNotNull(measure).maxOrNull()?.let { ProgressPoint(session, it) }
     }.take(8).toList().asReversed()
 
+internal data class RepRecord(val reps: Int, val weight: BigDecimal, val session: SessionHistory)
+
+internal fun repetitionRecords(sessions: List<SessionHistory>): List<RepRecord> {
+    val best = sortedMapOf<Int, RepRecord>()
+    for (session in sessions) for (set in session.sets) {
+        if (set.warmup) continue
+        val reps = set.reps.toIntOrNull() ?: continue
+        val weight = set.weight.amount() ?: continue
+        val previous = best[reps]
+        if (previous == null || weight > previous.weight) best[reps] = RepRecord(reps, weight, session)
+    }
+    return best.values.toList()
+}
+
 private val chartDate = DateTimeFormatter.ofPattern("dd.MM.yy")
 
 @Composable
 internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
     onWorkout: (SessionHistory) -> Unit, modifier: Modifier = Modifier) {
+    val records = remember(sessions) { repetitionRecords(sessions) }
     val weights = remember(sessions) { recentMaxima(sessions) { it.weight.amount() } }
     val repetitions = remember(sessions) {
         recentMaxima(sessions) { if (it.weight.isBlank()) it.reps.toIntOrNull()?.toBigDecimal() else null }
@@ -44,6 +59,17 @@ internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(!showReps, { preferReps = false }, label = { Text("С весом") })
                     FilterChip(showReps, { preferReps = true }, label = { Text("Свой вес") })
+                }
+            }
+            if (records.isNotEmpty()) {
+                var expanded by rememberSaveable(exercise) { mutableStateOf(false) }
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(if (expanded) "Скрыть рекорды" else "Рекорды по повторам")
+                }
+                if (expanded) records.forEach { record ->
+                    TextButton(onClick = { onWorkout(record.session) }) {
+                        Text("${record.weight.display()} кг × ${record.reps} · ${record.session.date.format(chartDate)}")
+                    }
                 }
             }
             points.forEach { point ->

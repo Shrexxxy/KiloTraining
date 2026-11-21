@@ -38,7 +38,8 @@ fun FoodStore.saveMeasurement(record: Measurement) {
 data class PeriodStats(
     val workouts: Int, val sets: Int, val reps: Long, val volume: BigDecimal,
     val benchSets: Int, val benchAverage: BigDecimal?, val benchMax: BigDecimal?,
-    val foodDays: Int, val averageCalories: BigDecimal?
+    val foodDays: Int, val averageCalories: BigDecimal?,
+    val proteinDays: Int = 0, val averageProtein: BigDecimal? = null, val benchRecords: Map<Int, BigDecimal> = emptyMap()
 )
 data class ProfileStats(val current: PeriodStats, val previous: PeriodStats?, val end: LocalDate,
     val hours: List<Int>, val measurements: List<Measurement>, val todayEntries: List<FoodEntry> = emptyList())
@@ -57,8 +58,9 @@ private fun FoodStore.periodStats(range: Array<String>): PeriodStats {
     var volume = BigDecimal.ZERO
     var benchSum = BigDecimal.ZERO
     var benchCount = 0
+    val records = sortedMapOf<Int, BigDecimal>()
     var best: BigDecimal? = null
-    db.rawQuery("""SELECT w.id,l.exercise,l.weight,l.reps FROM lifting l JOIN workout w ON w.id=l.session
+    db.rawQuery("""SELECT w.id,l.exercise,l.weight,l.reps,l.warmup FROM lifting l JOIN workout w ON w.id=l.session
         WHERE l.planned=0 AND w.day BETWEEN ? AND ? ORDER BY w.id""", range).use { rows ->
         while (rows.moveToNext()) {
             val session = rows.getLong(0)
@@ -68,7 +70,9 @@ private fun FoodStore.periodStats(range: Array<String>): PeriodStats {
             reps += count
             val weight = rows.getString(2).amount() ?: continue
             volume += weight * count.toBigDecimal()
-            if (rows.getString(1).trim().lowercase().replace('ё','е') in benchNames) {
+            if (rows.getInt(4) == 0 && rows.getString(1).trim().lowercase().replace('ё','е') in benchNames) {
+                val repetitions = count.toInt()
+                records[repetitions] = records[repetitions]?.max(weight) ?: weight
                 benchSum += weight
                 benchCount++
                 best = best?.max(weight) ?: weight
@@ -76,16 +80,25 @@ private fun FoodStore.periodStats(range: Array<String>): PeriodStats {
         }
     }
     var calories = BigDecimal.ZERO
+    val proteinByDay = mutableMapOf<String, BigDecimal?>()
     var lastDay = ""
     var foodDays = 0
-    db.rawQuery("SELECT day,calories FROM food WHERE day BETWEEN ? AND ? ORDER BY day",range).use { rows ->
+    db.rawQuery("SELECT day,calories,protein,grams FROM food WHERE day BETWEEN ? AND ? ORDER BY day",range).use { rows ->
         while (rows.moveToNext()) {
             if (lastDay != rows.getString(0)) { lastDay = rows.getString(0); foodDays++ }
             calories += rows.getString(1).toBigDecimal()
+            val grams = rows.getString(3)
+            val portion = Macros(protein = rows.getString(2)).forPortion(
+                if (grams.isEmpty()) BigDecimal.ONE else grams.amount()?.movePointLeft(2))
+            val previous = proteinByDay.getOrDefault(lastDay, BigDecimal.ZERO)
+            val protein = portion.protein.amount()
+            proteinByDay[lastDay] = if (previous == null || protein == null) null else previous + protein
         }
     }
+    val completeDays = proteinByDay.values.filterNotNull()
     return PeriodStats(workouts, sets, reps, volume, benchCount, benchSum.averageBy(benchCount), best,
-        foodDays, calories.averageBy(foodDays))
+        foodDays, calories.averageBy(foodDays), completeDays.size,
+        completeDays.fold(BigDecimal.ZERO, BigDecimal::add).averageBy(completeDays.size), records)
 }
 
 fun FoodStore.profileStats(days: Int): ProfileStats {

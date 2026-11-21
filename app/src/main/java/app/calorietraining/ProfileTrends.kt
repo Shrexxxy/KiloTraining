@@ -27,7 +27,7 @@ internal fun PeriodComparison(now: PeriodStats, before: PeriodStats, end: LocalD
     Text("Сейчас: ${interval(start, end)}")
     val workouts = (now.workouts - before.workouts).toBigDecimal()
     Text("Записано тренировок: ${before.workouts} → ${now.workouts} (${workouts.signed()})")
-    ComparisonMetric("Средний жим", "кг", "Подходов", before.benchAverage, now.benchAverage, before.benchSets, now.benchSets)
+    ComparisonMetric("Средний рабочий жим", "кг", "Подходов", before.benchAverage, now.benchAverage, before.benchSets, now.benchSets)
     ComparisonMetric("Средние калории", "ккал", "Дней с записями", before.averageCalories, now.averageCalories, before.foodDays, now.foodDays)
 }
 

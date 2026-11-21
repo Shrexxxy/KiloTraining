@@ -82,7 +82,7 @@ data class FoodEntry(
     fun edit() = FoodDraft(id, name, grams.isNotEmpty(), energy, grams, meal = meal, mealTime = mealTime, macros = macros)
 }
 
-class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 8) {
+class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 10) {
     private fun createGoalTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
     }
@@ -108,6 +108,8 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         createGoalTable(db)
         createMeasurements(db)
         addMacroColumns(db)
+        createTemplateTables(db)
+        createRecipeTables(db)
     }
 
     private fun addMacroColumns(db: SQLiteDatabase) {
@@ -127,6 +129,8 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         if (oldVersion < 5) db.execSQL("ALTER TABLE food ADD COLUMN meal TEXT NOT NULL DEFAULT 'UNSPECIFIED'")
         if (oldVersion in 2..5) db.execSQL("ALTER TABLE lifting ADD COLUMN planned INTEGER NOT NULL DEFAULT 0")
         if (oldVersion < 8) addMacroColumns(db)
+        if (oldVersion < 9) createTemplateTables(db)
+        if (oldVersion < 10) createRecipeTables(db)
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(

@@ -68,15 +68,21 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically) {
                                 val weight = if (set.weight.isBlank()) "Свой вес" else "${set.weight} кг"
-                                Text("${index + 1}.  $weight × ${set.reps}")
+                                Text("${index + 1}.  $weight × ${set.reps}" + if (set.warmup) " · разминка" else "")
                                 TextButton(enabled = !state.busy, onClick = {
-                                    edit(draft.copy(weight = set.weight, reps = set.reps))
+                                    edit(draft.copy(weight = set.weight, reps = set.reps, warmup = set.warmup))
                                 }) { Text("Повторить") }
                             }
                         }
                     }
                     if (original != null && draft.exercise.trim() != original.exercise) {
                         Text("Название изменится у всех подходов этого упражнения.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = !draft.warmup, enabled = !state.busy,
+                            onClick = { edit(draft.copy(warmup = false)) }, label = { Text("Рабочий") })
+                        FilterChip(selected = draft.warmup, enabled = !state.busy,
+                            onClick = { edit(draft.copy(warmup = true)) }, label = { Text("Разминочный") })
                     }
                     OutlinedTextField(draft.weight,{edit(draft.copy(weight=it))},label={Text("Вес, кг")},singleLine=true,
                         supportingText={Text("Оставьте пустым для своего веса")},enabled=!state.busy,
@@ -127,6 +133,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                     state.list.forEachIndexed { index, workout ->
                         item(key="session${workout.id}") {
                             var confirm by rememberSaveable { mutableStateOf(false) }
+                            var savingTemplate by rememberSaveable { mutableStateOf(false) }
                             var renaming by rememberSaveable { mutableStateOf(false) }
                             var title by rememberSaveable { mutableStateOf("") }
                             val label = workout.title.ifBlank { "Тренировка ${index + 1}" }
@@ -154,18 +161,19 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                     },
                                     dismissButton = { TextButton(onClick = { moveDate = null }) { Text("Отмена") } })
                             }
-                            if (renaming) AlertDialog(
-                                onDismissRequest = { renaming = false },
-                                title = { Text("Название тренировки") },
+                            if (renaming || savingTemplate) AlertDialog(
+                                onDismissRequest = { renaming = false; savingTemplate = false },
+                                title = { Text(if (savingTemplate) "Название шаблона" else "Название тренировки") },
                                 text = {
                                     OutlinedTextField(title, { title = it }, singleLine = true,
                                         label = { Text("Название") }, placeholder = { Text("Спина и бицепс") })
                                 },
-                                confirmButton = { TextButton(enabled = !state.busy, onClick = {
+                                confirmButton = { TextButton(enabled = !state.busy && (!savingTemplate || title.isNotBlank()), onClick = {
+                                    event(if (savingTemplate) WorkoutEvent.SaveTemplate(workout.id, title) else WorkoutEvent.Rename(workout.id, title))
                                     renaming = false
-                                    event(WorkoutEvent.Rename(workout.id, title))
+                                    savingTemplate = false
                                 }) { Text("Сохранить") } },
-                                dismissButton = { TextButton(onClick = { renaming = false }) { Text("Отмена") } }
+                                dismissButton = { TextButton(onClick = { renaming = false; savingTemplate = false }) { Text("Отмена") } }
                             )
                             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                                 Column(Modifier.weight(1f)) {
@@ -179,6 +187,8 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                         DropdownMenuItem(text = { Text(if (workout.title.isBlank()) "Задать название" else "Переименовать") },
                                             onClick = { menu = false; confirm = false; title = workout.title; renaming = true })
+                                        DropdownMenuItem(text = { Text("Сохранить как шаблон") }, enabled = workout.sets.isNotEmpty(),
+                                            onClick = { menu = false; title = workout.title; savingTemplate = true })
                                         DropdownMenuItem(text = { Text("Перенести на дату") },
                                             onClick = { menu = false; confirm = false; repeating = false; moveDate = state.day.toEpochDay() })
                                         DropdownMenuItem(text = { Text("Повторить") }, enabled = workout.sets.any { !it.planned },
@@ -209,7 +219,8 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                         TextButton(enabled=!state.busy,modifier=Modifier.weight(1f),
                                             onClick={event(WorkoutEvent.Edit(workout.id,set))}) {
-                                            Text(if (set.planned) "В плане · ${i+1}" else "Подход ${i+1}",Modifier.weight(1f))
+                                            val label = if (set.planned) "В плане · ${i+1}" else "Подход ${i+1}"
+                                            Text(if (set.warmup) "$label · Разминка" else label, Modifier.weight(1f))
                                             Text("${if(set.weight.isBlank()) "Свой вес" else "${set.weight} кг"} × ${set.reps}")
                                         }
                                         if (set.planned && set.id != null) {
@@ -224,6 +235,20 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                             }
                         }
                         item { OutlinedButton(enabled=!state.busy,onClick={event(WorkoutEvent.Edit(workout.id,SetDraft()))}) { Text("Добавить упражнение") } }
+                    }
+                }
+                if (state.templates.isNotEmpty()) {
+                    var choosingTemplate by rememberSaveable { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(enabled = !state.busy, onClick = { choosingTemplate = true }) { Text("Из шаблона") }
+                        DropdownMenu(expanded = choosingTemplate, onDismissRequest = { choosingTemplate = false }) {
+                            state.templates.forEach { template ->
+                                DropdownMenuItem(text = { Text(template.title) }, onClick = {
+                                    choosingTemplate = false
+                                    event(WorkoutEvent.StartTemplate(template.id))
+                                })
+                            }
+                        }
                     }
                 }
                 Button(enabled=!state.busy,modifier=Modifier.fillMaxWidth().padding(vertical=8.dp),onClick={event(WorkoutEvent.Create)}) { Text("Новая тренировка") }

@@ -14,13 +14,15 @@ import java.time.LocalDate
 
 data class WorkoutState(val day:LocalDate=LocalDate.now(), val list:List<Workout> = emptyList(),
     val session:Long?=null, val draft:SetDraft?=null, val busy:Boolean=false,val error:String?=null,
-    val previous: PreviousExercise? = null)
+    val previous: PreviousExercise? = null, val templates: List<WorkoutTemplate> = emptyList())
 sealed interface WorkoutEvent {
     data class Day(val day:LocalDate):WorkoutEvent
     data class Edit(val session:Long,val draft:SetDraft):WorkoutEvent
     data class Remove(val session:Long):WorkoutEvent
     data class Rename(val session: Long, val title: String) : WorkoutEvent
     data class Move(val session: Long, val date: LocalDate) : WorkoutEvent
+    data class StartTemplate(val id: Long) : WorkoutEvent
+    data class SaveTemplate(val session: Long, val title: String) : WorkoutEvent
     data class Repeat(val session: Long, val date: LocalDate) : WorkoutEvent
     data object Create:WorkoutEvent
     data object Close:WorkoutEvent
@@ -39,6 +41,8 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
         if(s.busy) return
         when(event) {
             is WorkoutEvent.Day -> update(event.day)
+            is WorkoutEvent.StartTemplate -> update(s.day) { startTemplate(event.id, s.day) }
+            is WorkoutEvent.SaveTemplate -> if (event.title.isNotBlank()) update(s.day) { saveTemplate(event.session, event.title) }
             is WorkoutEvent.Repeat -> s.list.find { it.id == event.session && it.sets.any { set -> !set.planned } }?.let { source ->
                 update(event.date) { repeatWorkout(source, event.date) }
             }
@@ -82,7 +86,7 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
     }
     private fun loadPrevious(day: LocalDate, session: Long, draft: SetDraft) {
         historyLookup?.cancel()
-        if (draft.id != null || draft.exercise.isBlank()) return
+        if ((!draft.planned && draft.id != null) || draft.exercise.isBlank()) return
         historyLookup = viewModelScope.launch {
             val previous = try {
                 withContext(Dispatchers.IO) {
@@ -90,7 +94,7 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
                 }
             } catch (e: SQLException) { null }
             val current = state.value
-            if (current.session == session && current.draft?.exercise == draft.exercise && current.draft.id == null) {
+            if (current.session == session && current.draft?.exercise == draft.exercise && current.draft.id == draft.id) {
                 state.value = current.copy(previous = previous)
             }
         }
@@ -101,16 +105,17 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
             try {
                 val rows=withContext(Dispatchers.IO) {
                     FoodStore(getApplication()).use { store ->
-                        if(change==null) return@use store.workouts(day)
+                        fun snapshot() = WorkoutState(day = day, list = store.workouts(day), templates = store.templates())
+                        if(change==null) return@use snapshot()
                         val db=store.writableDatabase
                         db.beginTransaction()
                         try {
                             store.change()
-                            store.workouts(day).also { db.setTransactionSuccessful() }
+                            snapshot().also { db.setTransactionSuccessful() }
                         } finally { db.endTransaction() }
                     }
                 }
-                state.value=WorkoutState(day=day,list=rows)
+                state.value=rows
             } catch(e:SQLException) {state.value=state.value.copy(busy=false,error="Не удалось открыть или сохранить тренировку")}
         }
     }

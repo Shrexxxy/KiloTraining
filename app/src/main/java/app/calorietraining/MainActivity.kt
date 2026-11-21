@@ -68,7 +68,7 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
     }
     state.draft?.let { draft ->
         state.library?.let { foods ->
-            FoodLibrary(foods, onChoose = { onEvent(FoodEvent.Edit(it.copy(meal = draft.meal, mealTime = draft.mealTime))) },
+            FoodLibrary(if (state.recipe == null) foods else foods.filter { it.weighted }, onChoose = { onEvent(FoodEvent.Edit(it.copy(meal = draft.meal, mealTime = draft.mealTime))) },
                 onClose = { onEvent(FoodEvent.BackToEditor) }, modifier = modifier,
                 search = { onEvent(FoodEvent.FindFood(it)) }, online = state.online)
             return
@@ -76,6 +76,10 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
         val back = if (state.confirmingDelete) FoodEvent.CancelDelete else FoodEvent.Close
         BackHandler { onEvent(back) }
         FoodEditor(draft, state, onEvent, modifier)
+        return
+    }
+    if (state.recipes != null) {
+        RecipeContent(state, onEvent, modifier)
         return
     }
     Scaffold(modifier = modifier, containerColor = colors.surface) { insets ->
@@ -140,8 +144,10 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
                     TextButton(onClick = { onEvent(FoodEvent.Day(state.day)) }) { Text("Повторить") }
                 }
             }
-            TextButton(onClick = { onEvent(FoodEvent.BrowseFoods) }, enabled = state.loaded && !state.busy,
-                modifier = Modifier.fillMaxWidth()) { Text("Найти продукт") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                TextButton(onClick = { onEvent(FoodEvent.BrowseFoods) }, enabled = state.loaded && !state.busy) { Text("Найти продукт") }
+                TextButton(onClick = { onEvent(FoodEvent.Recipes) }, enabled = state.loaded && !state.busy) { Text("Мои рецепты") }
+            }
             Button(onClick = { onEvent(FoodEvent.Scan) }, enabled = state.loaded && !state.busy,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium) { Text("Сканировать штрихкод") }
             OutlinedButton(onClick = { onEvent(FoodEvent.Edit(FoodDraft())) }, enabled = state.loaded && !state.busy,
@@ -209,7 +215,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(if (draft.id == null) "Новая запись" else "Изменить запись",
+                Text(if (state.recipe != null) "Ингредиент" else if (draft.id == null) "Новая запись" else "Изменить запись",
                     style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 TextButton(enabled = !busy, onClick = { onEvent(FoodEvent.Close) }) { Text("Отмена") }
             }
@@ -234,7 +240,8 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                         Text("Найти продукт")
                     }
                 }
-                if (draft.id == null && draft.barcode == null && state.recent.isNotEmpty()) {
+                if (state.recipe != null) TextButton(enabled = !busy, onClick = { onEvent(FoodEvent.Scan) }) { Text("Сканировать штрихкод") }
+                if (state.recipe == null && draft.id == null && draft.barcode == null && state.recent.isNotEmpty()) {
                     var expanded by remember { mutableStateOf(false) }
                     Box {
                         OutlinedButton(enabled = !busy, onClick = { expanded = true }) { Text("Недавние продукты") }
@@ -254,30 +261,32 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                 OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, Modifier.fillMaxWidth(),
                     enabled = !busy, label = { Text("Название") }, singleLine = true)
                 if (draft.barcode != null) Text(state.hint, style = MaterialTheme.typography.bodySmall)
-                if (draft.barcode == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (draft.barcode == null && state.recipe == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !draft.weighted, enabled = !busy, label = { Text("За порцию") },
                         onClick = { if (draft.weighted) edit(draft.copy(weighted = false, energy = "", macros = Macros())) })
                     FilterChip(selected = draft.weighted, enabled = !busy, label = { Text("На 100 г") },
                         onClick = { if (!draft.weighted) edit(draft.copy(weighted = true, energy = "", macros = Macros())) })
                 }
-                OutlinedTextField(draft.mealTime, { edit(draft.copy(mealTime = it)) }, Modifier.fillMaxWidth(),
-                    label = { Text("Время еды") }, placeholder = { Text("ЧЧ:ММ") }, singleLine = true,
-                    isError = !validMealTime(draft.mealTime), supportingText = { Text("Можно оставить пустым") })
-                var choosingMeal by rememberSaveable { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(enabled = !busy, onClick = { choosingMeal = true }) {
-                        Text("Приём пищи · ${draft.meal.label}")
-                    }
-                    DropdownMenu(expanded = choosingMeal, onDismissRequest = { choosingMeal = false }) {
-                        Meal.entries.forEach { meal ->
-                            DropdownMenuItem(text = { Text(meal.label) }, onClick = {
-                                choosingMeal = false
-                                edit(draft.copy(meal = meal))
-                            })
+                if (state.recipe == null) {
+                    OutlinedTextField(draft.mealTime, { edit(draft.copy(mealTime = it)) }, Modifier.fillMaxWidth(),
+                        label = { Text("Время еды") }, placeholder = { Text("ЧЧ:ММ") }, singleLine = true,
+                        isError = !validMealTime(draft.mealTime), supportingText = { Text("Можно оставить пустым") })
+                    var choosingMeal by rememberSaveable { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(enabled = !busy, onClick = { choosingMeal = true }) {
+                            Text("Приём пищи · ${draft.meal.label}")
+                        }
+                        DropdownMenu(expanded = choosingMeal, onDismissRequest = { choosingMeal = false }) {
+                            Meal.entries.forEach { meal ->
+                                DropdownMenuItem(text = { Text(meal.label) }, onClick = {
+                                    choosingMeal = false
+                                    edit(draft.copy(meal = meal))
+                                })
+                            }
                         }
                     }
                 }
-                if (draft.weighted) AmountField("Вес порции, г", draft.grams, !busy) { edit(draft.copy(grams = it)) }
+                if (draft.weighted) AmountField(if (state.recipe == null) "Вес порции, г" else "Вес ингредиента, г", draft.grams, !busy) { edit(draft.copy(grams = it)) }
                 AmountField(if (draft.weighted) "Ккал на 100 г" else "Ккал на порцию", draft.energy, !busy) {
                     edit(draft.copy(energy = it))
                 }
@@ -300,7 +309,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
 }
 
 @Composable
-private fun AmountField(label: String, value: String, enabled: Boolean, change: (String) -> Unit) {
+internal fun AmountField(label: String, value: String, enabled: Boolean, change: (String) -> Unit) {
     OutlinedTextField(value, change, modifier = Modifier.fillMaxWidth(), enabled = enabled,
         singleLine = true, label = { Text(label) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))

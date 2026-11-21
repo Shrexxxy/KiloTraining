@@ -31,6 +31,9 @@ data class FoodUiState(
     val error: String? = null,
     val scanning: Boolean = false,
     val hint: String = "",
+    val recipes: List<Recipe>? = null,
+    val recipe: Recipe? = null,
+    val ingredientIndex: Int? = null,
     val confirmingDelete: Boolean = false
 )
 
@@ -38,6 +41,12 @@ sealed interface FoodEvent {
     data class Day(val value: LocalDate) : FoodEvent
     data class Edit(val value: FoodDraft) : FoodEvent
     data class FindFood(val term: String) : FoodEvent
+    data object Recipes : FoodEvent
+    data object LeaveRecipes : FoodEvent
+    data class EditRecipe(val value: Recipe?) : FoodEvent
+    data class LogRecipe(val value: Recipe) : FoodEvent
+    data class Ingredient(val index: Int?) : FoodEvent
+    data object SaveRecipe : FoodEvent
     data object BrowseFoods : FoodEvent
     data object BackToEditor : FoodEvent
     data object Scan : FoodEvent
@@ -61,6 +70,19 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
         val current = state.value
         if (current.busy) return
         when (event) {
+            FoodEvent.Recipes -> refresh(current.day, showRecipes = true)
+            FoodEvent.LeaveRecipes -> state.value = current.copy(recipes = null, recipe = null, error = null)
+            is FoodEvent.EditRecipe -> state.value = current.copy(recipe = event.value, error = null)
+            is FoodEvent.LogRecipe -> event.value.food()?.let {
+                state.value = current.copy(recipes = null, recipe = null, draft = it.copy(mealTime = defaultMealTime(current.day)))
+            }
+            is FoodEvent.Ingredient -> {
+                val item = event.index?.let { current.recipe?.ingredients?.getOrNull(it) } ?: FoodDraft(weighted = true)
+                state.value = current.copy(draft = item, ingredientIndex = event.index, error = null)
+            }
+            FoodEvent.SaveRecipe -> current.recipe?.takeIf { it.food() != null }?.let {
+                refresh(current.day, showRecipes = true) { saveRecipe(it) }
+            }
             is FoodEvent.Day -> refresh(event.value)
             is FoodEvent.Goal -> refresh(current.day) { setDailyGoal(event.kcal) }
             is FoodEvent.CopyMeal -> if (current.day == event.source && current.rows.any { it.meal == event.meal }) {
@@ -82,9 +104,16 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
             }
             FoodEvent.Scan -> state.value = current.copy(scanning = true, error = null)
             is FoodEvent.Barcode -> lookup(event.code)
-            FoodEvent.Close -> state.value = current.copy(draft = null, scanning = false, hint = "", confirmingDelete = false, error = null)
+            FoodEvent.Close -> state.value = current.copy(draft = if (current.scanning && current.recipe != null) current.draft else null, scanning = false, hint = "", confirmingDelete = false, error = null)
             FoodEvent.Save -> current.draft?.takeIf { it.calories != null }?.let { draft ->
-                refresh(current.day) { save(current.day, draft) }
+                val recipe = current.recipe
+                if (recipe == null) refresh(current.day) { save(current.day, draft) }
+                else {
+                    val ingredients = recipe.ingredients.toMutableList()
+                    val index = current.ingredientIndex
+                    if (index == null) ingredients.add(draft) else ingredients[index] = draft
+                    state.value = current.copy(recipe = recipe.copy(ingredients = ingredients), draft = null, ingredientIndex = null)
+                }
             }
             FoodEvent.AskDelete -> state.value = current.copy(confirmingDelete = true)
             FoodEvent.CancelDelete -> state.value = current.copy(confirmingDelete = false)
@@ -126,14 +155,14 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun refresh(day: LocalDate, change: (FoodStore.() -> Unit)? = null) {
+    private fun refresh(day: LocalDate, showRecipes: Boolean = false, change: (FoodStore.() -> Unit)? = null) {
         state.value = state.value.copy(busy = true, error = null, confirmingDelete = false)
         viewModelScope.launch {
             try {
                 val snapshot = withContext(Dispatchers.IO) {
                     FoodStore(getApplication()).use { store ->
                         fun snapshot() = FoodUiState(day = day, rows = store.entries(day), recent = store.foodSuggestions(day, 12),
-                            goal = store.dailyGoal(), loaded = true)
+                            goal = store.dailyGoal(), loaded = true, recipes = if (showRecipes) store.recipes() else null)
                         if (change == null) return@use snapshot()
                         val db = store.writableDatabase
                         db.beginTransaction()
