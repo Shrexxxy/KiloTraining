@@ -17,15 +17,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
 
+/** Показывает статистику профиля и выбор темы дневника. */
 @Composable
-fun ProfileScreen(model: ProfileViewModel) {
+fun ProfileScreen(model: ProfileViewModel, mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     val state by model.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(model) { if (model.uiState.value.draft == null) model.refresh() }
-    ProfileContent(state, model::event)
+    ProfileContent(state, model::event, mode, onThemeChange)
 }
 
 @Composable
-private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit, modifier: Modifier = Modifier) {
+private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
+                           mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit, modifier: Modifier = Modifier) {
     val draft = state.draft
     var history by rememberSaveable { mutableStateOf(false) }
     Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { padding ->
@@ -62,6 +64,23 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit, m
                     }
                 }
             }
+            item { ProfileBlock("Оформление") {
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    ThemeMode.entries.forEachIndexed { index, option ->
+                        SegmentedButton(
+                            selected = mode == option,
+                            onClick = { onThemeChange(option) },
+                            shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                        ) {
+                            Text(when (option) {
+                                ThemeMode.SYSTEM -> "Как в системе"
+                                ThemeMode.LIGHT -> "Светлая"
+                                ThemeMode.DARK -> "Тёмная"
+                            })
+                        }
+                    }
+                }
+            } }
             if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             state.error?.let { message -> item {
                 Text(message, color = MaterialTheme.colorScheme.error)

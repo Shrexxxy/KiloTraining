@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -32,13 +30,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val diaryColors = lightColorScheme(
-    primary = Color(0xFF215337), onPrimary = Color.White,
-    primaryContainer = Color(0xFFDFEACD), onPrimaryContainer = Color(0xFF193323),
-    surface = Color(0xFFFFFBF3), onSurface = Color(0xFF1F2920),
-    surfaceContainerHigh = Color(0xFFFFFBF3), outlineVariant = Color(0xFFCFD2C4),
-    onSurfaceVariant = Color(0xFF515C50)
-)
 private val russian = Locale.forLanguageTag("ru")
 internal fun LocalDate.caption(): String {
     val pattern = if (year == LocalDate.now().year) "EEE, d MMMM" else "d MMMM yyyy"
@@ -48,8 +39,16 @@ internal fun LocalDate.caption(): String {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MaterialTheme(colorScheme = diaryColors) { DiaryApp() } }
+        val settings = ThemeSettings(this)
+        setContent {
+            var mode by remember { mutableStateOf(settings.mode) }
+            DiaryTheme(mode) {
+                DiaryApp(mode) { selected ->
+                    settings.mode = selected
+                    mode = selected
+                }
+            }
+        }
     }
 }
 
@@ -119,7 +118,7 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
                     }
                     items(entries, key = { it.id }) { row ->
                     Surface(onClick = { onEvent(FoodEvent.Edit(row.edit())) }, enabled = !state.busy,
-                        shape = MaterialTheme.shapes.large, color = colors.surface,
+                        shape = MaterialTheme.shapes.large, color = colors.surfaceContainer,
                         border = BorderStroke(1.dp, colors.outlineVariant)) {
                         Row(Modifier.fillMaxWidth().padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically) {
@@ -149,10 +148,9 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
                 TextButton(onClick = { onEvent(FoodEvent.Recipes) }, enabled = state.loaded && !state.busy) { Text("Мои рецепты") }
             }
             Button(onClick = { onEvent(FoodEvent.Scan) }, enabled = state.loaded && !state.busy,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium) { Text("Сканировать штрихкод") }
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Сканировать штрихкод") }
             OutlinedButton(onClick = { onEvent(FoodEvent.Edit(FoodDraft())) }, enabled = state.loaded && !state.busy,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).heightIn(min = 52.dp),
-                shape = MaterialTheme.shapes.medium) {
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).heightIn(min = 52.dp)) {
                 Text("Ввести вручную", style = MaterialTheme.typography.titleMedium)
             }
         }
@@ -302,8 +300,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
             }
             Button(onClick = { onEvent(FoodEvent.Save) },
                 enabled = draft.calories != null && !busy && !state.confirmingDelete,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).heightIn(min = 52.dp),
-                shape = MaterialTheme.shapes.medium) { Text("Сохранить") }
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).heightIn(min = 52.dp)) { Text("Сохранить") }
         }
     }
 }
@@ -318,7 +315,7 @@ internal fun AmountField(label: String, value: String, enabled: Boolean, change:
 @Preview(locale = "ru", showBackground = true)
 @Composable
 private fun DiaryPreview() {
-    MaterialTheme(colorScheme = diaryColors) {
+    DiaryTheme(ThemeMode.SYSTEM) {
         FoodContent(FoodUiState(day = LocalDate.of(2026, 11, 20), loaded = true, rows = listOf(
             FoodEntry(1, "Овсяная каша", "140", "200", BigDecimal("280")),
             FoodEntry(2, "Йогурт", "90", "150", BigDecimal("135")),

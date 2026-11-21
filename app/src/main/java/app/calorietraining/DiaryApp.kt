@@ -19,8 +19,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
+/** Показывает разделы дневника и передаёт выбор оформления в профиль. */
 @Composable
-fun DiaryApp() {
+fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     var tab by rememberSaveable { mutableStateOf("Питание") }
     val training = tab == "Тренировки"
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as android.app.Application
@@ -75,7 +76,9 @@ fun DiaryApp() {
                 focusSession = requestedSession, onFocused = { requestedSession = null }) {
                 RestTimer(restUntil, onDeadlineChanged = { restUntil = it })
             }
-            else if (tab == "Профиль") ProfileScreen(viewModel(key = "profile-${backupState.revision}") { ProfileViewModel(app) })
+            else if (tab == "Профиль") ProfileScreen(
+                viewModel(key = "profile-${backupState.revision}") { ProfileViewModel(app) }, mode, onThemeChange
+            )
             else FoodContent(foodState,food::onEvent)
         }
         if(!editing) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
