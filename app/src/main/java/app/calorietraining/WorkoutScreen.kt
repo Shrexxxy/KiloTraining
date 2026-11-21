@@ -24,12 +24,9 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
     restTimer: @Composable () -> Unit = {}) {
     val colors=MaterialTheme.colorScheme
     val draft=state.draft
-    var onlyPending by rememberSaveable(state.day.toEpochDay()) { mutableStateOf(false) }
-    fun visibleGroups(workout: Workout) = workout.sets.groupBy { it.group }.values.filter { sets ->
-        !onlyPending || sets.any { it.planned }
-    }
     Scaffold(modifier=modifier,containerColor=colors.surface) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=20.dp)) {
+            DelayedProgress(state.busy)
             if(draft != null && state.session!=null) {
                 BackHandler { event(WorkoutEvent.Close) }
                 var confirmDelete by rememberSaveable(draft.id) { mutableStateOf(false) }
@@ -57,10 +54,19 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                 Column(Modifier.weight(1f).imePadding().verticalScroll(rememberScrollState()),
                     verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     Text("Подход",Modifier.padding(top=16.dp),style=MaterialTheme.typography.headlineLarge)
-                    OutlinedButton(enabled = !state.busy, onClick = { choosing = true }) { Text("Выбрать из каталога") }
                     val original = state.list.firstOrNull { it.id == state.session }?.sets?.firstOrNull { it.group == draft.group }
-                    OutlinedTextField(draft.exercise,{edit(draft.copy(exercise=it))},label={Text("Название упражнения")},
-                        singleLine=true,enabled=!state.busy)
+                    val catalogExercise = exerciseCatalog.firstOrNull { it.name == draft.exercise }
+                    if (catalogExercise != null) {
+                        Text(draft.exercise, style = MaterialTheme.typography.titleMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { choosing = true }) { Text("Сменить") }
+                            TextButton(onClick = { edit(draft.copy(exercise = "")) }) { Text("Своё упражнение") }
+                        }
+                    } else {
+                        OutlinedButton(onClick = { choosing = true }) { Text("Выбрать из каталога") }
+                        OutlinedTextField(draft.exercise, { edit(draft.copy(exercise = it)) },
+                            label = { Text("Название упражнения") }, singleLine = true)
+                    }
                     photoForExercise(draft.exercise)?.let { ExerciseFrames(it) }
                     state.previous?.let { previous ->
                         Text("Прошлая тренировка · ${previous.day.caption()}", style = MaterialTheme.typography.titleMedium)
@@ -69,7 +75,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                 verticalAlignment = Alignment.CenterVertically) {
                                 val weight = if (set.weight.isBlank()) "Свой вес" else "${set.weight} кг"
                                 Text("${index + 1}.  $weight × ${set.reps}" + if (set.warmup) " · разминка" else "")
-                                TextButton(enabled = !state.busy, onClick = {
+                                TextButton(onClick = {
                                     edit(draft.copy(weight = set.weight, reps = set.reps, warmup = set.warmup))
                                 }) { Text("Повторить") }
                             }
@@ -79,21 +85,18 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                         Text("Название изменится у всех подходов этого упражнения.", style = MaterialTheme.typography.bodySmall)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = !draft.warmup, enabled = !state.busy,
-                            onClick = { edit(draft.copy(warmup = false)) }, label = { Text("Рабочий") })
-                        FilterChip(selected = draft.warmup, enabled = !state.busy,
-                            onClick = { edit(draft.copy(warmup = true)) }, label = { Text("Разминочный") })
+                        FilterChip(selected = !draft.warmup, onClick = { edit(draft.copy(warmup = false)) }, label = { Text("Рабочий") })
+                        FilterChip(selected = draft.warmup, onClick = { edit(draft.copy(warmup = true)) }, label = { Text("Разминочный") })
                     }
-                    OutlinedTextField(draft.weight,{edit(draft.copy(weight=it))},label={Text("Вес, кг")},singleLine=true,
-                        supportingText={Text("Оставьте пустым для своего веса")},enabled=!state.busy,
-                        keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
+                    OutlinedTextField(draft.weight,{edit(draft.copy(weight=it))},label={Text(if (usesDumbbell(draft.exercise)) "Вес одной гантели, кг" else "Вес, кг")},singleLine=true,
+                        supportingText={Text("Оставьте пустым для своего веса")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
                     OutlinedTextField(draft.reps,{edit(draft.copy(reps=it))},label={Text("Повторы")},singleLine=true,
-                        enabled=!state.busy,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number))
+                        keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number))
                     state.error?.let {Text(it,color=colors.error)}
-                    Button(enabled=draft.valid && !state.busy,onClick={event(WorkoutEvent.Save())}) {
+                    Button(enabled=draft.valid,onClick={event(WorkoutEvent.Save())}) {
                         Text(if (draft.planned) "Отметить выполненным" else "Сохранить")
                     }
-                    OutlinedButton(enabled = draft.valid && !state.busy,
+                    OutlinedButton(enabled = draft.valid,
                         onClick = { event(WorkoutEvent.Save(planned = true)) }) {
                         Text(when {
                             draft.id == null -> "Добавить в план"
@@ -101,18 +104,14 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                             else -> "Вернуть в план"
                         })
                     }
-                    TextButton(enabled=!state.busy,onClick={event(WorkoutEvent.Close)}) { Text("Отмена") }
-                    if (draft.id != null) TextButton(enabled = !state.busy, onClick = { confirmDelete = true }) {
+                    TextButton(onClick={event(WorkoutEvent.Close)}) { Text("Отмена") }
+                    if (draft.id != null) TextButton(onClick = { confirmDelete = true }) {
                         Text("Удалить подход", color = colors.error)
                     }
                 }
             } else {
                 Text("Тренировка", Modifier.padding(top = 16.dp, bottom = 12.dp), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
-                DiaryDaySelector(state.day, !state.busy, { event(WorkoutEvent.Day(it)) })
-                if (state.list.isNotEmpty()) {
-                    FilterChip(selected = onlyPending, onClick = { onlyPending = !onlyPending },
-                        label = { Text("Только оставшиеся") })
-                }
+                DiaryDaySelector(state.day, true, { event(WorkoutEvent.Day(it)) })
                 state.error?.let {Text(it,color=colors.error)}
                 val listState = rememberLazyListState()
                 LaunchedEffect(focusSession, state.list, state.busy) {
@@ -120,7 +119,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                     val position = state.list.indexOfFirst { it.id == focusSession }
                     if (position >= 0) {
                         val timerRows = if (state.day == java.time.LocalDate.now()) 1 else 0
-                        val earlierRows = state.list.take(position).sumOf { 2 + visibleGroups(it).size }
+                        val earlierRows = state.list.take(position).sumOf { 2 + it.sets.distinctBy { set -> set.group }.size }
                         listState.scrollToItem(timerRows + earlierRows)
                         onFocused()
                     }
@@ -152,7 +151,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                                 Text(if (valid) "Можно оставить пустым" else "Введите от 1 до 1440 минут")
                                             })
                                     },
-                                    confirmButton = { TextButton(enabled = valid && !state.busy, onClick = {
+                                    confirmButton = { TextButton(enabled = valid, onClick = {
                                         event(WorkoutEvent.Duration(workout.id, minutes))
                                         editingDuration = false
                                     }) { Text("Сохранить") } },
@@ -170,11 +169,11 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                             Text("$label · ${state.day.caption()}")
                                             if (repeating) Text("Подходов в плане: ${workout.sets.count { !it.planned }}. Отмечайте их по мере выполнения.")
                                             Text("Новая дата", style = MaterialTheme.typography.labelLarge)
-                                            DiaryDaySelector(destination, !state.busy, { moveDate = it.toEpochDay() })
+                                            DiaryDaySelector(destination, true, { moveDate = it.toEpochDay() })
                                         }
                                     },
                                     confirmButton = {
-                                        Button(enabled = !state.busy && (repeating || destination != state.day), onClick = {
+                                        Button(enabled = (repeating || destination != state.day), onClick = {
                                             moveDate = null
                                             event(if (repeating) WorkoutEvent.Repeat(workout.id, destination)
                                                 else WorkoutEvent.Move(workout.id, destination))
@@ -194,7 +193,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                     OutlinedTextField(title, { title = it }, singleLine = true,
                                         label = { Text("Название") }, placeholder = { Text("Спина и бицепс") })
                                 },
-                                confirmButton = { TextButton(enabled = !state.busy && (!savingTemplate || title.isNotBlank()), onClick = {
+                                confirmButton = { TextButton(enabled = (!savingTemplate || title.isNotBlank()), onClick = {
                                     event(if (savingTemplate) WorkoutEvent.SaveTemplate(workout.id, title) else WorkoutEvent.Rename(workout.id, title))
                                     renaming = false
                                     savingTemplate = false
@@ -204,7 +203,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                                 Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                                 Box {
-                                    TextButton(enabled = !state.busy, onClick = { menu = true }) { Text("Действия") }
+                                    TextButton(onClick = { menu = true }) { Text("Действия") }
                                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                         DropdownMenuItem(text = { Text(if (workout.title.isBlank()) "Задать название" else "Переименовать") },
                                             onClick = { menu = false; confirm = false; title = workout.title; renaming = true })
@@ -225,21 +224,21 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                 }
                             }
                             if(confirm) {
-                                OutlinedButton(enabled=!state.busy,onClick={event(WorkoutEvent.Remove(workout.id))}) { Text("Удалить тренировку целиком") }
+                                OutlinedButton(onClick={event(WorkoutEvent.Remove(workout.id))}) { Text("Удалить тренировку целиком") }
                                 TextButton(onClick = { confirm = false }) { Text("Отмена") }
                             }
                             WorkoutMetrics(workout)
                             workout.nextPlanned()?.let { next ->
                                 Spacer(Modifier.height(8.dp))
-                                NextSetCard(next, !state.busy && next.id != null) {
+                                NextSetCard(next, next.id != null) {
                                     next.id?.let { event(WorkoutEvent.Complete(workout.id, it)) }
                                 }
                             }
                         }
-                        items(visibleGroups(workout), key = { "exercise:${workout.id}:${it.first().group}" }) { sets ->
-                            ExerciseCard(sets, onlyPending, !state.busy) { event(WorkoutEvent.Edit(workout.id, it)) }
+                        items(workout.sets.groupBy { it.group }.values.toList(), key = { "exercise:${workout.id}:${it.first().group}" }) { sets ->
+                            ExerciseCard(sets) { event(WorkoutEvent.Edit(workout.id, it)) }
                         }
-                        item { OutlinedButton(enabled=!state.busy,onClick={event(WorkoutEvent.Edit(workout.id,SetDraft()))}) { Text("Добавить упражнение") } }
+                        item { OutlinedButton(onClick={event(WorkoutEvent.Edit(workout.id,SetDraft()))}) { Text("Добавить упражнение") } }
                     }
                 }
                 if (state.templates.isNotEmpty()) {
@@ -251,7 +250,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                         })
                     var choosingTemplate by rememberSaveable { mutableStateOf(false) }
                     Box {
-                        FilledTonalButton(enabled = !state.busy, onClick = { choosingTemplate = true }) { Text("Из шаблона") }
+                        FilledTonalButton(onClick = { choosingTemplate = true }) { Text("Из шаблона") }
                         DropdownMenu(expanded = choosingTemplate, onDismissRequest = { choosingTemplate = false }) {
                             state.templates.forEach { template ->
                                 DropdownMenuItem(text = { Text(template.title) }, onClick = {
@@ -267,7 +266,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                         }
                     }
                 }
-                Button(enabled=!state.busy,modifier=Modifier.fillMaxWidth().padding(vertical=8.dp).height(54.dp),onClick={event(WorkoutEvent.Create)}) { Text("Новая тренировка") }
+                Button(modifier=Modifier.fillMaxWidth().padding(vertical=8.dp).height(54.dp),onClick={event(WorkoutEvent.Create)}) { Text("Новая тренировка") }
             }
         }
     }

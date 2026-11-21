@@ -22,7 +22,10 @@ import java.time.LocalDate
 fun ProfileScreen(model: ProfileViewModel, mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     val state by model.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(model) { if (model.uiState.value.draft == null) model.refresh() }
-    ProfileContent(state, model::event, mode, onThemeChange)
+    Box {
+        ProfileContent(state, model::event, mode, onThemeChange)
+        DelayedProgress(state.busy)
+    }
 }
 
 @Composable
@@ -37,17 +40,17 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
             var confirm by rememberSaveable(draft.day.toEpochDay()) { mutableStateOf(false) }
             Column(body.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Замер тела", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium)
-                DiaryDaySelector(draft.day, !state.busy, { event(ProfileEvent.Open(it)) })
+                DiaryDaySelector(draft.day, true, { event(ProfileEvent.Open(it)) })
                 OutlinedTextField(draft.weight, { event(ProfileEvent.Edit(draft.copy(weight = it))) }, singleLine = true,
-                    enabled = !state.busy, label = { Text("Вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                    label = { Text("Вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 OutlinedTextField(draft.fat, { event(ProfileEvent.Edit(draft.copy(fat = it))) }, singleLine = true,
-                    enabled = !state.busy, label = { Text("Жир, %") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                    label = { Text("Жир, %") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 Text("Можно заполнить одно поле. На каждую дату сохраняется один замер.")
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                Button(enabled = !state.busy && draft.valid && draft.day <= LocalDate.now(), onClick = { event(ProfileEvent.Save) }) { Text("Сохранить замер") }
-                TextButton(enabled = !state.busy, onClick = { event(ProfileEvent.Close) }) { Text("Отмена") }
+                Button(enabled = draft.valid && draft.day <= LocalDate.now(), onClick = { event(ProfileEvent.Save) }) { Text("Сохранить замер") }
+                TextButton(onClick = { event(ProfileEvent.Close) }) { Text("Отмена") }
                 if (state.stats?.measurements?.any { it.day == draft.day } == true) {
-                    TextButton(enabled = !state.busy, onClick = { confirm = true }) { Text("Удалить замер") }
+                    TextButton(onClick = { confirm = true }) { Text("Удалить замер") }
                 }
                 if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text("Удалить замер?") },
                     text = { Text(draft.day.caption()) },
@@ -59,8 +62,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                 Text("Мой профиль", style = MaterialTheme.typography.headlineLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((days,label) in listOf(7 to "7 дней",30 to "30 дней",0 to "Всё время")) {
-                        FilterChip(selected = state.days == days, enabled = !state.busy,
-                            onClick = { event(ProfileEvent.Period(days)) }, label = { Text(label) })
+                        FilterChip(selected = state.days == days, onClick = { event(ProfileEvent.Period(days)) }, label = { Text(label) })
                     }
                 }
             }
@@ -73,21 +75,20 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                             shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
                         ) {
                             Text(when (option) {
-                                ThemeMode.SYSTEM -> "Как в системе"
+                                ThemeMode.SYSTEM -> "Авто"
                                 ThemeMode.LIGHT -> "Светлая"
                                 ThemeMode.DARK -> "Тёмная"
-                            })
+                            }, maxLines = 1, softWrap = false)
                         }
                     }
                 }
             } }
-            if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             state.error?.let { message -> item {
                 Text(message, color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = { event(ProfileEvent.Period(state.days)) }) { Text("Повторить") }
             } }
             val profile = state.stats
-            if (profile != null && !state.busy) {
+            if (profile != null) {
                 val stats = profile.current
                 profile.previous?.let { previous ->
                     item { ProfileBlock("Изменения за период") {

@@ -22,7 +22,7 @@ class ProfileThemeTest {
         ui.onNodeWithText("Профиль").performClick()
         ui.onNodeWithText("Тёмная").performClick().assertIsSelected()
         assertEquals(ThemeMode.DARK, ThemeSettings(ui.activity).mode)
-        ui.onNodeWithText("Как в системе").performClick().assertIsSelected()
+        ui.onNodeWithText("Авто").performClick().assertIsSelected()
         assertEquals(ThemeMode.SYSTEM, ThemeSettings(ui.activity).mode)
     }
 }

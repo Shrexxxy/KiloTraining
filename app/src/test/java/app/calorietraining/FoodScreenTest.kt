@@ -26,7 +26,8 @@ class FoodScreenTest {
 
     private fun expectTotal(value: String) {
         composeTestRule.waitUntil(10_000) {
-            composeTestRule.onAllNodesWithText(value).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithText("Вручную").fetchSemanticsNodes().isNotEmpty() &&
+                composeTestRule.onAllNodesWithText(value).fetchSemanticsNodes().isNotEmpty()
         }
         text(value).assertIsDisplayed()
     }

@@ -20,7 +20,7 @@ internal fun RecipeContent(state: FoodUiState, event: (FoodEvent) -> Unit, modif
     Column(modifier.fillMaxSize().imePadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(if (recipe == null) "Мои рецепты" else "Рецепт", style = MaterialTheme.typography.headlineMedium)
-            TextButton(enabled = !state.busy, onClick = ::back) { Text(if (recipe == null) "Назад" else "Отмена") }
+            TextButton(onClick = ::back) { Text(if (recipe == null) "Назад" else "Отмена") }
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (recipe == null) {
@@ -46,7 +46,7 @@ internal fun RecipeContent(state: FoodUiState, event: (FoodEvent) -> Unit, modif
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item { OutlinedTextField(recipe.name, { edit(recipe.copy(name = it)) }, Modifier.fillMaxWidth(),
                     singleLine = true, label = { Text("Название блюда") }) }
-                item { AmountField("Вес готового блюда без посуды, г", recipe.cooked, !state.busy) { edit(recipe.copy(cooked = it)) } }
+                item { AmountField("Вес готового блюда без посуды, г", recipe.cooked, true) { edit(recipe.copy(cooked = it)) } }
                 itemsIndexed(recipe.ingredients) { index, ingredient ->
                     OutlinedCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
@@ -65,7 +65,7 @@ internal fun RecipeContent(state: FoodUiState, event: (FoodEvent) -> Unit, modif
                     Text(food.copy(grams="100").portionMacros.label())
                 }
             }
-            Button(enabled = food != null && !state.busy, onClick = { event(FoodEvent.SaveRecipe) }) { Text("Сохранить рецепт") }
+            Button(enabled = food != null, onClick = { event(FoodEvent.SaveRecipe) }) { Text("Сохранить рецепт") }
         }
     }
 }

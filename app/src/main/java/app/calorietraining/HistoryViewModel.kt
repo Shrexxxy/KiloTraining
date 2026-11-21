@@ -69,8 +69,8 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
     private var pending: Job? = null
 
     fun load(monday: LocalDate = state.value.monday, exercise: String? = state.value.exercise) {
-        pending?.cancel()
-        state.value = state.value.copy(monday = monday, exercise = exercise, loading = true, error = false)
+        if (pending?.isActive == true) return
+        state.value = state.value.copy(loading = true, error = false)
         pending = viewModelScope.launch {
             try {
                 state.value = withContext(Dispatchers.IO) {

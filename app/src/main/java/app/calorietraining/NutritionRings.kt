@@ -47,14 +47,14 @@ private data class Metric(val name: String, val total: BigDecimal?, val goal: In
 @Composable
 internal fun NutritionRings(
     calories: BigDecimal, macros: Macros, goals: DailyGoals, hasEntries: Boolean,
-    today: Boolean, enabled: Boolean, edit: () -> Unit
+    today: Boolean, edit: () -> Unit
 ) {
     val accents = LocalDiaryAccents.current
     val metrics = listOf(
         Metric("Калории", calories.takeIf { hasEntries || goals.kcal != null }, goals.kcal, "ккал", accents.kcal),
+        Metric("Углеводы", macros.carbs.amount(), goals.macros.carbs, "г", accents.carbs),
         Metric("Белки", macros.protein.amount(), goals.macros.protein, "г", accents.protein),
-        Metric("Жиры", macros.fat.amount(), goals.macros.fat, "г", accents.fat),
-        Metric("Углеводы", macros.carbs.amount(), goals.macros.carbs, "г", accents.carbs)
+        Metric("Жиры", macros.fat.amount(), goals.macros.fat, "г", accents.fat)
     ).filter { it.total != null || it.goal != null }
     val rings = metrics.filter { it.ring != null }
     Column(Modifier.fillMaxWidth()) {
@@ -91,7 +91,7 @@ internal fun NutritionRings(
         }
         if (metrics.any { it.total == null }) Text("Прочерк означает, что для итога не хватает данных",
             Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (today) TextButton(onClick = edit, enabled = enabled) {
+        if (today) TextButton(onClick = edit) {
             Text(if (goals == DailyGoals()) "Задать дневную цель" else "Изменить цель")
         }
     }

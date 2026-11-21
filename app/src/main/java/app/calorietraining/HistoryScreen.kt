@@ -38,8 +38,8 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                 FilterChip(!showTraining, { showTraining = false }, label = { Text("Калории") })
                 FilterChip(showTraining, { showTraining = true }, label = { Text("Упражнения") })
             }
+            DelayedProgress(state.loading)
             when {
-                state.loading -> LinearProgressIndicator(Modifier.fillMaxWidth())
                 state.error -> {
                     Text("Не удалось загрузить историю")
                     TextButton(onClick = { load(state.monday, state.exercise) }) { Text("Повторить") }
@@ -79,11 +79,11 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
-                            DateArrow("‹", "Предыдущая неделя", true) { load(state.monday.minusWeeks(1), state.exercise) }
+                            DateArrow(R.drawable.ic_chevron_left, "Предыдущая неделя", true) { load(state.monday.minusWeeks(1), state.exercise) }
                             Text("${state.monday.caption()} — ${state.monday.plusDays(6).caption()}",
                                 Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 style = MaterialTheme.typography.titleSmall)
-                            DateArrow("›", "Следующая неделя", true) { load(state.monday.plusWeeks(1), state.exercise) }
+                            DateArrow(R.drawable.ic_chevron_right, "Следующая неделя", true) { load(state.monday.plusWeeks(1), state.exercise) }
                         }
                         Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.large) {
                             Column(Modifier.fillMaxWidth().padding(16.dp)) {

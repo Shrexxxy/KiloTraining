@@ -16,25 +16,25 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 
 internal data class ExercisePhoto(
-    val name: String, val muscle: String, val keywords: String, val first: Int, val second: Int
+    val name: String, val muscle: String, val keywords: String, val first: Int, val second: Int, val dumbbell: Boolean = false
 )
 
 internal val exerciseCatalog = listOf(
     ExercisePhoto("Тяга вертикального блока", "Спина", "верхний блок спина", R.drawable.ex_widegrip_lat_pulldown_0, R.drawable.ex_widegrip_lat_pulldown_1),
     ExercisePhoto("Жим штанги лёжа", "Грудь", "жим лежа штанга", R.drawable.ex_barbell_bench_press_medium_grip_0, R.drawable.ex_barbell_bench_press_medium_grip_1),
-    ExercisePhoto("Жим гантелей лёжа", "Грудь", "гантели", R.drawable.ex_dumbbell_bench_press_0, R.drawable.ex_dumbbell_bench_press_1),
-    ExercisePhoto("Жим гантелей на наклонной скамье", "Грудь", "гантели", R.drawable.ex_incline_dumbbell_press_0, R.drawable.ex_incline_dumbbell_press_1),
+    ExercisePhoto("Жим гантелей лёжа", "Грудь", "гантели", R.drawable.ex_dumbbell_bench_press_0, R.drawable.ex_dumbbell_bench_press_1, dumbbell = true),
+    ExercisePhoto("Жим гантелей на наклонной скамье", "Грудь", "гантели", R.drawable.ex_incline_dumbbell_press_0, R.drawable.ex_incline_dumbbell_press_1, dumbbell = true),
     ExercisePhoto("Тяга горизонтального блока", "Спина", "сидя нижний блок", R.drawable.ex_seated_cable_rows_0, R.drawable.ex_seated_cable_rows_1),
-    ExercisePhoto("Тяга гантели одной рукой", "Спина", "гантели в наклоне", R.drawable.ex_onearm_dumbbell_row_0, R.drawable.ex_onearm_dumbbell_row_1),
+    ExercisePhoto("Тяга гантели одной рукой", "Спина", "гантели в наклоне", R.drawable.ex_onearm_dumbbell_row_0, R.drawable.ex_onearm_dumbbell_row_1, dumbbell = true),
     ExercisePhoto("Подтягивания", "Спина", "турник собственный вес", R.drawable.ex_pullups_0, R.drawable.ex_pullups_1),
     ExercisePhoto("Становая тяга", "Спина", "штанга", R.drawable.ex_barbell_deadlift_0, R.drawable.ex_barbell_deadlift_1),
     ExercisePhoto("Приседания со штангой", "Ноги", "присед", R.drawable.ex_barbell_squat_0, R.drawable.ex_barbell_squat_1),
     ExercisePhoto("Жим ногами", "Ноги", "тренажёр", R.drawable.ex_leg_press_0, R.drawable.ex_leg_press_1),
     ExercisePhoto("Разгибание ног сидя", "Ноги", "квадрицепс тренажёр", R.drawable.ex_leg_extensions_0, R.drawable.ex_leg_extensions_1),
     ExercisePhoto("Сгибание ног лёжа", "Ноги", "бицепс бедра тренажёр", R.drawable.ex_lying_leg_curls_0, R.drawable.ex_lying_leg_curls_1),
-    ExercisePhoto("Жим гантелей сидя", "Плечи", "гантели вверх", R.drawable.ex_dumbbell_shoulder_press_0, R.drawable.ex_dumbbell_shoulder_press_1),
-    ExercisePhoto("Подъём гантелей в стороны", "Плечи", "махи разведения гантели", R.drawable.ex_side_lateral_raise_0, R.drawable.ex_side_lateral_raise_1),
-    ExercisePhoto("Сгибание рук молотком", "Руки", "молотки бицепс гантели", R.drawable.ex_hammer_curls_0, R.drawable.ex_hammer_curls_1),
+    ExercisePhoto("Жим гантелей сидя", "Плечи", "гантели вверх", R.drawable.ex_dumbbell_shoulder_press_0, R.drawable.ex_dumbbell_shoulder_press_1, dumbbell = true),
+    ExercisePhoto("Подъём гантелей в стороны", "Плечи", "махи разведения гантели", R.drawable.ex_side_lateral_raise_0, R.drawable.ex_side_lateral_raise_1, dumbbell = true),
+    ExercisePhoto("Сгибание рук молотком", "Руки", "молотки бицепс гантели", R.drawable.ex_hammer_curls_0, R.drawable.ex_hammer_curls_1, dumbbell = true),
     ExercisePhoto("Разгибание рук на блоке с канатом", "Руки", "трицепс канатная рукоять", R.drawable.ex_triceps_pushdown_rope_attachment_0, R.drawable.ex_triceps_pushdown_rope_attachment_1)
 )
 
@@ -42,6 +42,9 @@ private fun String.searchKey() = trim().lowercase().replace('ё', 'е')
 internal fun photoForExercise(name: String) = exerciseCatalog.firstOrNull {
     it.name.searchKey() == name.searchKey()
 }
+
+internal fun usesDumbbell(name: String): Boolean =
+    photoForExercise(name)?.dumbbell ?: ("гантел" in name.searchKey())
 
 @Composable
 internal fun ExercisePicker(onSelect: (ExercisePhoto) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {

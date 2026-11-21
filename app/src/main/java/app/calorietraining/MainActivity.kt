@@ -69,6 +69,14 @@ fun FoodScreen(modifier: Modifier = Modifier, model: FoodViewModel = viewModel()
 
 @Composable
 fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier) {
+        FoodBody(state, onEvent)
+        DelayedProgress(state.busy)
+    }
+}
+
+@Composable
+private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     if (state.scanning) {
         ScannerScreen(state, onEvent)
@@ -102,25 +110,29 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
         Column(Modifier.fillMaxSize().padding(insets).padding(horizontal = 16.dp)) {
             Text("Питание", Modifier.padding(top = 16.dp, bottom = 12.dp),
                 style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
-            DiaryDaySelector(state.day, !state.busy, { onEvent(FoodEvent.Day(it)) })
+            DiaryDaySelector(state.day, true, { onEvent(FoodEvent.Day(it)) })
             Spacer(Modifier.height(16.dp))
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (state.loaded) item {
-                    NutritionRings(total, macros, state.goals, state.rows.isNotEmpty(), today, !state.busy) { editingGoal = true }
+                    Surface(color = colors.surfaceContainer, contentColor = colors.onSurface, shape = MaterialTheme.shapes.large) {
+                        Box(Modifier.padding(16.dp)) {
+                            NutritionRings(total, macros, state.goals, state.rows.isNotEmpty(), today) { editingGoal = true }
+                        }
+                    }
                 }
                 if (state.loaded && state.rows.isEmpty()) item {
                     Text("За этот день пока нет записей", Modifier.padding(vertical = 24.dp),
                         style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
                 }
-                if (state.rows.isNotEmpty()) item { MealCard(state, total, onEvent) }
-                if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                state.rows.groupBy { it.meal }.toSortedMap().forEach { (meal, entries) ->
+                    item(key = meal.name) { MealCard(state.day, meal, entries, total, onEvent) }
+                }
                 if (state.error != null && state.draft == null) item {
                     Text(state.error, color = colors.error)
                     TextButton(onClick = { onEvent(FoodEvent.Day(state.day)) }) { Text("Повторить") }
                 }
             }
-            val enabled = state.loaded && !state.busy
-            Button(onClick = { onEvent(FoodEvent.Scan) }, enabled = enabled,
+            Button(onClick = { onEvent(FoodEvent.Scan) },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(54.dp)) {
                 Icon(painterResource(R.drawable.ic_barcode), contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -132,7 +144,7 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
                     Triple("Рецепты", "Мои рецепты", FoodEvent.Recipes),
                     Triple("Вручную", "Ввести вручную", FoodEvent.Edit(FoodDraft()))
                 ).forEach { (label, description, event) ->
-                    FilledTonalButton(onClick = { onEvent(event) }, enabled = enabled,
+                    FilledTonalButton(onClick = { onEvent(event) },
                         modifier = Modifier.weight(1f).semantics { contentDescription = description },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
                         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
@@ -145,34 +157,30 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
 }
 
 @Composable
-private fun MealCard(state: FoodUiState, total: BigDecimal, onEvent: (FoodEvent) -> Unit) {
+private fun MealCard(day: LocalDate, meal: Meal, entries: List<FoodEntry>, total: BigDecimal, onEvent: (FoodEvent) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val barShape = RoundedCornerShape(3.dp)
     Surface(shape = MaterialTheme.shapes.large, color = colors.surfaceContainer, contentColor = colors.onSurface) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            val groups = state.rows.groupBy { it.meal }.toSortedMap()
-            groups.entries.forEachIndexed { index, (meal, entries) ->
-                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp), color = colors.outlineVariant)
-                MealGroupHeader(state.day, meal, entries, !state.busy) { destination ->
-                    onEvent(FoodEvent.CopyMeal(state.day, destination, meal))
-                }
-                val fraction = if (total.signum() == 0) 0f else
-                    entries.sumOf { it.calories }.divide(total, MathContext.DECIMAL64).toFloat().coerceIn(0f, 1f)
-                Box(Modifier.fillMaxWidth().height(5.dp).background(colors.outlineVariant, barShape)) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(LocalDiaryAccents.current.kcal, barShape))
-                }
-                entries.forEach { row ->
-                    Row(Modifier.fillMaxWidth().clickable(enabled = !state.busy) { onEvent(FoodEvent.Edit(row.edit())) }
-                        .heightIn(min = 48.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(row.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                            val portion = if (row.grams.isEmpty()) "1 порция" else "${row.grams} г"
-                            Text(listOf(row.mealTime, portion).filter(String::isNotBlank).joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                        }
-                        Text("${row.calories.display()} ккал", Modifier.padding(start = 8.dp),
-                            color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+            MealGroupHeader(day, meal, entries, true) { destination ->
+                onEvent(FoodEvent.CopyMeal(day, destination, meal))
+            }
+            val fraction = if (total.signum() == 0) 0f else
+                entries.sumOf { it.calories }.divide(total, MathContext.DECIMAL64).toFloat().coerceIn(0f, 1f)
+            Box(Modifier.fillMaxWidth().height(5.dp).background(colors.outlineVariant, barShape)) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(LocalDiaryAccents.current.kcal, barShape))
+            }
+            entries.forEach { row ->
+                Row(Modifier.fillMaxWidth().clickable { onEvent(FoodEvent.Edit(row.edit())) }
+                    .heightIn(min = 48.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(row.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        val portion = if (row.grams.isEmpty()) "1 порция" else "${row.grams} г"
+                        Text(listOf(row.mealTime, portion).filter(String::isNotBlank).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                     }
+                    Text("${row.calories.display()} ккал", Modifier.padding(start = 8.dp),
+                        color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -214,30 +222,29 @@ private fun GoalField(label: String, value: String, change: (String) -> Unit) {
 }
 
 @Composable
-internal fun DateArrow(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun DateArrow(icon: Int, label: String, enabled: Boolean, onClick: () -> Unit) {
     FilledTonalIconButton(onClick = onClick, enabled = enabled,
         modifier = Modifier.semantics { contentDescription = label },
         colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-        Text(glyph, style = MaterialTheme.typography.headlineSmall)
+        Icon(painterResource(icon), null, Modifier.size(24.dp))
     }
 }
 
 @Composable
 private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modifier = Modifier) {
     fun edit(value: FoodDraft) = onEvent(FoodEvent.Edit(value))
-    val busy = state.busy
     Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (state.recipe != null) "Ингредиент" else if (draft.id == null) "Новая запись" else "Изменить запись",
                     style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                TextButton(enabled = !busy, onClick = { onEvent(FoodEvent.Close) }) { Text("Отмена") }
+                TextButton(onClick = { onEvent(FoodEvent.Close) }) { Text("Отмена") }
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (draft.id != null && !state.confirmingDelete) {
-                    TextButton(enabled = !busy, onClick = { onEvent(FoodEvent.AskDelete) }) {
+                    TextButton(onClick = { onEvent(FoodEvent.AskDelete) }) {
                         Text("Удалить запись", color = MaterialTheme.colorScheme.error)
                     }
                 }
@@ -251,15 +258,15 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                     }
                 }
                 if (draft.id == null && draft.barcode == null) {
-                    TextButton(enabled = !busy, onClick = { onEvent(FoodEvent.BrowseFoods) }) {
+                    TextButton(onClick = { onEvent(FoodEvent.BrowseFoods) }) {
                         Text("Найти продукт")
                     }
                 }
-                if (state.recipe != null) TextButton(enabled = !busy, onClick = { onEvent(FoodEvent.Scan) }) { Text("Сканировать штрихкод") }
+                if (state.recipe != null) TextButton(onClick = { onEvent(FoodEvent.Scan) }) { Text("Сканировать штрихкод") }
                 if (state.recipe == null && draft.id == null && draft.barcode == null && state.recent.isNotEmpty()) {
                     var expanded by remember { mutableStateOf(false) }
                     Box {
-                        OutlinedButton(enabled = !busy, onClick = { expanded = true }) { Text("Недавние продукты") }
+                        OutlinedButton(onClick = { expanded = true }) { Text("Недавние продукты") }
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                             state.recent.forEach { food ->
                                 DropdownMenuItem(text = {
@@ -274,12 +281,12 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                     }
                 }
                 OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, Modifier.fillMaxWidth(),
-                    enabled = !busy, label = { Text("Название") }, singleLine = true)
+                    label = { Text("Название") }, singleLine = true)
                 if (draft.barcode != null) Text(state.hint, style = MaterialTheme.typography.bodySmall)
                 if (draft.barcode == null && state.recipe == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !draft.weighted, enabled = !busy, label = { Text("За порцию") },
+                    FilterChip(selected = !draft.weighted, label = { Text("За порцию") },
                         onClick = { if (draft.weighted) edit(draft.copy(weighted = false, energy = "", macros = Macros())) })
-                    FilterChip(selected = draft.weighted, enabled = !busy, label = { Text("На 100 г") },
+                    FilterChip(selected = draft.weighted, label = { Text("На 100 г") },
                         onClick = { if (!draft.weighted) edit(draft.copy(weighted = true, energy = "", macros = Macros())) })
                 }
                 if (state.recipe == null) {
@@ -288,7 +295,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                         isError = !validMealTime(draft.mealTime), supportingText = { Text("Можно оставить пустым") })
                     var choosingMeal by rememberSaveable { mutableStateOf(false) }
                     Box {
-                        OutlinedButton(enabled = !busy, onClick = { choosingMeal = true }) {
+                        OutlinedButton(onClick = { choosingMeal = true }) {
                             Text("Приём пищи · ${draft.meal.label}")
                         }
                         DropdownMenu(expanded = choosingMeal, onDismissRequest = { choosingMeal = false }) {
@@ -301,22 +308,22 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                         }
                     }
                 }
-                if (draft.weighted) AmountField(if (state.recipe == null) "Вес порции, г" else "Вес ингредиента, г", draft.grams, !busy) { edit(draft.copy(grams = it)) }
-                AmountField(if (draft.weighted) "Ккал на 100 г" else "Ккал на порцию", draft.energy, !busy) {
+                if (draft.weighted) AmountField(if (state.recipe == null) "Вес порции, г" else "Вес ингредиента, г", draft.grams, true) { edit(draft.copy(grams = it)) }
+                AmountField(if (draft.weighted) "Ккал на 100 г" else "Ккал на порцию", draft.energy, true) {
                     edit(draft.copy(energy = it))
                 }
                 Text(if (draft.weighted) "БЖУ на 100 г" else "БЖУ за порцию", style = MaterialTheme.typography.titleMedium)
                 Text("Если значение неизвестно, оставьте поле пустым", style = MaterialTheme.typography.bodySmall)
-                AmountField("Белки, г", draft.macros.protein, !busy) { edit(draft.copy(macros = draft.macros.copy(protein = it))) }
-                AmountField("Жиры, г", draft.macros.fat, !busy) { edit(draft.copy(macros = draft.macros.copy(fat = it))) }
-                AmountField("Углеводы, г", draft.macros.carbs, !busy) { edit(draft.copy(macros = draft.macros.copy(carbs = it))) }
+                AmountField("Белки, г", draft.macros.protein, true) { edit(draft.copy(macros = draft.macros.copy(protein = it))) }
+                AmountField("Жиры, г", draft.macros.fat, true) { edit(draft.copy(macros = draft.macros.copy(fat = it))) }
+                AmountField("Углеводы, г", draft.macros.carbs, true) { edit(draft.copy(macros = draft.macros.copy(carbs = it))) }
                 if (draft.calories != null) Text("БЖУ порции · ${draft.portionMacros.label()}")
                 if (draft.weighted) draft.calories?.let { Text("В порции: ${it.display()} ккал") }
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
             }
             Button(onClick = { onEvent(FoodEvent.Save) },
-                enabled = draft.calories != null && !busy && !state.confirmingDelete,
+                enabled = draft.calories != null && !state.confirmingDelete,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).heightIn(min = 52.dp)) { Text("Сохранить") }
         }
     }

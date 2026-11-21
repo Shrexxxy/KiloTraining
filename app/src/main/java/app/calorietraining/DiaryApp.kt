@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import java.time.LocalDate
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -85,9 +86,17 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
             )
             else FoodContent(foodState,food::onEvent)
         }
-        if(!editing) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-            listOf("Питание", "Тренировки", "История", "Профиль").forEach { title ->
-                NavigationBarItem(selected = tab == title, onClick = { selectTab(title) }, icon = { Text(title) })
+        if (!editing) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                listOf("Питание" to R.drawable.ic_nav_food, "Тренировки" to R.drawable.ic_nav_workout,
+                    "История" to R.drawable.ic_nav_history, "Профиль" to R.drawable.ic_nav_profile).forEach { (title, icon) ->
+                    NavigationBarItem(selected = tab == title, onClick = { selectTab(title) },
+                        icon = { Icon(painterResource(icon), contentDescription = null) },
+                        label = { Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) },
+                        colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
+                }
             }
         }
     }
@@ -107,18 +116,18 @@ fun ScannerScreen(state: FoodUiState, onEvent: (FoodEvent)->Unit) {
         Column(Modifier.padding(padding).imePadding().fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement=Arrangement.spacedBy(14.dp)) {
             Text("Штрихкод продукта",style=MaterialTheme.typography.headlineMedium)
-            Button(enabled=!state.busy,onClick={
+            Button(onClick={
                 launcher.launch(ScanOptions().setDesiredBarcodeFormats(listOf("EAN_8","EAN_13","UPC_A","UPC_E","ITF"))
                     .setBeepEnabled(false).setOrientationLocked(false).setPrompt("Наведите камеру на штрихкод"))
             }) { Text("Открыть камеру") }
             OutlinedTextField(digits,{ digits=it },singleLine=true,label={Text("Цифры штрихкода")},
-                keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),enabled=!state.busy)
-            OutlinedButton(enabled=validBarcode(digits) && !state.busy,onClick={ onEvent(FoodEvent.Barcode(digits)) }) { Text("Найти продукт") }
+                keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number))
+            OutlinedButton(enabled=validBarcode(digits),onClick={ onEvent(FoodEvent.Barcode(digits)) }) { Text("Найти продукт") }
             if(state.busy) Text("Ищем продукт…")
             if(message.isNotBlank()) Text(message)
             state.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
             Text("Каталог: Open Food Facts · ODbL",style=MaterialTheme.typography.bodySmall)
-            TextButton(enabled=!state.busy,onClick={onEvent(FoodEvent.Close)}) { Text("Назад") }
+            TextButton(onClick={onEvent(FoodEvent.Close)}) { Text("Назад") }
         }
     }
 }

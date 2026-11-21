@@ -71,7 +71,7 @@ internal fun NextSetCard(set: SetDraft, enabled: Boolean, complete: () -> Unit) 
 }
 
 @Composable
-internal fun ExerciseCard(sets: List<SetDraft>, onlyPending: Boolean, enabled: Boolean, edit: (SetDraft) -> Unit) {
+internal fun ExerciseCard(sets: List<SetDraft>, edit: (SetDraft) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val accent = LocalDiaryAccents.current.workout
     val exercise = sets.first().exercise
@@ -83,14 +83,13 @@ internal fun ExerciseCard(sets: List<SetDraft>, onlyPending: Boolean, enabled: B
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 sets.forEachIndexed { index, set ->
-                    if (onlyPending && !set.planned) return@forEachIndexed
                     val (background, foreground, status) = when {
                         set.planned -> Triple(colors.surfaceContainerHighest, colors.onSurfaceVariant, "в плане")
                         set.warmup -> Triple(accent.copy(alpha = 0.35f).compositeOver(colors.surfaceContainer), colors.onSurface, "разминка")
                         else -> Triple(accent, colors.onTertiary, "выполнен")
                     }
                     val label = set.tileLabel()
-                    Surface(onClick = { edit(set) }, enabled = enabled, shape = RoundedCornerShape(12.dp),
+                    Surface(onClick = { edit(set) }, shape = RoundedCornerShape(12.dp),
                         color = background, contentColor = foreground,
                         modifier = Modifier.height(40.dp).semantics { contentDescription = "Подход ${index + 1}: $label, $status" }) {
                         Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
@@ -99,7 +98,7 @@ internal fun ExerciseCard(sets: List<SetDraft>, onlyPending: Boolean, enabled: B
                     }
                 }
             }
-            TextButton(onClick = { edit(sets.last().copy(id = null, planned = false)) }, enabled = enabled) {
+            TextButton(onClick = { edit(sets.last().copy(id = null, planned = false)) }) {
                 Text("Добавить подход")
             }
         }

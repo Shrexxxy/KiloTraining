@@ -30,11 +30,11 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
             Text("Поиск продуктов", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineMedium)
             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(),
                 label = { Text("Название продукта или блюда") }, singleLine = true)
-            TextButton(onClick = { search(term) }, enabled = term.length >= 2 && !loading) {
+            TextButton(onClick = { if (!loading) search(term) }, enabled = term.length >= 2) {
                 Text("Найти в интернете")
             }
+            DelayedProgress(loading)
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
-                if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                 if ((online as? CatalogSearch.Failed)?.term == term) item {
                     Text("Каталог недоступен. Попробуйте ещё раз или введите продукт вручную.")
                 }
