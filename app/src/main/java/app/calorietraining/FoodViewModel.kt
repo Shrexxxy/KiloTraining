@@ -24,8 +24,7 @@ data class FoodUiState(
     val recent: List<FoodDraft> = emptyList(),
     val library: List<FoodDraft>? = null,
     val online: CatalogSearch = CatalogSearch.Idle,
-    val goal: Int? = null,
-    val macroGoals: MacroGoals = MacroGoals(),
+    val goals: DailyGoals = DailyGoals(),
     val draft: FoodDraft? = null,
     val busy: Boolean = false,
     val loaded: Boolean = false,
@@ -86,8 +85,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
             }
             is FoodEvent.Day -> refresh(event.value)
             is FoodEvent.Goal -> refresh(current.day) {
-                setDailyGoal(event.kcal)
-                setMacroGoals(event.macros)
+                setGoals(LocalDate.now(), DailyGoals(event.kcal, event.macros))
             }
             is FoodEvent.CopyMeal -> if (current.day == event.source && current.rows.any { it.meal == event.meal }) {
                 refresh(event.destination) { copyMeal(event.source, event.destination, event.meal) }
@@ -166,7 +164,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
                 val snapshot = withContext(Dispatchers.IO) {
                     FoodStore(getApplication()).use { store ->
                         fun snapshot() = FoodUiState(day = day, rows = store.entries(day), recent = store.foodSuggestions(day, 12),
-                            goal = store.dailyGoal(), macroGoals = store.macroGoals(), loaded = true, recipes = if (showRecipes) store.recipes() else null)
+                            goals = store.goalsFor(day), loaded = true, recipes = if (showRecipes) store.recipes() else null)
                         if (change == null) return@use snapshot()
                         val db = store.writableDatabase
                         db.beginTransaction()

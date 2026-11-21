@@ -15,30 +15,30 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.StringWriter
+import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class MacroGoalTest {
     @get:Rule val ui = createComposeRule()
+    private val today get() = LocalDate.now()
     private val context get() = RuntimeEnvironment.getApplication()
 
     @Test fun storesAndClearsIndividualGoals() {
         FoodStore(context).use { store ->
-            store.setMacroGoals(MacroGoals(protein = 140, fat = 70))
-            assertEquals(MacroGoals(140, 70, null), store.macroGoals())
-            store.setMacroGoals(MacroGoals(fat = 70))
-            assertEquals(MacroGoals(null, 70, null), store.macroGoals())
-            store.setMacroGoals(MacroGoals())
-            store.readableDatabase.rawQuery("SELECT id FROM macro_goal", null).use {
-                assertFalse(it.moveToFirst())
-            }
+            store.setGoals(today, DailyGoals(macros = MacroGoals(protein = 140, fat = 70)))
+            assertEquals(MacroGoals(140, 70, null), store.goalsFor(today).macros)
+            store.setGoals(today, DailyGoals(macros = MacroGoals(fat = 70)))
+            assertEquals(MacroGoals(null, 70, null), store.goalsFor(today).macros)
+            store.setGoals(today, DailyGoals(macros = MacroGoals()))
+            assertEquals(MacroGoals(), store.goalsFor(today).macros)
         }
     }
 
     @Test fun rejectsZeroGoal() {
         FoodStore(context).use { store ->
             assertThrows(IllegalArgumentException::class.java) {
-                store.setMacroGoals(MacroGoals(protein = 0))
+                store.setGoals(today, DailyGoals(macros = MacroGoals(protein = 0)))
             }
         }
     }
@@ -50,27 +50,26 @@ class MacroGoalTest {
             db.version = 11
         }
         FoodStore(context, "upgrade").use { store ->
-            assertEquals(12, store.readableDatabase.version)
-            assertEquals(2200, store.dailyGoal())
-            assertEquals(MacroGoals(), store.macroGoals())
+            assertEquals(13, store.readableDatabase.version)
+            assertEquals(2200, store.goalsFor(today).kcal)
+            assertEquals(MacroGoals(), store.goalsFor(today).macros)
         }
     }
 
     @Test fun backupRoundTripPreservesGoals() {
         val backup = FoodStore(context).use { store ->
-            store.setDailyGoal(2200)
-            store.setMacroGoals(MacroGoals(protein = 140, fat = 70))
+            store.setGoals(today, DailyGoals(2200, MacroGoals(protein = 140, fat = 70)))
             StringWriter().also(store::exportDiary).toString()
         }
         val json = JSONObject(backup)
-        assertEquals("calorietraining/11", json.getString("format"))
-        val row = json.getJSONArray("macro_goal").getJSONObject(0)
+        assertEquals("calorietraining/12", json.getString("format"))
+        val row = json.getJSONArray("goal").getJSONObject(0)
         assertEquals("140", row.get("protein"))
         assertEquals("0", row.get("carbs"))
         FoodStore(context, "restored").use { store ->
             store.readBackup(backup.reader())
-            assertEquals(2200, store.dailyGoal())
-            assertEquals(MacroGoals(140, 70, null), store.macroGoals())
+            assertEquals(2200, store.goalsFor(today).kcal)
+            assertEquals(MacroGoals(140, 70, null), store.goalsFor(today).macros)
         }
     }
 
@@ -81,8 +80,8 @@ class MacroGoalTest {
     @Test fun previousBackupHasNoMacroGoals() {
         FoodStore(context).use { store ->
             store.readBackup(previousBackup.reader())
-            assertEquals(2200, store.dailyGoal())
-            assertEquals(MacroGoals(), store.macroGoals())
+            assertEquals(2200, store.goalsFor(today).kcal)
+            assertEquals(MacroGoals(), store.goalsFor(today).macros)
         }
     }
 
@@ -91,7 +90,7 @@ class MacroGoalTest {
         backup.put("macro_goal", org.json.JSONArray("""[{"id":"1","protein":"-5","fat":"0","carbs":"0"}]"""))
         FoodStore(context).use { store ->
             assertThrows(IllegalArgumentException::class.java) { store.readBackup(backup.toString().reader()) }
-            assertNull(store.dailyGoal())
+            assertNull(store.goalsFor(today).kcal)
         }
     }
 

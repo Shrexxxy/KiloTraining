@@ -108,8 +108,9 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
                     }
                 }
                 if (state.rows.isNotEmpty()) item { DailyNutrition(state.rows.dailyMacros()) }
-                if (state.loaded && state.day == LocalDate.now()) item {
-                    DailyGoal(state.goal, state.macroGoals, state.rows.sumOf { it.calories }, state.rows.dailyMacros(), state.busy) { kcal, macros ->
+                val today = state.day == LocalDate.now()
+                if (state.loaded && (today || state.goals != DailyGoals())) item {
+                    DailyGoal(state.goals.kcal, state.goals.macros, state.rows.sumOf { it.calories }, state.rows.dailyMacros(), today, state.busy) { kcal, macros ->
                         onEvent(FoodEvent.Goal(kcal, macros))
                     }
                 }
@@ -168,11 +169,11 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
 @Composable
 private fun DailyGoal(
     goal: Int?, macros: MacroGoals, consumed: BigDecimal, totals: Macros,
-    busy: Boolean, save: (Int?, MacroGoals) -> Unit
+    editable: Boolean, busy: Boolean, save: (Int?, MacroGoals) -> Unit
 ) {
     var editing by rememberSaveable { mutableStateOf(false) }
     val hasGoal = goal != null || macros != MacroGoals()
-    if (editing) {
+    if (editable && editing) {
         var kcal by rememberSaveable { mutableStateOf(goal?.toString().orEmpty()) }
         var protein by rememberSaveable { mutableStateOf(macros.protein?.toString().orEmpty()) }
         var fat by rememberSaveable { mutableStateOf(macros.fat?.toString().orEmpty()) }
@@ -215,7 +216,7 @@ private fun DailyGoal(
             progress("У", totals.carbs, macros.carbs)
         ).joinToString(" · ")
         if (summary.isNotEmpty()) Text(summary, style = MaterialTheme.typography.bodyMedium)
-        TextButton(enabled = !busy, onClick = { editing = true }) {
+        if (editable) TextButton(enabled = !busy, onClick = { editing = true }) {
             Text(when {
                 goal != null -> "Изменить цель · $goal ккал"
                 hasGoal -> "Изменить цель"

@@ -66,7 +66,7 @@ class RecipeTest {
             "lifting":[],"workout_template":[],"template_set":[],"daily_goal":[{"id":"1","kcal":"2100"}],"measurement":[]}"""
         FoodStore(RuntimeEnvironment.getApplication()).use { store ->
             store.readBackup(backup.reader())
-            assertEquals(2100,store.dailyGoal())
+            assertEquals(2100,store.goalsFor(LocalDate.now()).kcal)
             assertTrue(store.recipes().isEmpty())
         }
     }

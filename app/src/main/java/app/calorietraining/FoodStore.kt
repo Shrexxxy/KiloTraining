@@ -85,23 +85,28 @@ data class FoodEntry(
     fun edit() = FoodDraft(id, name, grams.isNotEmpty(), energy, grams, meal = meal, mealTime = mealTime, macros = macros)
 }
 
-class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 12) {
-    private fun createGoalTable(db: SQLiteDatabase) {
+/** Дневные цели по калориям и макронутриентам. */
+data class DailyGoals(val kcal: Int? = null, val macros: MacroGoals = MacroGoals())
+
+private fun SQLiteDatabase.hasTable(name: String): Boolean =
+    rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", arrayOf(name)).use { it.moveToFirst() }
+
+internal fun SQLiteDatabase.importLegacyGoals(kcal: Int, protein: Int, fat: Int, carbs: Int) {
+    if (kcal == 0 && protein == 0 && fat == 0 && carbs == 0) return
+    val firstDay = if (hasTable("food")) rawQuery("SELECT MIN(day) FROM food", null).use {
+        it.moveToFirst()
+        it.getString(0)
+    } else null
+    execSQL("INSERT INTO goal(start_day,kcal,protein,fat,carbs) VALUES(?,?,?,?,?)",
+        arrayOf<Any>(firstDay ?: LocalDate.now().toString(), kcal, protein, fat, carbs))
+}
+
+class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 13) {
+    private fun createLegacyCalorieTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
     }
 
-    fun dailyGoal(): Int? = readableDatabase.rawQuery("SELECT kcal FROM daily_goal WHERE id=1", null).use {
-        if (it.moveToFirst()) it.getInt(0) else null
-    }
-
-    fun setDailyGoal(kcal: Int?) {
-        if (kcal == null) writableDatabase.delete("daily_goal", null, null)
-        else {
-            require(kcal > 0)
-            writableDatabase.execSQL("INSERT OR REPLACE INTO daily_goal(id,kcal) VALUES(1,?)", arrayOf(kcal))
-        }
-    }
-    private fun createMacroGoalTable(db: SQLiteDatabase) {
+    private fun createLegacyMacroTable(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE macro_goal (
             id INTEGER PRIMARY KEY CHECK(id=1),
             protein INTEGER NOT NULL DEFAULT 0 CHECK(protein>=0),
@@ -110,24 +115,44 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         )""")
     }
 
-    /** Читает индивидуальные цели по БЖУ. */
-    fun macroGoals(): MacroGoals = readableDatabase.rawQuery(
-        "SELECT protein, fat, carbs FROM macro_goal WHERE id=1", null
-    ).use { row ->
-        fun goal(index: Int) = row.getInt(index).takeIf { it > 0 }
-        if (row.moveToFirst()) MacroGoals(goal(0), goal(1), goal(2)) else MacroGoals()
+    private fun createGoalTable(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE goal (
+            start_day TEXT PRIMARY KEY,
+            kcal INTEGER NOT NULL DEFAULT 0 CHECK(kcal>=0),
+            protein INTEGER NOT NULL DEFAULT 0 CHECK(protein>=0),
+            fat INTEGER NOT NULL DEFAULT 0 CHECK(fat>=0),
+            carbs INTEGER NOT NULL DEFAULT 0 CHECK(carbs>=0)
+        )""")
     }
 
-    /** Заменяет цели по БЖУ или удаляет запись при очистке всех полей. */
-    fun setMacroGoals(goals: MacroGoals) {
-        val (protein, fat, carbs) = goals
-        require(listOfNotNull(protein, fat, carbs).all { it > 0 })
-        if (goals == MacroGoals()) {
-            writableDatabase.delete("macro_goal", null, null)
-        } else {
-            writableDatabase.execSQL("INSERT OR REPLACE INTO macro_goal(id,protein,fat,carbs) VALUES(1,?,?,?)",
-                arrayOf(protein ?: 0, fat ?: 0, carbs ?: 0))
+    /** Возвращает цели, действовавшие в выбранный день. */
+    fun goalsFor(day: LocalDate): DailyGoals = readableDatabase.rawQuery(
+        "SELECT kcal,protein,fat,carbs FROM goal WHERE start_day <= ? ORDER BY start_day DESC LIMIT 1",
+        arrayOf(day.toString())
+    ).use { row ->
+        fun value(index: Int) = row.getInt(index).takeIf { it > 0 }
+        if (row.moveToFirst()) DailyGoals(value(0), MacroGoals(value(1), value(2), value(3))) else DailyGoals()
+    }
+
+    /** Устанавливает цели с указанного дня. Пустая запись завершает действие предыдущих целей. */
+    fun setGoals(from: LocalDate, goals: DailyGoals) {
+        val (protein, fat, carbs) = goals.macros
+        require(listOfNotNull(goals.kcal, protein, fat, carbs).all { it > 0 })
+        writableDatabase.execSQL("INSERT OR REPLACE INTO goal(start_day,kcal,protein,fat,carbs) VALUES(?,?,?,?,?)",
+            arrayOf<Any>(from.toString(), goals.kcal ?: 0, protein ?: 0, fat ?: 0, carbs ?: 0))
+    }
+
+    private fun migrateGoals(db: SQLiteDatabase) {
+        createGoalTable(db)
+        val kcal = if (db.hasTable("daily_goal")) db.rawQuery("SELECT kcal FROM daily_goal WHERE id=1", null).use {
+            if (it.moveToFirst()) it.getInt(0) else 0
+        } else 0
+        db.rawQuery("SELECT protein,fat,carbs FROM macro_goal WHERE id=1", null).use {
+            if (it.moveToFirst()) db.importLegacyGoals(kcal, it.getInt(0), it.getInt(1), it.getInt(2))
+            else db.importLegacyGoals(kcal, 0, 0, 0)
         }
+        db.execSQL("DROP TABLE IF EXISTS daily_goal")
+        db.execSQL("DROP TABLE macro_goal")
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -138,7 +163,6 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         db.execSQL("CREATE INDEX food_day ON food(day)")
         createJournalTables(db)
         createGoalTable(db)
-        createMacroGoalTable(db)
         createMeasurements(db)
         addMacroColumns(db)
         createTemplateTables(db)
@@ -162,7 +186,7 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
             createMeasurements(db)
         }
         if (oldVersion < 2) createJournalTables(db)
-        if (oldVersion < 3) createGoalTable(db)
+        if (oldVersion < 3) createLegacyCalorieTable(db)
         if (oldVersion in 2..3) db.execSQL("ALTER TABLE workout ADD COLUMN title TEXT NOT NULL DEFAULT ''")
         if (oldVersion < 5) db.execSQL("ALTER TABLE food ADD COLUMN meal TEXT NOT NULL DEFAULT 'UNSPECIFIED'")
         if (oldVersion in 2..5) db.execSQL("ALTER TABLE lifting ADD COLUMN planned INTEGER NOT NULL DEFAULT 0")
@@ -170,7 +194,8 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         if (oldVersion < 9) createTemplateTables(db)
         if (oldVersion < 10) createRecipeTables(db)
         if (oldVersion < 11) addDuration(db)
-        if (oldVersion < 12) createMacroGoalTable(db)
+        if (oldVersion < 12) createLegacyMacroTable(db)
+        if (oldVersion < 13) migrateGoals(db)
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(

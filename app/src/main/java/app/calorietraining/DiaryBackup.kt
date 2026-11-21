@@ -18,12 +18,16 @@ private val tables = linkedMapOf(
     "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup"),
     "workout_template" to listOf("id", "title"),
     "template_set" to listOf("id", "template", "exercise_group", "exercise", "weight", "reps", "warmup"),
-    "macro_goal" to listOf("id", "protein", "fat", "carbs"),
-    "daily_goal" to listOf("id", "kcal"),
+    "goal" to listOf("start_day", "kcal", "protein", "fat", "carbs"),
     "measurement" to listOf("day", "weight", "fat")
 )
 
-private const val FORMAT_VERSION = 11
+private val legacyGoalTables = mapOf(
+    "macro_goal" to listOf("id", "protein", "fat", "carbs"),
+    "daily_goal" to listOf("id", "kcal"),
+)
+
+private const val FORMAT_VERSION = 12
 private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
 internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
@@ -61,7 +65,7 @@ fun FoodStore.exportDiary(output: Writer) {
 
 private fun validateRow(table: String, row: ContentValues) {
     fun field(name: String) = row.getAsString(name)
-    if (table != "product" && table != "measurement") require(field("id").toLong() > 0)
+    if (table != "product" && table != "measurement" && table != "goal") require(field("id").toLong() > 0)
     if (table == "food" || table == "workout") LocalDate.parse(field("day"))
     if (table == "template_set" || table == "lifting") require(field("warmup") in setOf("0", "1"))
     when (table) {
@@ -73,6 +77,10 @@ private fun validateRow(table: String, row: ContentValues) {
         "template_set" -> require(field("template").toLong() > 0 && field("exercise_group").isNotBlank() &&
             SetDraft(exercise = field("exercise"), weight = field("weight"), reps = field("reps")).valid)
         "measurement" -> require(Measurement(LocalDate.parse(field("day")), field("weight"), field("fat")).valid)
+        "goal" -> {
+            require(LocalDate.parse(field("start_day")).toString() == field("start_day"))
+            require(listOf("kcal", "protein", "fat", "carbs").all { field(it).toInt() >= 0 })
+        }
         "macro_goal" -> require(field("id") == "1" &&
             listOf("protein", "fat", "carbs").all { field(it).toInt() >= 0 })
         "daily_goal" -> require(field("id") == "1" && field("kcal").toInt() > 0)
@@ -95,6 +103,7 @@ fun FoodStore.readBackup(input: Reader): String {
     val db = writableDatabase
     val seen = mutableSetOf<String>()
     val counts = mutableMapOf<String, Int>()
+    val legacyGoals = ContentValues()
     var version = 0
     var missingDuration = false
     var missingWorkoutTitle = false
@@ -115,7 +124,7 @@ fun FoodStore.readBackup(input: Reader): String {
                     require(version in 1..FORMAT_VERSION && format == "calorietraining/$version")
                     continue
                 }
-                val columns = requireNotNull(tables[key])
+                val columns = requireNotNull(tables[key] ?: legacyGoalTables[key])
                 json.beginArray()
                 var count = 0
                 while (json.hasNext()) {
@@ -163,7 +172,10 @@ fun FoodStore.readBackup(input: Reader): String {
                     }
                     require(row.size() == columns.size)
                     validateRow(key, row)
-                    db.insertOrThrow(key, null, row)
+                    if (key in legacyGoalTables) {
+                        require(count == 0)
+                        legacyGoals.putAll(row)
+                    } else db.insertOrThrow(key, null, row)
                     count++
                 }
                 json.endArray()
@@ -171,11 +183,14 @@ fun FoodStore.readBackup(input: Reader): String {
             }
             json.endObject()
             val expected = tables.keys.toMutableSet()
-            if (version < 11) expected.remove("macro_goal")
+            if (version < 12) {
+                expected.remove("goal")
+                if (version >= 2) expected.add("daily_goal")
+                if (version == 11) expected.add("macro_goal")
+            }
             if (version < 9) expected.removeAll(listOf("recipe", "ingredient"))
             if (version < 8) expected.removeAll(listOf("workout_template", "template_set"))
             if (version < 6) expected.remove("measurement")
-            if (version < 2) expected.remove("daily_goal")
             require(version < 10 || !missingDuration)
             require(version < 8 || !missingWarmup)
             require(version < 7 || !missingMacros)
@@ -184,6 +199,10 @@ fun FoodStore.readBackup(input: Reader): String {
             require(version < 4 || !missingMeal)
             require(version < 3 || !missingWorkoutTitle)
             require(json.peek() == JsonToken.END_DOCUMENT && seen == expected + "format")
+            if (version < 12) {
+                fun value(name: String) = legacyGoals.getAsInteger(name) ?: 0
+                db.importLegacyGoals(value("kcal"), value("protein"), value("fat"), value("carbs"))
+            }
             db.rawQuery("""SELECT 1 FROM ingredient i LEFT JOIN recipe r ON r.id=i.recipe_id WHERE r.id IS NULL
                 UNION ALL SELECT 1 FROM recipe r WHERE NOT EXISTS (SELECT 1 FROM ingredient i WHERE i.recipe_id=r.id) LIMIT 1""",
                 null).use { require(!it.moveToFirst()) }
