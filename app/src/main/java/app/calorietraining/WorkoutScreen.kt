@@ -1,7 +1,7 @@
 package app.calorietraining
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -107,7 +107,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                     }
                 }
             } else {
-                Text("Тренировка",Modifier.padding(top=16.dp,bottom=12.dp),style=MaterialTheme.typography.headlineLarge)
+                Text("Тренировка", Modifier.padding(top = 16.dp, bottom = 12.dp), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
                 DiaryDaySelector(state.day, !state.busy, { event(WorkoutEvent.Day(it)) })
                 if (state.list.isNotEmpty()) {
                     FilterChip(selected = onlyPending, onClick = { onlyPending = !onlyPending },
@@ -202,13 +202,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                 dismissButton = { TextButton(onClick = { renaming = false; savingTemplate = false }) { Text("Отмена") } }
                             )
                             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(label, style = MaterialTheme.typography.titleMedium)
-                                    workout.minutes?.let { Text("$it мин", style = MaterialTheme.typography.bodySmall) }
-                                    val completed = workout.sets.count { !it.planned }
-                                    Text("Подходы: $completed из ${workout.sets.size} выполнено",
-                                        style = MaterialTheme.typography.bodySmall)
-                                }
+                                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                                 Box {
                                     TextButton(enabled = !state.busy, onClick = { menu = true }) { Text("Действия") }
                                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -234,38 +228,16 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                 OutlinedButton(enabled=!state.busy,onClick={event(WorkoutEvent.Remove(workout.id))}) { Text("Удалить тренировку целиком") }
                                 TextButton(onClick = { confirm = false }) { Text("Отмена") }
                             }
-                        }
-                        items(visibleGroups(workout),key={ it.first().group }) { sets ->
-                            OutlinedCard(border=BorderStroke(1.dp,colors.outlineVariant),colors=CardDefaults.outlinedCardColors(containerColor=colors.surface)) {
-                                Surface(color=colors.primaryContainer) {
-                                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        photoForExercise(sets.first().exercise)?.let { photo ->
-                                            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(photo.second),
-                                                null, Modifier.size(64.dp, 52.dp))
-                                            Spacer(Modifier.width(12.dp))
-                                        }
-                                        Text(sets.first().exercise, style = MaterialTheme.typography.titleMedium)
-                                    }
+                            WorkoutMetrics(workout)
+                            workout.nextPlanned()?.let { next ->
+                                Spacer(Modifier.height(8.dp))
+                                NextSetCard(next, !state.busy && next.id != null) {
+                                    next.id?.let { event(WorkoutEvent.Complete(workout.id, it)) }
                                 }
-                                sets.forEachIndexed { i,set ->
-                                    if (onlyPending && !set.planned) return@forEachIndexed
-                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                        TextButton(enabled=!state.busy,modifier=Modifier.weight(1f),
-                                            onClick={event(WorkoutEvent.Edit(workout.id,set))}) {
-                                            val label = if (set.planned) "В плане · ${i+1}" else "Подход ${i+1}"
-                                            Text(if (set.warmup) "$label · Разминка" else label, Modifier.weight(1f))
-                                            Text("${if(set.weight.isBlank()) "Свой вес" else "${set.weight} кг"} × ${set.reps}")
-                                        }
-                                        if (set.planned && set.id != null) {
-                                            TextButton(enabled = !state.busy,
-                                                onClick = { event(WorkoutEvent.Complete(workout.id, set.id)) }) {
-                                                Text("Готово")
-                                            }
-                                        }
-                                    }
-                                }
-                                TextButton(enabled=!state.busy,onClick={event(WorkoutEvent.Edit(workout.id,sets.last().copy(id=null, planned=false)))}) { Text("Добавить подход") }
                             }
+                        }
+                        items(visibleGroups(workout), key = { "exercise:${workout.id}:${it.first().group}" }) { sets ->
+                            ExerciseCard(sets, onlyPending, !state.busy) { event(WorkoutEvent.Edit(workout.id, it)) }
                         }
                         item { OutlinedButton(enabled=!state.busy,onClick={event(WorkoutEvent.Edit(workout.id,SetDraft()))}) { Text("Добавить упражнение") } }
                     }
@@ -279,7 +251,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                         })
                     var choosingTemplate by rememberSaveable { mutableStateOf(false) }
                     Box {
-                        OutlinedButton(enabled = !state.busy, onClick = { choosingTemplate = true }) { Text("Из шаблона") }
+                        FilledTonalButton(enabled = !state.busy, onClick = { choosingTemplate = true }) { Text("Из шаблона") }
                         DropdownMenu(expanded = choosingTemplate, onDismissRequest = { choosingTemplate = false }) {
                             state.templates.forEach { template ->
                                 DropdownMenuItem(text = { Text(template.title) }, onClick = {
@@ -295,7 +267,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                         }
                     }
                 }
-                Button(enabled=!state.busy,modifier=Modifier.fillMaxWidth().padding(vertical=8.dp),onClick={event(WorkoutEvent.Create)}) { Text("Новая тренировка") }
+                Button(enabled=!state.busy,modifier=Modifier.fillMaxWidth().padding(vertical=8.dp).height(54.dp),onClick={event(WorkoutEvent.Create)}) { Text("Новая тренировка") }
             }
         }
     }

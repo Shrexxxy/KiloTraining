@@ -28,6 +28,7 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     val backup: BackupViewModel = viewModel { BackupViewModel(app) }
     val backupState by backup.uiState.collectAsStateWithLifecycle()
     var restUntil by rememberSaveable(backupState.revision) { mutableLongStateOf(0L) }
+    var restTotal by rememberSaveable(backupState.revision) { mutableLongStateOf(0L) }
     var copying by rememberSaveable { mutableStateOf(false) }
     if (copying) {
         BackupScreen(backup) { copying = false }
@@ -74,7 +75,10 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
             }
             else if(workout != null && workoutState != null) WorkoutContent(workoutState,workout::event,
                 focusSession = requestedSession, onFocused = { requestedSession = null }) {
-                RestTimer(restUntil, onDeadlineChanged = { restUntil = it })
+                RestTimer(restUntil, restTotal) { deadline, total ->
+                    restUntil = deadline
+                    restTotal = total
+                }
             }
             else if (tab == "Профиль") ProfileScreen(
                 viewModel(key = "profile-${backupState.revision}") { ProfileViewModel(app) }, mode, onThemeChange
