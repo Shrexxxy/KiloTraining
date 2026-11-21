@@ -126,6 +126,11 @@ private val diaryShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+internal fun ComponentActivity.applyDiaryBars(dark: Boolean) {
+    val barStyle = SystemBarStyle.auto(lightColors.surface.toArgb(), darkColors.surface.toArgb()) { dark }
+    enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+}
+
 /** Применяет оформление дневника и подбирает контрастные значки системных панелей. */
 @Composable
 fun DiaryTheme(mode: ThemeMode, content: @Composable () -> Unit) {
@@ -136,9 +141,12 @@ fun DiaryTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     }
     val colors = if (dark) darkColors else lightColors
     val activity = LocalActivity.current as? ComponentActivity
+    var previousDark by remember(activity) { mutableStateOf(dark) }
     LaunchedEffect(activity, dark) {
-        val barStyle = SystemBarStyle.auto(lightColors.surface.toArgb(), darkColors.surface.toArgb()) { dark }
-        activity?.enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+        if (previousDark != dark) {
+            activity?.applyDiaryBars(dark)
+            previousDark = dark
+        }
     }
     CompositionLocalProvider(LocalDiaryAccents provides if (dark) darkAccents else lightAccents) {
         MaterialTheme(colorScheme = colors, typography = diaryTypography, shapes = diaryShapes, content = content)

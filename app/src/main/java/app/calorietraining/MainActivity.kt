@@ -1,5 +1,6 @@
 package app.calorietraining
 
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -40,8 +41,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val settings = ThemeSettings(this)
+        val initialMode = settings.mode
+        applyDiaryBars(when (initialMode) {
+            ThemeMode.SYSTEM -> resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+        })
         setContent {
-            var mode by remember { mutableStateOf(settings.mode) }
+            var mode by remember { mutableStateOf(initialMode) }
             DiaryTheme(mode) {
                 DiaryApp(mode) { selected ->
                     settings.mode = selected
