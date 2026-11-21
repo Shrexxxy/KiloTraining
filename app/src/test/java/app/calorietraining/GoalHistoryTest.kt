@@ -160,9 +160,9 @@ class GoalHistoryTest {
         ui.setContent { MaterialTheme {
             FoodContent(FoodUiState(day = day.value, loaded = true, goals = DailyGoals(2200)), {})
         } }
-        ui.onNodeWithText("До цели · 2200 ккал").assertExists()
+        ui.onNodeWithText("недобор 2\u00a0200 ккал").assertExists()
         ui.onNodeWithText("Изменить цель", substring = true).assertDoesNotExist()
         ui.runOnIdle { day.value = today }
-        ui.onNodeWithText("Изменить цель · 2200 ккал").assertExists()
+        ui.onNodeWithText("Изменить цель").assertExists()
     }
 }

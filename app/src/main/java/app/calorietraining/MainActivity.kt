@@ -5,10 +5,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.math.MathContext
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -88,78 +90,50 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
         RecipeContent(state, onEvent, modifier)
         return
     }
+    val total = remember(state.rows) { state.rows.sumOf { it.calories } }
+    val macros = remember(state.rows) { state.rows.dailyMacros() }
+    val today = state.day == LocalDate.now()
+    var editingGoal by rememberSaveable(state.day.toEpochDay()) { mutableStateOf(false) }
+    if (today && editingGoal) GoalDialog(state.goals, { editingGoal = false }) { kcal, goals ->
+        editingGoal = false
+        onEvent(FoodEvent.Goal(kcal, goals))
+    }
     Scaffold(modifier = modifier, containerColor = colors.surface) { insets ->
-        Column(Modifier.fillMaxSize().padding(insets).padding(horizontal = 20.dp)) {
+        Column(Modifier.fillMaxSize().padding(insets).padding(horizontal = 16.dp)) {
             Text("Питание", Modifier.padding(top = 16.dp, bottom = 12.dp),
-                style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
             DiaryDaySelector(state.day, !state.busy, { onEvent(FoodEvent.Day(it)) })
             Spacer(Modifier.height(16.dp))
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (state.loaded) item {
-                    val total = state.rows.sumOf { it.calories }.display()
-                    Surface(color = colors.primaryContainer, shape = MaterialTheme.shapes.large) {
-                        Row(Modifier.fillMaxWidth().padding(20.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Icon(painterResource(R.drawable.ic_meal), null, Modifier.size(30.dp))
-                            Spacer(Modifier.width(14.dp))
-                            Text("$total ккал за день", style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-                if (state.rows.isNotEmpty()) item { DailyNutrition(state.rows.dailyMacros()) }
-                val today = state.day == LocalDate.now()
-                if (state.loaded && (today || state.goals != DailyGoals())) item {
-                    DailyGoal(state.goals.kcal, state.goals.macros, state.rows.sumOf { it.calories }, state.rows.dailyMacros(), today, state.busy) { kcal, macros ->
-                        onEvent(FoodEvent.Goal(kcal, macros))
-                    }
+                    NutritionRings(total, macros, state.goals, state.rows.isNotEmpty(), today, !state.busy) { editingGoal = true }
                 }
                 if (state.loaded && state.rows.isEmpty()) item {
                     Text("За этот день пока нет записей", Modifier.padding(vertical = 24.dp),
                         style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
                 }
-                state.rows.groupBy { it.meal }.toSortedMap().forEach { (meal, entries) ->
-                    item(key = meal.name) {
-                        MealGroupHeader(state.day, meal, entries, !state.busy) { destination ->
-                            onEvent(FoodEvent.CopyMeal(state.day, destination, meal))
-                        }
-                    }
-                    items(entries, key = { it.id }) { row ->
-                    Surface(onClick = { onEvent(FoodEvent.Edit(row.edit())) }, enabled = !state.busy,
-                        shape = MaterialTheme.shapes.large, color = colors.surfaceContainer,
-                        border = BorderStroke(1.dp, colors.outlineVariant)) {
-                        Row(Modifier.fillMaxWidth().padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                if (row.mealTime.isNotBlank()) Text(row.mealTime, style = MaterialTheme.typography.labelSmall)
-                                Text(row.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                Text(if (row.grams.isEmpty()) "1 порция" else "${row.grams} г",
-                                    color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Surface(color = colors.primaryContainer, shape = MaterialTheme.shapes.medium) {
-                                Text("${row.calories.display()} ккал", Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    style = MaterialTheme.typography.labelLarge)
-                            }
-                        }
-                    }
-                }
-                }
+                if (state.rows.isNotEmpty()) item { MealCard(state, total, onEvent) }
                 if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                 if (state.error != null && state.draft == null) item {
                     Text(state.error, color = colors.error)
                     TextButton(onClick = { onEvent(FoodEvent.Day(state.day)) }) { Text("Повторить") }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                TextButton(onClick = { onEvent(FoodEvent.BrowseFoods) }, enabled = state.loaded && !state.busy) { Text("Найти продукт") }
-                TextButton(onClick = { onEvent(FoodEvent.Recipes) }, enabled = state.loaded && !state.busy) { Text("Мои рецепты") }
+            val enabled = state.loaded && !state.busy
+            Button(onClick = { onEvent(FoodEvent.Scan) }, enabled = enabled,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(54.dp)) {
+                Icon(painterResource(R.drawable.ic_barcode), contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Сканировать штрихкод")
             }
-            Button(onClick = { onEvent(FoodEvent.Scan) }, enabled = state.loaded && !state.busy,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Сканировать штрихкод") }
-            OutlinedButton(onClick = { onEvent(FoodEvent.Edit(FoodDraft())) }, enabled = state.loaded && !state.busy,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).heightIn(min = 52.dp)) {
-                Text("Ввести вручную", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Найти продукт" to FoodEvent.BrowseFoods, "Мои рецепты" to FoodEvent.Recipes,
+                    "Ввести вручную" to FoodEvent.Edit(FoodDraft())).forEach { (label, event) ->
+                    FilledTonalButton(onClick = { onEvent(event) }, enabled = enabled, modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 3.dp)) {
+                        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
+                    }
+                }
             }
         }
     }
@@ -167,63 +141,66 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
 }
 
 @Composable
-private fun DailyGoal(
-    goal: Int?, macros: MacroGoals, consumed: BigDecimal, totals: Macros,
-    editable: Boolean, busy: Boolean, save: (Int?, MacroGoals) -> Unit
-) {
-    var editing by rememberSaveable { mutableStateOf(false) }
-    val hasGoal = goal != null || macros != MacroGoals()
-    if (editable && editing) {
-        var kcal by rememberSaveable { mutableStateOf(goal?.toString().orEmpty()) }
-        var protein by rememberSaveable { mutableStateOf(macros.protein?.toString().orEmpty()) }
-        var fat by rememberSaveable { mutableStateOf(macros.fat?.toString().orEmpty()) }
-        var carbs by rememberSaveable { mutableStateOf(macros.carbs?.toString().orEmpty()) }
-        val valid = listOf(kcal, protein, fat, carbs).all { it.isEmpty() || (it.toIntOrNull() ?: 0) > 0 }
-        AlertDialog(
-            onDismissRequest = { editing = false },
-            title = { Text("Дневная цель") },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    GoalField("Ккал в день", kcal) { kcal = it }
-                    GoalField("Белки, г", protein) { protein = it }
-                    GoalField("Жиры, г", fat) { fat = it }
-                    GoalField("Углеводы, г", carbs) { carbs = it }
-                    if (hasGoal) TextButton(onClick = { editing = false; save(null, MacroGoals()) }) { Text("Отключить цель") }
+private fun MealCard(state: FoodUiState, total: BigDecimal, onEvent: (FoodEvent) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val barShape = RoundedCornerShape(3.dp)
+    Surface(shape = MaterialTheme.shapes.large, color = colors.surfaceContainer, contentColor = colors.onSurface) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            val groups = state.rows.groupBy { it.meal }.toSortedMap()
+            groups.entries.forEachIndexed { index, (meal, entries) ->
+                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp), color = colors.outlineVariant)
+                MealGroupHeader(state.day, meal, entries, !state.busy) { destination ->
+                    onEvent(FoodEvent.CopyMeal(state.day, destination, meal))
                 }
-            },
-            confirmButton = { Button(enabled = valid, onClick = {
-                editing = false
-                save(kcal.toIntOrNull(), MacroGoals(protein.toIntOrNull(), fat.toIntOrNull(), carbs.toIntOrNull()))
-            }) { Text("Сохранить") } },
-            dismissButton = { TextButton(onClick = { editing = false }) { Text("Отмена") } }
-        )
-    }
-    Column {
-        if (goal != null) {
-            val remaining = goal.toBigDecimal() - consumed
-            val status = when (remaining.signum()) {
-                1 -> "До цели · ${remaining.display()} ккал"
-                -1 -> "Сверх цели · ${remaining.abs().display()} ккал"
-                else -> "Дневная цель достигнута"
+                val fraction = if (total.signum() == 0) 0f else
+                    entries.sumOf { it.calories }.divide(total, MathContext.DECIMAL64).toFloat().coerceIn(0f, 1f)
+                Box(Modifier.fillMaxWidth().height(5.dp).background(colors.outlineVariant, barShape)) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(LocalDiaryAccents.current.kcal, barShape))
+                }
+                entries.forEach { row ->
+                    Row(Modifier.fillMaxWidth().clickable(enabled = !state.busy) { onEvent(FoodEvent.Edit(row.edit())) }
+                        .heightIn(min = 48.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(row.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                            val portion = if (row.grams.isEmpty()) "1 порция" else "${row.grams} г"
+                            Text(listOf(row.mealTime, portion).filter(String::isNotBlank).joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                        }
+                        Text("${row.calories.display()} ккал", Modifier.padding(start = 8.dp),
+                            color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
-            Text(status, style = MaterialTheme.typography.titleMedium)
-        }
-        fun progress(label: String, total: String, target: Int?) =
-            target?.let { "$label ${total.ifEmpty { "—" }} / $it г" }
-        val summary = listOfNotNull(
-            progress("Б", totals.protein, macros.protein),
-            progress("Ж", totals.fat, macros.fat),
-            progress("У", totals.carbs, macros.carbs)
-        ).joinToString(" · ")
-        if (summary.isNotEmpty()) Text(summary, style = MaterialTheme.typography.bodyMedium)
-        if (editable) TextButton(enabled = !busy, onClick = { editing = true }) {
-            Text(when {
-                goal != null -> "Изменить цель · $goal ккал"
-                hasGoal -> "Изменить цель"
-                else -> "Задать дневную цель"
-            })
         }
     }
+}
+
+@Composable
+private fun GoalDialog(goals: DailyGoals, dismiss: () -> Unit, save: (Int?, MacroGoals) -> Unit) {
+    val (goal, macros) = goals
+    val hasGoal = goals != DailyGoals()
+    var kcal by rememberSaveable { mutableStateOf(goal?.toString().orEmpty()) }
+    var protein by rememberSaveable { mutableStateOf(macros.protein?.toString().orEmpty()) }
+    var fat by rememberSaveable { mutableStateOf(macros.fat?.toString().orEmpty()) }
+    var carbs by rememberSaveable { mutableStateOf(macros.carbs?.toString().orEmpty()) }
+    val valid = listOf(kcal, protein, fat, carbs).all { it.isEmpty() || (it.toIntOrNull() ?: 0) > 0 }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("Дневная цель") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                GoalField("Ккал в день", kcal) { kcal = it }
+                GoalField("Белки, г", protein) { protein = it }
+                GoalField("Жиры, г", fat) { fat = it }
+                GoalField("Углеводы, г", carbs) { carbs = it }
+                if (hasGoal) TextButton(onClick = { save(null, MacroGoals()) }) { Text("Отключить цель") }
+            }
+        },
+        confirmButton = { Button(enabled = valid, onClick = {
+            save(kcal.toIntOrNull(), MacroGoals(protein.toIntOrNull(), fat.toIntOrNull(), carbs.toIntOrNull()))
+        }) { Text("Сохранить") } },
+        dismissButton = { TextButton(onClick = dismiss) { Text("Отмена") } }
+    )
 }
 
 @Composable

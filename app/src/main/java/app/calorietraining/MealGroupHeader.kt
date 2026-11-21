@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 
@@ -15,14 +16,12 @@ internal fun MealGroupHeader(source: LocalDate, meal: Meal, entries: List<FoodEn
     var targetDay by rememberSaveable(source.toEpochDay(), meal.name) { mutableStateOf<Long?>(null) }
     val total = entries.sumOf { it.calories }.display()
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(meal.label, style = MaterialTheme.typography.titleMedium)
-            Text("$total ккал", style = MaterialTheme.typography.labelLarge)
-        }
+        Text(meal.label, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         TextButton(enabled = enabled, onClick = {
             val today = LocalDate.now()
             targetDay = (if (source == today) today.plusDays(1) else today).toEpochDay()
-        }) { Text("Повторить") }
+        }) { Text("Повторить", style = MaterialTheme.typography.labelMedium) }
+        Text("$total ккал", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     }
     targetDay?.let { epoch ->
         val destination = LocalDate.ofEpochDay(epoch)

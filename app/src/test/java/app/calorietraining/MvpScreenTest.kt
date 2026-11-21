@@ -19,13 +19,13 @@ class MvpScreenTest {
     }
 
     @Test fun opensScanner() {
-        waitText("0 ккал за день")
+        waitText("За этот день пока нет записей")
         node("Сканировать штрихкод").performClick()
         node("Открыть камеру").assertIsDisplayed()
         node("Цифры штрихкода").assertIsDisplayed()
     }
     @Test fun scanCallbackAddsCachedPortion() {
-        waitText("0 ккал за день")
+        waitText("За этот день пока нет записей")
         FoodStore(ui.activity.application).use { it.cacheProduct("12345678",Product("Йогурт","120")) }
         node("Сканировать штрихкод").performClick()
         node("Открыть камеру").performClick()
@@ -38,7 +38,7 @@ class MvpScreenTest {
         waitText("Йогурт")
         node("Вес порции, г").performTextInput("75")
         node("Сохранить").performClick()
-        waitText("90 ккал за день")
+        waitText("90")
     }
 
     @Test fun savesAndEditsSet() {

@@ -28,7 +28,7 @@ class RecipeFlowTest {
         FoodStore(RuntimeEnvironment.getApplication()).use { store ->
             store.cacheProduct("12345678", Product("Рис", "350", Macros("7","0","80")))
         }
-        waitFor("0 ккал за день")
+        waitFor("За этот день пока нет записей")
         node("Мои рецепты").performClick()
         waitFor("Создать рецепт")
         node("Создать рецепт").performClick()
@@ -46,6 +46,6 @@ class RecipeFlowTest {
         node("Записать порцию").performClick()
         node("Вес порции, г").performScrollTo().performTextInput("150")
         node("Сохранить").performClick()
-        waitFor("175 ккал за день")
+        waitFor("175")
     }
 }
