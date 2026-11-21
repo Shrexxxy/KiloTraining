@@ -33,13 +33,13 @@ class FoodScreenTest {
 
     @Test fun manualMealsSurviveReopeningAndBelongToSelectedDate() {
         expectTotal("За этот день пока нет записей")
-        text("Ввести вручную").performClick()
+        text("Вручную").performClick()
         text("Сохранить").assertIsNotEnabled()
         text("Название").performTextInput("Завтрак")
         text("Ккал на порцию").performTextInput("320")
         text("Сохранить").performClick()
         expectTotal("320")
-        text("Ввести вручную").performClick()
+        text("Вручную").performClick()
         text("На 100 г").performClick()
         text("Название").performTextInput("Творог")
         text("Вес порции, г").performTextInput("150")
@@ -51,7 +51,7 @@ class FoodScreenTest {
 
         composeTestRule.onNodeWithContentDescription("Следующий день").performClick()
         expectTotal("За этот день пока нет записей")
-        text("Ввести вручную").performClick()
+        text("Вручную").performClick()
         text("Название").performTextInput("Перекус")
         text("Ккал на порцию").performTextInput("90")
         text("Сохранить").performClick()

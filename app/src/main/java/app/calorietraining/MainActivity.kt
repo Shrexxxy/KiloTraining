@@ -127,11 +127,15 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
                 Text("Сканировать штрихкод")
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("Найти продукт" to FoodEvent.BrowseFoods, "Мои рецепты" to FoodEvent.Recipes,
-                    "Ввести вручную" to FoodEvent.Edit(FoodDraft())).forEach { (label, event) ->
-                    FilledTonalButton(onClick = { onEvent(event) }, enabled = enabled, modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 3.dp)) {
-                        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
+                listOf(
+                    Triple("Найти", "Найти продукт", FoodEvent.BrowseFoods),
+                    Triple("Рецепты", "Мои рецепты", FoodEvent.Recipes),
+                    Triple("Вручную", "Ввести вручную", FoodEvent.Edit(FoodDraft()))
+                ).forEach { (label, description, event) ->
+                    FilledTonalButton(onClick = { onEvent(event) }, enabled = enabled,
+                        modifier = Modifier.weight(1f).semantics { contentDescription = description },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+                        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                     }
                 }
             }
