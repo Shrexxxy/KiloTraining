@@ -76,6 +76,14 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit, m
                     } }
                 }
                 item { ProfileBlock("Тренировки") {
+                    stats.averageMinutes?.let { average ->
+                        val hours = stats.totalMinutes / 60
+                        val minutes = stats.totalMinutes % 60
+                        Text("Время занятий · ${if (hours > 0) "$hours ч $minutes мин" else "$minutes мин"}")
+                        Text("В среднем · ${average.display()} мин")
+                        Text("Длительность указана у ${stats.timedWorkouts} из ${stats.workouts} занятий",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
                     Text("Занятий с выполненными подходами: ${stats.workouts}", style = MaterialTheme.typography.titleMedium)
                     Text("Подходов: ${stats.sets} · Повторений: ${stats.reps}")
                     Text("Объём с отягощением: ${stats.volume.display()} кг", style = MaterialTheme.typography.bodyMedium)

@@ -27,12 +27,35 @@ fun FoodStore.saveTemplate(session: Long, title: String) {
     val db = writableDatabase
     db.atomic {
         val id = db.insertOrThrow("workout_template", null, ContentValues().apply { put("title", title.trim()) })
-        db.execSQL("""INSERT INTO template_set(template,exercise_group,exercise,weight,reps,warmup)
-            SELECT ?,exercise_group,exercise,weight,reps,warmup FROM lifting WHERE session=? ORDER BY id""",
-            arrayOf(id, session))
-        db.rawQuery("SELECT 1 FROM template_set WHERE template=? LIMIT 1", arrayOf(id.toString())).use {
-            if (!it.moveToFirst()) throw android.database.SQLException("Тренировка пуста")
+        db.copyTemplateSets(id, session)
+    }
+}
+
+private fun SQLiteDatabase.copyTemplateSets(id: Long, session: Long) {
+    execSQL("""INSERT INTO template_set(template,exercise_group,exercise,weight,reps,warmup)
+        SELECT ?,exercise_group,exercise,weight,reps,warmup FROM lifting WHERE session=? ORDER BY id""",
+        arrayOf(id, session))
+    rawQuery("SELECT 1 FROM template_set WHERE template=? LIMIT 1", arrayOf(id.toString())).use {
+        if (!it.moveToFirst()) throw android.database.SQLException("Тренировка пуста")
+    }
+}
+
+fun FoodStore.renameTemplate(id: Long, title: String) {
+    require(title.isNotBlank())
+    val values = ContentValues().apply { put("title", title.trim()) }
+    if (writableDatabase.update("workout_template", values, "id=?", arrayOf(id.toString())) != 1) {
+        throw android.database.SQLException("Шаблон не найден")
+    }
+}
+
+fun FoodStore.replaceTemplate(id: Long, session: Long) {
+    val db = writableDatabase
+    db.atomic {
+        val args = arrayOf(id.toString())
+        if (db.delete("template_set", "template=?", args) == 0) {
+            throw android.database.SQLException("Шаблон не найден")
         }
+        db.copyTemplateSets(id, session)
     }
 }
 

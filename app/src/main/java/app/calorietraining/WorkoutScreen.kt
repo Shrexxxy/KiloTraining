@@ -133,10 +133,31 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                     state.list.forEachIndexed { index, workout ->
                         item(key="session${workout.id}") {
                             var confirm by rememberSaveable { mutableStateOf(false) }
+                            var replacing by rememberSaveable { mutableStateOf(false) }
                             var savingTemplate by rememberSaveable { mutableStateOf(false) }
                             var renaming by rememberSaveable { mutableStateOf(false) }
                             var title by rememberSaveable { mutableStateOf("") }
                             val label = workout.title.ifBlank { "Тренировка ${index + 1}" }
+                            var editingDuration by rememberSaveable { mutableStateOf(false) }
+                            if (editingDuration) {
+                                var input by rememberSaveable { mutableStateOf(workout.minutes?.toString().orEmpty()) }
+                                val minutes = input.toIntOrNull()
+                                val valid = input.isEmpty() || minutes in workoutMinutesRange
+                                AlertDialog(onDismissRequest = { editingDuration = false },
+                                    title = { Text("Длительность тренировки") },
+                                    text = {
+                                        OutlinedTextField(input, { input = it }, singleLine = true, isError = !valid,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            label = { Text("Минуты") }, supportingText = {
+                                                Text(if (valid) "Можно оставить пустым" else "Введите от 1 до 1440 минут")
+                                            })
+                                    },
+                                    confirmButton = { TextButton(enabled = valid && !state.busy, onClick = {
+                                        event(WorkoutEvent.Duration(workout.id, minutes))
+                                        editingDuration = false
+                                    }) { Text("Сохранить") } },
+                                    dismissButton = { TextButton(onClick = { editingDuration = false }) { Text("Отмена") } })
+                            }
                             var menu by remember { mutableStateOf(false) }
                             var moveDate by rememberSaveable(state.day.toEpochDay()) { mutableStateOf<Long?>(null) }
                             var repeating by rememberSaveable { mutableStateOf(false) }
@@ -161,6 +182,11 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                     },
                                     dismissButton = { TextButton(onClick = { moveDate = null }) { Text("Отмена") } })
                             }
+                            if (replacing) TemplateChangeDialog(state.templates, label, onClose = { replacing = false },
+                                onChange = { template, _ ->
+                                    event(WorkoutEvent.ReplaceTemplate(template.id, workout.id))
+                                    replacing = false
+                                })
                             if (renaming || savingTemplate) AlertDialog(
                                 onDismissRequest = { renaming = false; savingTemplate = false },
                                 title = { Text(if (savingTemplate) "Название шаблона" else "Название тренировки") },
@@ -178,6 +204,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                                 Column(Modifier.weight(1f)) {
                                     Text(label, style = MaterialTheme.typography.titleMedium)
+                                    workout.minutes?.let { Text("$it мин", style = MaterialTheme.typography.bodySmall) }
                                     val completed = workout.sets.count { !it.planned }
                                     Text("Подходы: $completed из ${workout.sets.size} выполнено",
                                         style = MaterialTheme.typography.bodySmall)
@@ -187,8 +214,14 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                         DropdownMenuItem(text = { Text(if (workout.title.isBlank()) "Задать название" else "Переименовать") },
                                             onClick = { menu = false; confirm = false; title = workout.title; renaming = true })
+                                        DropdownMenuItem(text = { Text("Длительность") }, onClick = {
+                                            menu = false
+                                            editingDuration = true
+                                        })
                                         DropdownMenuItem(text = { Text("Сохранить как шаблон") }, enabled = workout.sets.isNotEmpty(),
                                             onClick = { menu = false; title = workout.title; savingTemplate = true })
+                                        if (state.templates.isNotEmpty()) DropdownMenuItem(text = { Text("Обновить шаблон") },
+                                            enabled = workout.sets.isNotEmpty(), onClick = { menu = false; replacing = true })
                                         DropdownMenuItem(text = { Text("Перенести на дату") },
                                             onClick = { menu = false; confirm = false; repeating = false; moveDate = state.day.toEpochDay() })
                                         DropdownMenuItem(text = { Text("Повторить") }, enabled = workout.sets.any { !it.planned },
@@ -238,6 +271,12 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                     }
                 }
                 if (state.templates.isNotEmpty()) {
+                    var changingName by rememberSaveable { mutableStateOf(false) }
+                    if (changingName) TemplateChangeDialog(state.templates, source = null, onClose = { changingName = false },
+                        onChange = { template, name ->
+                            event(WorkoutEvent.RenameTemplate(template.id, name))
+                            changingName = false
+                        })
                     var choosingTemplate by rememberSaveable { mutableStateOf(false) }
                     Box {
                         OutlinedButton(enabled = !state.busy, onClick = { choosingTemplate = true }) { Text("Из шаблона") }
@@ -248,6 +287,11 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                                     event(WorkoutEvent.StartTemplate(template.id))
                                 })
                             }
+                            HorizontalDivider()
+                            DropdownMenuItem(text = { Text("Переименовать шаблон") }, onClick = {
+                                choosingTemplate = false
+                                changingName = true
+                            })
                         }
                     }
                 }
@@ -256,6 +300,34 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
         }
     }
 }
+@Composable
+private fun TemplateChangeDialog(templates: List<WorkoutTemplate>, source: String?, onClose: () -> Unit,
+    onChange: (WorkoutTemplate, String) -> Unit) {
+    var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var name by rememberSaveable { mutableStateOf("") }
+    val selected = templates.find { it.id == selectedId }
+    AlertDialog(onDismissRequest = onClose,
+        title = { Text(when {
+            selected == null -> "Выберите шаблон"
+            source == null -> "Новое название шаблона"
+            else -> "Обновить «${selected.title}»?"
+        }) },
+        text = {
+            if (selected == null) LazyColumn {
+                items(templates, key = { it.id }) { template ->
+                    TextButton(onClick = { selectedId = template.id; name = template.title }) { Text(template.title) }
+                }
+            } else if (source == null) {
+                OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Название") })
+            } else Text("Подходы из тренировки «$source» заменят текущие подходы шаблона.")
+        },
+        confirmButton = {
+            if (selected != null) TextButton(enabled = source != null || name.isNotBlank(),
+                onClick = { onChange(selected, name) }) { Text(if (source == null) "Сохранить" else "Заменить подходы") }
+        },
+        dismissButton = { TextButton(onClick = onClose) { Text("Отмена") } })
+}
+
 @Preview(locale="ru")
 @Composable
 private fun WorkoutPreview() {

@@ -19,9 +19,12 @@ sealed interface WorkoutEvent {
     data class Day(val day:LocalDate):WorkoutEvent
     data class Edit(val session:Long,val draft:SetDraft):WorkoutEvent
     data class Remove(val session:Long):WorkoutEvent
+    data class Duration(val session: Long, val minutes: Int?) : WorkoutEvent
     data class Rename(val session: Long, val title: String) : WorkoutEvent
     data class Move(val session: Long, val date: LocalDate) : WorkoutEvent
     data class StartTemplate(val id: Long) : WorkoutEvent
+    data class RenameTemplate(val id: Long, val title: String) : WorkoutEvent
+    data class ReplaceTemplate(val id: Long, val session: Long) : WorkoutEvent
     data class SaveTemplate(val session: Long, val title: String) : WorkoutEvent
     data class Repeat(val session: Long, val date: LocalDate) : WorkoutEvent
     data object Create:WorkoutEvent
@@ -42,6 +45,8 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
         when(event) {
             is WorkoutEvent.Day -> update(event.day)
             is WorkoutEvent.StartTemplate -> update(s.day) { startTemplate(event.id, s.day) }
+            is WorkoutEvent.RenameTemplate -> if (event.title.isNotBlank()) update(s.day) { renameTemplate(event.id, event.title) }
+            is WorkoutEvent.ReplaceTemplate -> update(s.day) { replaceTemplate(event.id, event.session) }
             is WorkoutEvent.SaveTemplate -> if (event.title.isNotBlank()) update(s.day) { saveTemplate(event.session, event.title) }
             is WorkoutEvent.Repeat -> s.list.find { it.id == event.session && it.sets.any { set -> !set.planned } }?.let { source ->
                 update(event.date) { repeatWorkout(source, event.date) }
@@ -51,6 +56,9 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
                     writableDatabase.execSQL("UPDATE workout SET day=? WHERE id=? AND day=?",
                         arrayOf(event.date.toString(), event.session, s.day.toString()))
                 }
+            }
+            is WorkoutEvent.Duration -> if (event.minutes == null || event.minutes in workoutMinutesRange) update(s.day) {
+                setDuration(event.session, event.minutes)
             }
             is WorkoutEvent.Rename -> update(s.day) {
                 writableDatabase.execSQL("UPDATE workout SET title=? WHERE id=? AND day=?",

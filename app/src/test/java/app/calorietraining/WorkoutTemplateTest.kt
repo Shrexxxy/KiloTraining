@@ -21,6 +21,47 @@ class WorkoutTemplateTest {
     private val day = LocalDate.now()
     private val context get() = RuntimeEnvironment.getApplication()
 
+    @Test fun updatingTemplateAffectsFutureStartsAndSurvivesEmptySource() {
+        FoodStore(context).use { store ->
+            val source = store.newWorkout(day)
+            val bench = SetDraft(exercise="Жим", weight="60", reps="8")
+            store.saveSet(source, bench)
+            store.saveTemplate(source, "Верх А")
+            val id = store.templates().single().id
+            val yesterday = day.minusDays(1)
+            store.startTemplate(id, yesterday)
+            val old = store.workouts(yesterday).single()
+            store.renameTemplate(id, "  Грудь  ")
+            store.saveSet(source, store.workouts(day).single().sets.single().copy(weight="65"))
+            store.replaceTemplate(id, source)
+            val empty = store.newWorkout(day)
+            assertThrows(android.database.SQLException::class.java) { store.replaceTemplate(id, empty) }
+            assertEquals(old, store.workouts(yesterday).single())
+            assertEquals(WorkoutTemplate(id, "Грудь"), store.templates().single())
+            val tomorrow = day.plusDays(1)
+            store.startTemplate(id, tomorrow)
+            val updated = store.workouts(tomorrow).single()
+            assertEquals("Грудь", updated.title)
+            assertEquals("65", updated.sets.single().weight)
+            assertTrue(updated.sets.single().planned)
+        }
+    }
+
+    @Test fun replacingRequiresExplicitConfirmation() {
+        var action: WorkoutEvent? = null
+        val workout = Workout(7, listOf(SetDraft(exercise="Жим", weight="60", reps="8")), "Понедельник")
+        compose.setContent { MaterialTheme {
+            WorkoutContent(WorkoutState(day=day.minusDays(1), list=listOf(workout),
+                templates=listOf(WorkoutTemplate(4,"Верх А"))), { action = it })
+        } }
+        compose.onNodeWithText("Действия").performClick()
+        compose.onNodeWithText("Обновить шаблон").performClick()
+        compose.onNodeWithText("Верх А").performClick()
+        assertNull(action)
+        compose.onNodeWithText("Заменить подходы").performClick()
+        assertEquals(WorkoutEvent.ReplaceTemplate(4,7), action)
+    }
+
     @Test fun snapshotRestoresAndStartsAsPlan() {
         FoodStore(context).use { store ->
             val session = store.newWorkout(day)

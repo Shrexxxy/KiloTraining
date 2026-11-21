@@ -14,7 +14,7 @@ private val tables = linkedMapOf(
     "ingredient" to listOf("id","recipe_id","name","grams","energy","protein","fat","carbs"),
     "food" to listOf("id", "day", "name", "energy", "grams", "calories", "meal", "meal_time", "protein", "fat", "carbs"),
     "product" to listOf("code", "name", "energy", "protein", "fat", "carbs"),
-    "workout" to listOf("id", "day", "title"),
+    "workout" to listOf("id", "day", "title", "minutes"),
     "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup"),
     "workout_template" to listOf("id", "title"),
     "template_set" to listOf("id", "template", "exercise_group", "exercise", "weight", "reps", "warmup"),
@@ -22,7 +22,8 @@ private val tables = linkedMapOf(
     "measurement" to listOf("day", "weight", "fat")
 )
 
-private const val FORMAT = "calorietraining/9"
+private const val FORMAT = "calorietraining/10"
+private const val RECIPE_FORMAT = "calorietraining/9"
 private const val TEMPLATE_FORMAT = "calorietraining/8"
 private const val MACRO_FORMAT = "calorietraining/7"
 private const val TIME_FORMAT = "calorietraining/6"
@@ -74,6 +75,7 @@ private fun validateRow(table: String, row: ContentValues) {
         "recipe" -> require(field("name").isNotBlank() && field("cooked").amount()?.signum() == 1)
         "ingredient" -> require(field("recipe_id").toLong() > 0 && FoodDraft(name=field("name"), weighted=true,
             grams=field("grams"), energy=field("energy"), macros=Macros(field("protein"),field("fat"),field("carbs"))).calories != null)
+        "workout" -> require(field("minutes") == "0" || field("minutes").toIntOrNull() in workoutMinutesRange)
         "workout_template" -> require(field("title").isNotBlank())
         "template_set" -> require(field("template").toLong() > 0 && field("exercise_group").isNotBlank() &&
             SetDraft(exercise = field("exercise"), weight = field("weight"), reps = field("reps")).valid)
@@ -99,6 +101,7 @@ fun FoodStore.readBackup(input: Reader): String {
     val seen = mutableSetOf<String>()
     val counts = mutableMapOf<String, Int>()
     var format = ""
+    var missingDuration = false
     var missingWorkoutTitle = false
     var missingMeal = false
     var missingPlan = false
@@ -113,7 +116,7 @@ fun FoodStore.readBackup(input: Reader): String {
                 require(seen.add(key))
                 if (key == "format") {
                     format = json.nextString()
-                    require(format in setOf(FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT, TITLE_FORMAT, GOAL_FORMAT, LEGACY_FORMAT))
+                    require(format in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT, TITLE_FORMAT, GOAL_FORMAT, LEGACY_FORMAT))
                     continue
                 }
                 val columns = requireNotNull(tables[key])
@@ -139,6 +142,10 @@ fun FoodStore.readBackup(input: Reader): String {
                     if (key == "lifting" && !row.containsKey("planned")) {
                         missingPlan = true
                         row.put("planned", "0")
+                    }
+                    if (key == "workout" && !row.containsKey("minutes")) {
+                        row.put("minutes", "0")
+                        missingDuration = true
                     }
                     if (key == "workout" && !row.containsKey("title")) {
                         missingWorkoutTitle = true
@@ -169,15 +176,16 @@ fun FoodStore.readBackup(input: Reader): String {
             json.endObject()
             val expected = tables.keys.toMutableSet()
             if (format == LEGACY_FORMAT) expected.remove("daily_goal")
-            if (format !in setOf(FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT)) expected.remove("measurement")
-            if (format != FORMAT) expected.removeAll(listOf("recipe","ingredient"))
-            if (format !in setOf(FORMAT,TEMPLATE_FORMAT)) expected.removeAll(listOf("workout_template", "template_set"))
-            require(format !in setOf(FORMAT,TEMPLATE_FORMAT) || !missingWarmup)
-            require(format !in setOf(FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT) || !missingMacros)
-            require(format !in setOf(FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT) || !missingTime)
-            require(format !in setOf(FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT, TITLE_FORMAT) || !missingWorkoutTitle)
-            require(format !in setOf(FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT) || !missingMeal)
-            require(format !in setOf(FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT) || !missingPlan)
+            if (format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT)) expected.remove("measurement")
+            if (format !in setOf(FORMAT, RECIPE_FORMAT)) expected.removeAll(listOf("recipe","ingredient"))
+            require(format != FORMAT || !missingDuration)
+            if (format !in setOf(FORMAT, RECIPE_FORMAT,TEMPLATE_FORMAT)) expected.removeAll(listOf("workout_template", "template_set"))
+            require(format !in setOf(FORMAT, RECIPE_FORMAT,TEMPLATE_FORMAT) || !missingWarmup)
+            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT) || !missingMacros)
+            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT) || !missingTime)
+            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT, TITLE_FORMAT) || !missingWorkoutTitle)
+            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT) || !missingMeal)
+            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT) || !missingPlan)
             require(json.peek() == JsonToken.END_DOCUMENT && seen == expected + "format")
             db.rawQuery("""SELECT 1 FROM ingredient i LEFT JOIN recipe r ON r.id=i.recipe_id WHERE r.id IS NULL
                 UNION ALL SELECT 1 FROM recipe r WHERE NOT EXISTS (SELECT 1 FROM ingredient i WHERE i.recipe_id=r.id) LIMIT 1""",

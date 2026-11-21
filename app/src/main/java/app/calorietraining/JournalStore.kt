@@ -92,7 +92,14 @@ data class SetDraft(val id: Long? = null, val group: String = UUID.randomUUID().
     val exercise: String = "", val weight: String = "", val reps: String = "", val planned: Boolean = false, val warmup: Boolean = false) {
     val valid get() = exercise.isNotBlank() && (weight.isBlank() || weight.amount() != null) && (reps.toIntOrNull() ?: 0) > 0
 }
-data class Workout(val id: Long,val sets: List<SetDraft>, val title: String = "")
+data class Workout(val id: Long,val sets: List<SetDraft>, val title: String = "", val minutes: Int? = null)
+internal val workoutMinutesRange = 1..1440
+
+fun FoodStore.setDuration(session: Long, minutes: Int?) {
+    require(minutes == null || minutes in workoutMinutesRange)
+    writableDatabase.execSQL("UPDATE workout SET minutes=? WHERE id=?", arrayOf<Any>(minutes ?: 0, session))
+}
+
 fun FoodStore.newWorkout(day: LocalDate): Long = writableDatabase.insertOrThrow("workout",null,ContentValues().apply { put("day",day.toString()) })
 fun FoodStore.saveSet(session: Long,set: SetDraft, planned: Boolean = false) {
     require(set.valid)
@@ -155,13 +162,13 @@ fun FoodStore.previousExercise(day: LocalDate, session: Long, exercise: String):
 fun FoodStore.workouts(day: LocalDate): List<Workout> {
     val result = mutableListOf<Workout>()
     var sets = mutableListOf<SetDraft>()
-    readableDatabase.rawQuery("""SELECT w.id,l.id,l.exercise_group,l.exercise,l.weight,l.reps,w.title,l.planned,l.warmup
+    readableDatabase.rawQuery("""SELECT w.id,l.id,l.exercise_group,l.exercise,l.weight,l.reps,w.title,l.planned,l.warmup,w.minutes
         FROM workout w LEFT JOIN lifting l ON w.id=l.session WHERE w.day=? ORDER BY w.id,l.id""",arrayOf(day.toString())).use {
         while(it.moveToNext()) {
             val id = it.getLong(0)
             if (result.lastOrNull()?.id != id) {
                 sets = mutableListOf()
-                result.add(Workout(id, sets, it.getString(6)))
+                result.add(Workout(id, sets, it.getString(6), it.getInt(9).takeIf { value -> value > 0 }))
             }
             if(!it.isNull(1)) sets.add(SetDraft(it.getLong(1),it.getString(2),it.getString(3),it.getString(4),it.getString(5),it.getInt(7) == 1,it.getInt(8) == 1))
         }
