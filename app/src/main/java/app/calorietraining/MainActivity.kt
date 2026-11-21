@@ -109,8 +109,8 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
                 }
                 if (state.rows.isNotEmpty()) item { DailyNutrition(state.rows.dailyMacros()) }
                 if (state.loaded && state.day == LocalDate.now()) item {
-                    DailyGoal(state.goal, state.rows.sumOf { it.calories }, state.busy) {
-                        onEvent(FoodEvent.Goal(it))
+                    DailyGoal(state.goal, state.macroGoals, state.rows.sumOf { it.calories }, state.rows.dailyMacros(), state.busy) { kcal, macros ->
+                        onEvent(FoodEvent.Goal(kcal, macros))
                     }
                 }
                 if (state.loaded && state.rows.isEmpty()) item {
@@ -166,23 +166,33 @@ fun FoodContent(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modi
 }
 
 @Composable
-private fun DailyGoal(goal: Int?, consumed: BigDecimal, busy: Boolean, save: (Int?) -> Unit) {
+private fun DailyGoal(
+    goal: Int?, macros: MacroGoals, consumed: BigDecimal, totals: Macros,
+    busy: Boolean, save: (Int?, MacroGoals) -> Unit
+) {
     var editing by rememberSaveable { mutableStateOf(false) }
-    var input by rememberSaveable { mutableStateOf("") }
+    val hasGoal = goal != null || macros != MacroGoals()
     if (editing) {
-        val value = input.toIntOrNull()?.takeIf { it > 0 }
+        var kcal by rememberSaveable { mutableStateOf(goal?.toString().orEmpty()) }
+        var protein by rememberSaveable { mutableStateOf(macros.protein?.toString().orEmpty()) }
+        var fat by rememberSaveable { mutableStateOf(macros.fat?.toString().orEmpty()) }
+        var carbs by rememberSaveable { mutableStateOf(macros.carbs?.toString().orEmpty()) }
+        val valid = listOf(kcal, protein, fat, carbs).all { it.isEmpty() || (it.toIntOrNull() ?: 0) > 0 }
         AlertDialog(
             onDismissRequest = { editing = false },
             title = { Text("Дневная цель") },
             text = {
-                Column {
-                    OutlinedTextField(input, { input = it }, label = { Text("Ккал в день") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                    if (goal != null) TextButton(onClick = { editing = false; save(null) }) { Text("Отключить цель") }
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    GoalField("Ккал в день", kcal) { kcal = it }
+                    GoalField("Белки, г", protein) { protein = it }
+                    GoalField("Жиры, г", fat) { fat = it }
+                    GoalField("Углеводы, г", carbs) { carbs = it }
+                    if (hasGoal) TextButton(onClick = { editing = false; save(null, MacroGoals()) }) { Text("Отключить цель") }
                 }
             },
-            confirmButton = { Button(enabled = value != null, onClick = {
-                value?.let { editing = false; save(it) }
+            confirmButton = { Button(enabled = valid, onClick = {
+                editing = false
+                save(kcal.toIntOrNull(), MacroGoals(protein.toIntOrNull(), fat.toIntOrNull(), carbs.toIntOrNull()))
             }) { Text("Сохранить") } },
             dismissButton = { TextButton(onClick = { editing = false }) { Text("Отмена") } }
         )
@@ -197,10 +207,28 @@ private fun DailyGoal(goal: Int?, consumed: BigDecimal, busy: Boolean, save: (In
             }
             Text(status, style = MaterialTheme.typography.titleMedium)
         }
-        TextButton(enabled = !busy, onClick = { input = goal?.toString().orEmpty(); editing = true }) {
-            Text(if (goal == null) "Задать дневную цель" else "Изменить цель · $goal ккал")
+        fun progress(label: String, total: String, target: Int?) =
+            target?.let { "$label ${total.ifEmpty { "—" }} / $it г" }
+        val summary = listOfNotNull(
+            progress("Б", totals.protein, macros.protein),
+            progress("Ж", totals.fat, macros.fat),
+            progress("У", totals.carbs, macros.carbs)
+        ).joinToString(" · ")
+        if (summary.isNotEmpty()) Text(summary, style = MaterialTheme.typography.bodyMedium)
+        TextButton(enabled = !busy, onClick = { editing = true }) {
+            Text(when {
+                goal != null -> "Изменить цель · $goal ккал"
+                hasGoal -> "Изменить цель"
+                else -> "Задать дневную цель"
+            })
         }
     }
+}
+
+@Composable
+private fun GoalField(label: String, value: String, change: (String) -> Unit) {
+    OutlinedTextField(value, change, label = { Text(label) }, singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 }
 
 @Composable

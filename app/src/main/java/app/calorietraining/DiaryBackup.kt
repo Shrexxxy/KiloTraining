@@ -18,20 +18,13 @@ private val tables = linkedMapOf(
     "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup"),
     "workout_template" to listOf("id", "title"),
     "template_set" to listOf("id", "template", "exercise_group", "exercise", "weight", "reps", "warmup"),
+    "macro_goal" to listOf("id", "protein", "fat", "carbs"),
     "daily_goal" to listOf("id", "kcal"),
     "measurement" to listOf("day", "weight", "fat")
 )
 
-private const val FORMAT = "calorietraining/10"
-private const val RECIPE_FORMAT = "calorietraining/9"
-private const val TEMPLATE_FORMAT = "calorietraining/8"
-private const val MACRO_FORMAT = "calorietraining/7"
-private const val TIME_FORMAT = "calorietraining/6"
-private const val PLAN_FORMAT = "calorietraining/5"
-private const val MEAL_FORMAT = "calorietraining/4"
-private const val TITLE_FORMAT = "calorietraining/3"
-private const val GOAL_FORMAT = "calorietraining/2"
-private const val LEGACY_FORMAT = "calorietraining/1"
+private const val FORMAT_VERSION = 11
+private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
 internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
     beginTransaction()
@@ -80,6 +73,8 @@ private fun validateRow(table: String, row: ContentValues) {
         "template_set" -> require(field("template").toLong() > 0 && field("exercise_group").isNotBlank() &&
             SetDraft(exercise = field("exercise"), weight = field("weight"), reps = field("reps")).valid)
         "measurement" -> require(Measurement(LocalDate.parse(field("day")), field("weight"), field("fat")).valid)
+        "macro_goal" -> require(field("id") == "1" &&
+            listOf("protein", "fat", "carbs").all { field(it).toInt() >= 0 })
         "daily_goal" -> require(field("id") == "1" && field("kcal").toInt() > 0)
         "food" -> {
             Meal.valueOf(field("meal"))
@@ -100,7 +95,7 @@ fun FoodStore.readBackup(input: Reader): String {
     val db = writableDatabase
     val seen = mutableSetOf<String>()
     val counts = mutableMapOf<String, Int>()
-    var format = ""
+    var version = 0
     var missingDuration = false
     var missingWorkoutTitle = false
     var missingMeal = false
@@ -115,8 +110,9 @@ fun FoodStore.readBackup(input: Reader): String {
                 val key = json.nextName()
                 require(seen.add(key))
                 if (key == "format") {
-                    format = json.nextString()
-                    require(format in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT, TITLE_FORMAT, GOAL_FORMAT, LEGACY_FORMAT))
+                    val format = json.nextString()
+                    version = format.substringAfterLast('/').toInt()
+                    require(version in 1..FORMAT_VERSION && format == "calorietraining/$version")
                     continue
                 }
                 val columns = requireNotNull(tables[key])
@@ -175,17 +171,18 @@ fun FoodStore.readBackup(input: Reader): String {
             }
             json.endObject()
             val expected = tables.keys.toMutableSet()
-            if (format == LEGACY_FORMAT) expected.remove("daily_goal")
-            if (format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT)) expected.remove("measurement")
-            if (format !in setOf(FORMAT, RECIPE_FORMAT)) expected.removeAll(listOf("recipe","ingredient"))
-            require(format != FORMAT || !missingDuration)
-            if (format !in setOf(FORMAT, RECIPE_FORMAT,TEMPLATE_FORMAT)) expected.removeAll(listOf("workout_template", "template_set"))
-            require(format !in setOf(FORMAT, RECIPE_FORMAT,TEMPLATE_FORMAT) || !missingWarmup)
-            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT) || !missingMacros)
-            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT) || !missingTime)
-            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT, TITLE_FORMAT) || !missingWorkoutTitle)
-            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT, MEAL_FORMAT) || !missingMeal)
-            require(format !in setOf(FORMAT, RECIPE_FORMAT, TEMPLATE_FORMAT, MACRO_FORMAT, TIME_FORMAT, PLAN_FORMAT) || !missingPlan)
+            if (version < 11) expected.remove("macro_goal")
+            if (version < 9) expected.removeAll(listOf("recipe", "ingredient"))
+            if (version < 8) expected.removeAll(listOf("workout_template", "template_set"))
+            if (version < 6) expected.remove("measurement")
+            if (version < 2) expected.remove("daily_goal")
+            require(version < 10 || !missingDuration)
+            require(version < 8 || !missingWarmup)
+            require(version < 7 || !missingMacros)
+            require(version < 6 || !missingTime)
+            require(version < 5 || !missingPlan)
+            require(version < 4 || !missingMeal)
+            require(version < 3 || !missingWorkoutTitle)
             require(json.peek() == JsonToken.END_DOCUMENT && seen == expected + "format")
             db.rawQuery("""SELECT 1 FROM ingredient i LEFT JOIN recipe r ON r.id=i.recipe_id WHERE r.id IS NULL
                 UNION ALL SELECT 1 FROM recipe r WHERE NOT EXISTS (SELECT 1 FROM ingredient i WHERE i.recipe_id=r.id) LIMIT 1""",

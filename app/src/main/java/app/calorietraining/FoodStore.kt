@@ -19,6 +19,9 @@ enum class Meal(val label: String) {
     BREAKFAST("Завтрак"), LUNCH("Обед"), DINNER("Ужин"), SNACK("Перекус"), UNSPECIFIED("Без категории")
 }
 
+/** Необязательные дневные цели по макронутриентам в граммах. */
+data class MacroGoals(val protein: Int? = null, val fat: Int? = null, val carbs: Int? = null)
+
 data class Macros(val protein: String = "", val fat: String = "", val carbs: String = "") {
     val valid get() = listOf(protein, fat, carbs).all { it.isBlank() || it.amount() != null }
 
@@ -82,7 +85,7 @@ data class FoodEntry(
     fun edit() = FoodDraft(id, name, grams.isNotEmpty(), energy, grams, meal = meal, mealTime = mealTime, macros = macros)
 }
 
-class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 11) {
+class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 12) {
     private fun createGoalTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
     }
@@ -98,6 +101,35 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
             writableDatabase.execSQL("INSERT OR REPLACE INTO daily_goal(id,kcal) VALUES(1,?)", arrayOf(kcal))
         }
     }
+    private fun createMacroGoalTable(db: SQLiteDatabase) {
+        db.execSQL("""CREATE TABLE macro_goal (
+            id INTEGER PRIMARY KEY CHECK(id=1),
+            protein INTEGER NOT NULL DEFAULT 0 CHECK(protein>=0),
+            fat INTEGER NOT NULL DEFAULT 0 CHECK(fat>=0),
+            carbs INTEGER NOT NULL DEFAULT 0 CHECK(carbs>=0)
+        )""")
+    }
+
+    /** Читает индивидуальные цели по БЖУ. */
+    fun macroGoals(): MacroGoals = readableDatabase.rawQuery(
+        "SELECT protein, fat, carbs FROM macro_goal WHERE id=1", null
+    ).use { row ->
+        fun goal(index: Int) = row.getInt(index).takeIf { it > 0 }
+        if (row.moveToFirst()) MacroGoals(goal(0), goal(1), goal(2)) else MacroGoals()
+    }
+
+    /** Заменяет цели по БЖУ или удаляет запись при очистке всех полей. */
+    fun setMacroGoals(goals: MacroGoals) {
+        val (protein, fat, carbs) = goals
+        require(listOfNotNull(protein, fat, carbs).all { it > 0 })
+        if (goals == MacroGoals()) {
+            writableDatabase.delete("macro_goal", null, null)
+        } else {
+            writableDatabase.execSQL("INSERT OR REPLACE INTO macro_goal(id,protein,fat,carbs) VALUES(1,?,?,?)",
+                arrayOf(protein ?: 0, fat ?: 0, carbs ?: 0))
+        }
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE food (
             id INTEGER PRIMARY KEY, day TEXT NOT NULL, name TEXT NOT NULL,
@@ -106,6 +138,7 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         db.execSQL("CREATE INDEX food_day ON food(day)")
         createJournalTables(db)
         createGoalTable(db)
+        createMacroGoalTable(db)
         createMeasurements(db)
         addMacroColumns(db)
         createTemplateTables(db)
@@ -137,6 +170,7 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         if (oldVersion < 9) createTemplateTables(db)
         if (oldVersion < 10) createRecipeTables(db)
         if (oldVersion < 11) addDuration(db)
+        if (oldVersion < 12) createMacroGoalTable(db)
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(

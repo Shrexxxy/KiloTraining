@@ -25,6 +25,7 @@ data class FoodUiState(
     val library: List<FoodDraft>? = null,
     val online: CatalogSearch = CatalogSearch.Idle,
     val goal: Int? = null,
+    val macroGoals: MacroGoals = MacroGoals(),
     val draft: FoodDraft? = null,
     val busy: Boolean = false,
     val loaded: Boolean = false,
@@ -51,7 +52,7 @@ sealed interface FoodEvent {
     data object BackToEditor : FoodEvent
     data object Scan : FoodEvent
     data class Barcode(val code: String) : FoodEvent
-    data class Goal(val kcal: Int?) : FoodEvent
+    data class Goal(val kcal: Int?, val macros: MacroGoals) : FoodEvent
     data class CopyMeal(val source: LocalDate, val destination: LocalDate, val meal: Meal) : FoodEvent
     data object Close : FoodEvent
     data object Save : FoodEvent
@@ -84,7 +85,10 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
                 refresh(current.day, showRecipes = true) { saveRecipe(it) }
             }
             is FoodEvent.Day -> refresh(event.value)
-            is FoodEvent.Goal -> refresh(current.day) { setDailyGoal(event.kcal) }
+            is FoodEvent.Goal -> refresh(current.day) {
+                setDailyGoal(event.kcal)
+                setMacroGoals(event.macros)
+            }
             is FoodEvent.CopyMeal -> if (current.day == event.source && current.rows.any { it.meal == event.meal }) {
                 refresh(event.destination) { copyMeal(event.source, event.destination, event.meal) }
             }
@@ -162,7 +166,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
                 val snapshot = withContext(Dispatchers.IO) {
                     FoodStore(getApplication()).use { store ->
                         fun snapshot() = FoodUiState(day = day, rows = store.entries(day), recent = store.foodSuggestions(day, 12),
-                            goal = store.dailyGoal(), loaded = true, recipes = if (showRecipes) store.recipes() else null)
+                            goal = store.dailyGoal(), macroGoals = store.macroGoals(), loaded = true, recipes = if (showRecipes) store.recipes() else null)
                         if (change == null) return@use snapshot()
                         val db = store.writableDatabase
                         db.beginTransaction()
