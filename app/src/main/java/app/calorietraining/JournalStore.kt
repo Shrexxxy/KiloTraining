@@ -255,9 +255,14 @@ internal fun FoodStore.finishInactiveWorkouts() {
     }
 }
 
+// Время выполнения пишем только в идущей тренировке: в записанной задним числом это было бы время ввода, а не подхода.
+private fun FoodStore.liveSetTime(session: Long): String? =
+    readableDatabase.rawQuery("SELECT 1 FROM workout WHERE id=? AND live=1 AND finished_at IS NULL",
+        arrayOf(session.toString())).use { if (it.moveToFirst()) LocalDateTime.now(clock).format(workoutSecondFormat) else null }
+
 internal fun FoodStore.completeSet(session: Long, setId: Long) {
     writableDatabase.execSQL("UPDATE lifting SET planned=0,done_at=? WHERE session=? AND id=? AND planned=1",
-        arrayOf<Any>(LocalDateTime.now(clock).format(workoutSecondFormat), session, setId))
+        arrayOf<Any?>(liveSetTime(session), session, setId))
 }
 
 fun FoodStore.saveSet(session: Long,set: SetDraft, planned: Boolean = false) {
@@ -274,7 +279,7 @@ fun FoodStore.saveSet(session: Long,set: SetDraft, planned: Boolean = false) {
     val db = writableDatabase
     db.atomic {
         if (set.id == null) {
-            if (!planned) values.put("done_at", LocalDateTime.now(clock).format(workoutSecondFormat))
+            if (!planned) liveSetTime(session)?.let { values.put("done_at", it) }
             db.insertOrThrow("lifting", null, values)
         } else {
             if (planned) values.putNull("done_at")

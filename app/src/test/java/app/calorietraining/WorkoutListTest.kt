@@ -67,6 +67,32 @@ class WorkoutListTest {
         }
     }
 
+    @Test fun onlyLiveWorkoutRecordsSetTimeAndRest() {
+        val clock = WorkoutTestClock()
+        FoodStore(app, "rest-times", clock).use { store ->
+            clock.set("2026-11-23T19:05")
+            val recorded = store.newWorkout(LocalDateTime.parse("2026-11-21T18:00"), live = false)
+            store.saveSet(recorded, SetDraft(group = "a", exercise = "Жим", weight = "60", reps = "8"))
+            clock.set("2026-11-23T19:05:07")
+            store.saveSet(recorded, SetDraft(group = "a", exercise = "Жим", weight = "60", reps = "8"))
+            store.saveSet(recorded, SetDraft(group = "a", exercise = "Жим", weight = "62,5", reps = "6"), planned = true)
+            val planned = store.workouts(session = recorded).single().sets.single { it.planned }
+            store.completeSet(recorded, requireNotNull(planned.id))
+            val past = store.workouts(session = recorded).single()
+            assertTrue(past.sets.all { it.doneAt == null })
+            assertTrue(past.restBySet().isEmpty())
+
+            clock.set("2026-11-23T19:10")
+            val live = store.newWorkout(LocalDateTime.now(clock), live = true)
+            store.saveSet(live, SetDraft(group = "b", exercise = "Жим", weight = "60", reps = "8"))
+            clock.set("2026-11-23T19:12:30")
+            store.saveSet(live, SetDraft(group = "b", exercise = "Жим", weight = "60", reps = "8"))
+            val now = store.workouts(session = live).single()
+            assertEquals(listOf("2026-11-23T19:10", "2026-11-23T19:12:30"), now.sets.map { it.doneAt.toString() })
+            assertEquals(150L, now.restBySet().values.single().seconds)
+        }
+    }
+
     private fun FoodStore.backup() = StringWriter().also(this::exportDiary).toString()
 }
 
