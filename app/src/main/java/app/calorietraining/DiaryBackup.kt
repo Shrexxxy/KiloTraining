@@ -19,8 +19,9 @@ private val tables = linkedMapOf(
     "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup", "done_at"),
     "workout_template" to listOf("id", "title"),
     "template_set" to listOf("id", "template", "exercise_group", "exercise", "weight", "reps", "warmup"),
-    "goal" to listOf("start_day", "kcal", "protein", "fat", "carbs"),
-    "measurement" to listOf("day", "weight", "fat")
+    "goal" to listOf("start_day", "kcal", "protein", "fat", "carbs", "carbs_zero"),
+    "measurement" to listOf("day", "weight", "fat"),
+    "user_profile" to listOf("id", "sex", "birth_year", "height_cm", "activity", "goal_kind", "updated_at")
 )
 
 private val legacyProductColumns = listOf("code", "name", "energy", "protein", "fat", "carbs")
@@ -36,7 +37,7 @@ private val workoutTimeFields = mapOf(
 )
 private val nullableTimeFields = setOf("started_at", "finished_at", "done_at")
 
-private const val FORMAT_VERSION = 14
+private const val FORMAT_VERSION = 15
 private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
 internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
@@ -96,6 +97,15 @@ private fun validateRow(table: String, row: ContentValues) {
         "goal" -> {
             require(LocalDate.parse(field("start_day")).toString() == field("start_day"))
             require(listOf("kcal", "protein", "fat", "carbs").all { field(it).toInt() >= 0 })
+            require(field("carbs_zero") == "0" || (field("carbs_zero") == "1" && field("carbs") == "0"))
+        }
+        "user_profile" -> {
+            require(field("id") == "1" && field("height_cm").toInt() in 120..230)
+            require(field("birth_year").toInt() >= 1)
+            Sex.valueOf(field("sex"))
+            ActivityLevel.valueOf(field("activity"))
+            GoalKind.valueOf(field("goal_kind"))
+            java.time.Instant.parse(field("updated_at"))
         }
         "macro_goal" -> require(field("id") == "1" &&
             listOf("protein", "fat", "carbs").all { field(it).toInt() >= 0 })
@@ -221,6 +231,7 @@ fun FoodStore.readBackup(input: Reader): String {
                             require(value.isEmpty() || value.amount() != null)
                         }
                     }
+                    if (key == "goal" && !row.containsKey("carbs_zero")) row.put("carbs_zero", "0")
                     require(row.size() == columns.size)
                     validateRow(key, row)
                     if (key in legacyGoalTables) {
@@ -234,6 +245,7 @@ fun FoodStore.readBackup(input: Reader): String {
             }
             json.endObject()
             val expected = tables.keys.toMutableSet()
+            if (version < 15) expected.remove("user_profile")
             if (version < 13) {
                 expected.remove("my_product")
                 expected.add("product")
@@ -253,7 +265,7 @@ fun FoodStore.readBackup(input: Reader): String {
             require(version < 5 || !missingPlan)
             require(version < 4 || !missingMeal)
             require(version < 3 || !missingWorkoutTitle)
-            require(if (version == 14) !missingWorkoutTimes else !hasWorkoutTimes)
+            require(if (version >= 14) !missingWorkoutTimes else !hasWorkoutTimes)
             require(json.peek() == JsonToken.END_DOCUMENT && seen == expected + "format")
             if (version < 13) {
                 db.transferLegacyProducts("legacy_product")

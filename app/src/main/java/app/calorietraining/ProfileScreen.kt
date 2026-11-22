@@ -1,6 +1,7 @@
 package app.calorietraining
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
@@ -27,11 +28,25 @@ import java.time.format.DateTimeFormatter
 
 /** Показывает статистику профиля и выбор темы дневника. */
 @Composable
-fun ProfileScreen(model: ProfileViewModel, mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
+fun ProfileScreen(model: ProfileViewModel, mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) =
+    ProfileScreen(model, mode, onThemeChange, null, null, null)
+
+@Composable
+internal fun ProfileScreen(
+    model: ProfileViewModel, mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit,
+    personalData: UserProfile?, lastMeasurement: Measurement?, onRecalculate: ((Measurement?) -> Unit)?,
+) {
     val state by model.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(model) { if (model.uiState.value.draft == null) model.refresh() }
     Box {
-        ProfileContent(state, model::event, mode, onThemeChange, server = { ProductServerBlock(model) })
+        ProfileContent(state, model::event, mode, onThemeChange, myData = onRecalculate?.let { recalculate ->
+            {
+                val measurement = state.stats?.let { stats ->
+                    stats.measurements.firstOrNull { it.weight.isNotEmpty() && it.day <= LocalDate.now() }
+                } ?: lastMeasurement.takeIf { state.stats == null }
+                MyDataBlock(personalData, measurement) { recalculate(measurement) }
+            }
+        }, server = { ProductServerBlock(model) })
         DelayedProgress(state.busy)
     }
 }
@@ -39,7 +54,7 @@ fun ProfileScreen(model: ProfileViewModel, mode: ThemeMode, onThemeChange: (Them
 @Composable
 private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                            mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit, modifier: Modifier = Modifier,
-                           server: @Composable () -> Unit) {
+                           myData: (@Composable () -> Unit)?, server: @Composable () -> Unit) {
     val draft = state.draft
     var history by rememberSaveable { mutableStateOf(false) }
     Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
@@ -92,6 +107,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                     }
                 }
             } }
+            if (myData != null) item { myData() }
             state.error?.let { message -> item {
                 Text(message, color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = { event(ProfileEvent.Period(state.days)) }) { Text("Повторить") }
@@ -211,6 +227,30 @@ private fun ProductServerBlock(model: ProfileViewModel) {
         TextButton(onClick = model::sendProducts, enabled = configured && !state.busy) {
             Text("Отправить сейчас")
         }
+    }
+}
+
+@Composable
+private fun MyDataBlock(profile: UserProfile?, measurement: Measurement?, recalculate: () -> Unit) {
+    ProfileBlock("Мои данные", LocalDiaryAccents.current.kcal) {
+        val values = listOf(
+            "Цель" to profile?.kind?.label,
+            "Пол" to profile?.sex?.label,
+            "Возраст" to profile?.let { (LocalDate.now().year - it.birthYear).toString() },
+            "Рост" to profile?.let { "${it.heightCm} см" },
+            "Активность" to profile?.activity?.label,
+            "Последний вес" to measurement?.let { "${it.weight} кг" },
+        )
+        values.forEach { (label, value) ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(label, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium)
+                Text(value ?: "—", Modifier.weight(1.35f), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        OutlinedButton(recalculate, Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) { Text("Пересчитать цель") }
     }
 }
 

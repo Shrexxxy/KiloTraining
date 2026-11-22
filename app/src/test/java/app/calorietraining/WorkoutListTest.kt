@@ -29,10 +29,11 @@ class WorkoutListTest {
                 id INTEGER PRIMARY KEY, name TEXT NOT NULL, brand TEXT NOT NULL, barcode TEXT,
                 weighted INTEGER NOT NULL, energy TEXT NOT NULL, protein TEXT NOT NULL, fat TEXT NOT NULL,
                 carbs TEXT NOT NULL, source TEXT NOT NULL, search_key TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+            db.execSQL("CREATE TABLE goal(start_day TEXT PRIMARY KEY, kcal INTEGER, protein INTEGER, fat INTEGER, carbs INTEGER)")
             db.version = 14
         }
         FoodStore(app, "workout-v14").use { store ->
-            assertEquals(16, store.readableDatabase.version)
+            assertEquals(17, store.readableDatabase.version)
             assertEquals(listOf("2026-11-20", "Старая", "30", null, null, "0"),
                 store.row("SELECT day,title,minutes,started_at,finished_at,live FROM workout WHERE id=7"))
             assertEquals(listOf("7", "Жим", "40", "10", null),
@@ -40,9 +41,9 @@ class WorkoutListTest {
         }
     }
 
-    @Test fun backup14RetainsWorkoutTimestamps() {
+    @Test fun backup15RetainsWorkoutTimestamps() {
         FoodStore(app).use { source ->
-            assertEquals("calorietraining/14", JSONObject(source.backup()).getString("format"))
+            assertEquals("calorietraining/15", JSONObject(source.backup()).getString("format"))
             val id = source.fixture("Живая", "2026-11-23T19:05", live = true)
             source.writableDatabase.execSQL("UPDATE workout SET finished_at='2026-11-23T20:01',minutes=56 WHERE id=?", arrayOf(id))
             source.fixtureSet(id, "bench", "Жим", "60", "8", "2026-11-23T19:12:30")

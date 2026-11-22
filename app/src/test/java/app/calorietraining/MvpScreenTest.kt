@@ -11,7 +11,8 @@ import org.robolectric.annotation.*
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "ru-rRU-w393dp-h850dp")
 class MvpScreenTest {
-    @get:Rule val ui = createAndroidComposeRule<MainActivity>()
+    @get:Rule(order = 0) internal val skipOnboarding = SkipOnboardingRule()
+    @get:Rule(order = 1) val ui = createAndroidComposeRule<MainActivity>()
     fun node(t: String) = ui.onNodeWithText(t)
     fun waitText(t: String) {
         try { ui.waitUntil(10000) { ui.onAllNodesWithText(t).fetchSemanticsNodes().isNotEmpty() } }

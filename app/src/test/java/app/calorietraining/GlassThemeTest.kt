@@ -32,6 +32,7 @@ class GlassThemeTest {
     }
 
     @Test fun appBackground() {
+        OnboardingSettings(org.robolectric.RuntimeEnvironment.getApplication()).skipped = true
         ui.setContent { DiaryTheme(ThemeMode.DARK) { DiaryApp(ThemeMode.DARK, {}) } }
         ui.onNodeWithTag("diary-background").assertExists()
     }

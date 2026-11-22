@@ -96,10 +96,11 @@ class MyProductsTest {
                 (5,'2026-11-20','Сырок глазированный','399','100','399','UNSPECIFIED','','','','')""")
             db.execSQL("CREATE TABLE workout(id INTEGER PRIMARY KEY, day TEXT, title TEXT, minutes INTEGER)")
             db.execSQL("CREATE TABLE lifting(id INTEGER PRIMARY KEY, session INTEGER, exercise_group TEXT, exercise TEXT, weight TEXT, reps INTEGER, planned INTEGER, warmup INTEGER)")
+            db.execSQL("CREATE TABLE goal(start_day TEXT PRIMARY KEY, kcal INTEGER, protein INTEGER, fat INTEGER, carbs INTEGER)")
             db.version = 13
         }
         FoodStore(context).use { store ->
-            assertEquals(16, store.readableDatabase.version)
+            assertEquals(17, store.readableDatabase.version)
             assertEquals(3, store.myProducts().size)
             assertEquals("openfoodfacts", store.myProductByBarcode(code)?.source)
             assertEquals("200", store.myProducts("творог 5%").single().energy)
@@ -118,7 +119,7 @@ class MyProductsTest {
             store.exportDiary(output)
             store.myProducts()
         }
-        assertTrue(output.toString().contains("calorietraining/14"))
+        assertTrue(output.toString().contains("calorietraining/15"))
         FoodStore(context, "import13.db").use { store ->
             assertTrue(store.readBackup(StringReader(output.toString())).contains("Продуктов: 2"))
             assertEquals(saved, store.myProducts())

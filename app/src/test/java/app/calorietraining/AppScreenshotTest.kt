@@ -18,7 +18,8 @@ import java.io.File
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "ru-rRU-w360dp-h800dp")
 class AppScreenshotTest {
-    @get:Rule val ui = createComposeRule()
+    @get:Rule(order = 0) internal val skipOnboarding = SkipOnboardingRule()
+    @get:Rule(order = 1) val ui = createComposeRule()
 
     @Test fun food() = capture("Питание", "app-food-dark.png")
     @Test fun profile() = capture("Профиль", "app-profile-dark.png")

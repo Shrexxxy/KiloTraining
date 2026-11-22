@@ -202,14 +202,18 @@ private fun MealCard(day: LocalDate, meal: Meal, entries: List<FoodEntry>, total
 }
 
 @Composable
-private fun GoalDialog(day: LocalDate, goals: DailyGoals, dismiss: () -> Unit, save: (Int?, MacroGoals) -> Unit) {
+internal fun GoalDialog(
+    day: LocalDate, goals: DailyGoals, dismiss: () -> Unit,
+    onboarding: Boolean = false, save: (Int?, MacroGoals) -> Unit,
+) {
     val (goal, macros) = goals
     val hasGoal = goals != DailyGoals()
     var kcal by rememberSaveable { mutableStateOf(goal?.toString().orEmpty()) }
     var protein by rememberSaveable { mutableStateOf(macros.protein?.toString().orEmpty()) }
     var fat by rememberSaveable { mutableStateOf(macros.fat?.toString().orEmpty()) }
     var carbs by rememberSaveable { mutableStateOf(macros.carbs?.toString().orEmpty()) }
-    val valid = listOf(kcal, protein, fat, carbs).all { it.isEmpty() || (it.toIntOrNull() ?: 0) > 0 }
+    val valid = listOf(kcal, protein, fat).all { it.isEmpty() || (it.toIntOrNull() ?: 0) > 0 } &&
+        (carbs.isEmpty() || (carbs.toIntOrNull() ?: -1) >= 0) && (!onboarding || kcal.isNotEmpty())
     AlertDialog(
         onDismissRequest = dismiss,
         modifier = Modifier.padding(horizontal = 24.dp).widthIn(max = 560.dp).fillMaxWidth(),
@@ -223,7 +227,7 @@ private fun GoalDialog(day: LocalDate, goals: DailyGoals, dismiss: () -> Unit, s
                 GoalField("Белки, г", protein) { protein = it }
                 GoalField("Жиры, г", fat) { fat = it }
                 GoalField("Углеводы, г", carbs) { carbs = it }
-                if (hasGoal) TextButton(onClick = { save(null, MacroGoals()) }) { Text("Отключить цель") }
+                if (hasGoal && !onboarding) TextButton(onClick = { save(null, MacroGoals()) }) { Text("Отключить цель") }
             }
         },
         confirmButton = { Button(enabled = valid, onClick = {
