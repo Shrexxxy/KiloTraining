@@ -70,6 +70,7 @@ class ProductServerScreenTest {
                 ProfileScreen(model, ThemeMode.DARK, {})
             }
         }
+        ui.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Сервер продуктов"))
         ui.onNodeWithText("Сервер продуктов").assertExists()
         ui.onNode(hasSetTextAction() and hasText("Адрес")).performTextInput(address)
         ui.onNode(hasSetTextAction() and hasText("Ключ")).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password)).performTextInput(key)
@@ -99,6 +100,7 @@ class ProductServerScreenTest {
             }
         })
         ui.setContent { DiaryTheme(ThemeMode.DARK) { ProfileScreen(model, ThemeMode.DARK, {}) } }
+        ui.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Отправить сейчас"))
         ui.onNodeWithText("Отправить сейчас").performClick()
         ui.waitUntil(5_000) { ui.onAllNodesWithText("Неверный ключ").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithText("Ждут отправки: 1").assertExists()

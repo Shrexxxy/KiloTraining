@@ -92,7 +92,6 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                     }
                 }
             } }
-            item { server() }
             state.error?.let { message -> item {
                 Text(message, color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = { event(ProfileEvent.Period(state.days)) }) { Text("Повторить") }
@@ -181,6 +180,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                     }
                 }
             }
+            item { server() }
         }
     }
 }
