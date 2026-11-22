@@ -22,13 +22,14 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
     val term = query.trim()
     val results = (online as? CatalogSearch.Results)?.takeIf { it.term == term }
     val failed = (online as? CatalogSearch.Failed)?.takeIf { it.term == term }
-    val serverFoods = results?.serverFoods ?: failed?.serverFoods
+    val pending = (online as? CatalogSearch.Loading)?.takeIf { it.term == term }
+    val serverFoods = results?.serverFoods ?: failed?.serverFoods ?: pending?.serverFoods
     val (serverMatches, catalogMatches) = remember(matches, serverFoods, results) {
         val barcodes = matches.mapNotNull { it.barcode }.toMutableSet()
         fun distinct(foods: List<FoodDraft>) = foods.filter { it.barcode?.let(barcodes::add) ?: true }
         serverFoods?.let(::distinct) to results?.foods?.let(::distinct).orEmpty()
     }
-    val loading = (online as? CatalogSearch.Loading)?.term == term
+    val loading = pending != null
     BackHandler(onBack = onClose)
     Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {

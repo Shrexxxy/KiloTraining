@@ -2,6 +2,12 @@ package app.calorietraining
 
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import org.json.JSONException
 import java.io.IOException
@@ -27,8 +33,7 @@ fun validBarcode(code: String) = code.length in listOf(8,12,13,14) && code.all {
 
 private const val catalogFields = "product_name_ru,product_name,brands,nutriments"
 
-private fun readCatalog(url: String): JSONObject? {
-    val connection = URL(url).openConnection() as HttpURLConnection
+private fun readCatalog(connection: HttpURLConnection): JSONObject? {
     try {
         connection.connectTimeout = 6000
         connection.readTimeout = 8000
@@ -37,7 +42,6 @@ private fun readCatalog(url: String): JSONObject? {
         if (connection.responseCode != 200) throw IOException("HTTP ${connection.responseCode}")
         return JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
     } catch (e: JSONException) { throw IOException("Некорректный ответ каталога", e) }
-    finally { connection.disconnect() }
 }
 
 internal fun JSONObject.asProduct(): Product {
@@ -47,16 +51,25 @@ internal fun JSONObject.asProduct(): Product {
         nutrient("energy-kcal_100g"), Macros(nutrient("proteins_100g"), nutrient("fat_100g"), nutrient("carbohydrates_100g")), catalogBrand())
 }
 
-fun fetchProduct(code: String): Product? {
+private fun productUrl(code: String): URL {
     require(validBarcode(code))
-    return readCatalog("https://world.openfoodfacts.org/api/v2/product/$code.json?fields=$catalogFields")
-        ?.optJSONObject("product")?.asProduct()
+    return URL("https://world.openfoodfacts.org/api/v2/product/$code.json?fields=$catalogFields")
 }
 
-internal fun searchCatalog(query: String): List<FoodDraft> {
+fun fetchProduct(code: String): Product? =
+    productUrl(code).withHttpConnection(::readCatalog)?.optJSONObject("product")?.asProduct()
+
+private suspend fun fetchProductAsync(code: String): Product? =
+    productUrl(code).withCancellableHttpConnection(::readCatalog)?.optJSONObject("product")?.asProduct()
+
+private fun catalogSearchUrl(query: String): URL {
     val term = java.net.URLEncoder.encode(query.trim(), "UTF-8")
-    val url = "https://search.openfoodfacts.org/search?q=$term&page_size=25&langs=ru&fields=code,$catalogFields"
-    val rows = readCatalog(url)?.optJSONArray("hits") ?: throw IOException("Нет списка продуктов")
+    return URL("https://search.openfoodfacts.org/search?q=$term&page_size=25&langs=ru&fields=code,$catalogFields")
+}
+
+internal suspend fun searchCatalog(query: String): List<FoodDraft> {
+    val rows = catalogSearchUrl(query).withCancellableHttpConnection(::readCatalog)?.optJSONArray("hits")
+        ?: throw IOException("Нет списка продуктов")
     return buildList {
         for (index in 0 until rows.length()) {
             val row = rows.optJSONObject(index) ?: continue
@@ -82,17 +95,44 @@ fun FoodStore.cacheProduct(code: String, product: Product) {
 internal suspend fun FoodStore.lookup(
     code: String,
     server: ProductServer?,
-    fetch: (String) -> Product? = ::fetchProduct
+    dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    fetch: suspend (String) -> Product? = ::fetchProductAsync
 ): ProductResult {
     require(validBarcode(code))
     localLookup(code)?.let { return it }
-    val card = try {
-        server?.byBarcode(code)
-    } catch (_: ProductServerException) {
-        null
+    suspend fun fromCatalog() = try {
+        catalogResult(code, fetch(code))
+    } catch (_: IOException) {
+        catalogUnavailable(code)
     }
-    if (card != null) return ProductResult(card.toDraft(), "Найдено в вашей базе", ScanOutcome.SERVER)
-    return lookupCatalog(code, fetch)
+
+    return coroutineScope {
+        val catalog = async(dispatcher) { fromCatalog() }
+        if (server == null) return@coroutineScope catalog.await()
+
+        val own = async(dispatcher) {
+            try {
+                server.byBarcode(code)?.let {
+                    ProductResult(it.toDraft(), "Найдено в вашей базе", ScanOutcome.SERVER)
+                }
+            } catch (_: IOException) {
+                null
+            }
+        }
+        select {
+            own.onAwait { result ->
+                if (result == null) catalog.await() else {
+                    catalog.cancel()
+                    result
+                }
+            }
+            catalog.onAwait { result ->
+                val preferred = withTimeoutOrNull(1_000) { own.await() }
+                own.cancel()
+                preferred ?: result
+            }
+        }
+    }
 }
 
 private fun FoodStore.localLookup(code: String): ProductResult? =
@@ -107,9 +147,15 @@ private fun lookupCatalog(code: String, fetch: (String) -> Product?): ProductRes
     val product = try {
         fetch(code)
     } catch (e: IOException) {
-        return ProductResult(FoodDraft(weighted = true, barcode = code),
-            "Каталог недоступен. Введите данные с упаковки.", ScanOutcome.UNAVAILABLE)
+        return catalogUnavailable(code)
     }
+    return catalogResult(code, product)
+}
+
+private fun catalogUnavailable(code: String) = ProductResult(FoodDraft(weighted = true, barcode = code),
+    "Каталог недоступен. Введите данные с упаковки.", ScanOutcome.UNAVAILABLE)
+
+private fun catalogResult(code: String, product: Product?): ProductResult {
     if (product == null || product.energy.isBlank()) {
         return ProductResult(FoodDraft(name = product?.name.orEmpty(), weighted = true, barcode = code,
             macros = product?.macros ?: Macros(), brand = product?.brand.orEmpty()),
