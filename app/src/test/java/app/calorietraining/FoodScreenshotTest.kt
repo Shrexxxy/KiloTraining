@@ -20,9 +20,9 @@ class FoodScreenshotTest {
     @get:Rule val ui = createComposeRule()
 
     @Test fun dark() = capture(ThemeMode.DARK, "food-dark.png")
-    @Test fun light() = capture(ThemeMode.LIGHT, "food-light.png")
+    @Test fun light() = capture(ThemeMode.LIGHT, "food-light.png", "glass-food-light.png")
 
-    private fun capture(mode: ThemeMode, filename: String) {
+    private fun capture(mode: ThemeMode, vararg filenames: String) {
         fun food(id: Long, name: String, kcal: Int, protein: Int, meal: Meal, time: String) =
             FoodEntry(id, name, kcal.toString(), "", kcal.toBigDecimal(), meal, time, Macros(protein.toString()))
         val rows = listOf(
@@ -38,13 +38,17 @@ class FoodScreenshotTest {
         lateinit var view: View
         ui.setContent { DiaryTheme(mode) {
             view = LocalView.current
-            FoodContent(FoodUiState(rows = rows, goals = DailyGoals(2200, MacroGoals(protein = 140)), loaded = true), {})
+            DiaryBackground {
+                FoodContent(FoodUiState(rows = rows, goals = DailyGoals(2200, MacroGoals(protein = 140)), loaded = true), {})
+            }
         } }
         // В Robolectric captureToImage ждёт обратный вызов перерисовки окна, который здесь не приходит.
         val bitmap = ui.runOnIdle {
             Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
         }
         val dir = File("build/screenshots").apply { mkdirs() }
-        File(dir, filename).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        filenames.forEach { filename ->
+            File(dir, filename).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
     }
 }

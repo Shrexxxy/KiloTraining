@@ -76,7 +76,7 @@ private fun ComparisonMetric(title: String, unit: String, before: BigDecimal?, n
             }
             Box(Modifier.width(72.dp), contentAlignment = Alignment.TopEnd) {
                 val change = if (before != null && now != null) (now - before).signed() + unit else "—"
-                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = .55f)) {
                     Text(change, Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }

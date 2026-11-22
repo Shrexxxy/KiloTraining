@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,7 +35,7 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
     onBackup: () -> Unit = {}, onFoodDay: (LocalDate) -> Unit = {}, onWorkout: (SessionHistory) -> Unit = {}) {
     var showTraining by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
-    Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { padding ->
+    Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween) {
@@ -59,10 +60,7 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                         Text("Здесь появятся упражнения после записи первого подхода.", Modifier.padding(vertical = 16.dp))
                     } else {
                         Box(Modifier.padding(top = 12.dp)) {
-                            Card(onClick = { choosing = true }, modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.large,
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                    contentColor = MaterialTheme.colorScheme.onSurface)) {
+                            GlassCard(LocalDiaryAccents.current.workout, Modifier.fillMaxWidth(), onClick = { choosing = true }) {
                                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp),
                                     verticalAlignment = Alignment.CenterVertically) {
                                     Text(state.exercise, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
@@ -81,10 +79,7 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                                 ExerciseProgress(state.exercise, state.sessions, onWorkout)
                             }
                             items(state.sessions, key = { it.id }) { session ->
-                                Card(onClick = { onWorkout(session) }, modifier = Modifier.fillMaxWidth(),
-                                    shape = MaterialTheme.shapes.large,
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                    contentColor = MaterialTheme.colorScheme.onSurface)) {
+                                GlassCard(LocalDiaryAccents.current.workout, Modifier.fillMaxWidth(), onClick = { onWorkout(session) }) {
                                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(session.date.caption(), style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold)
@@ -132,7 +127,7 @@ private fun WeekNutrition(state: HistoryState) {
     val colors = MaterialTheme.colorScheme
     val kcal = LocalDiaryAccents.current.kcal
     val peak = state.totals.values.maxOrNull()
-    Surface(color = colors.surfaceContainer, shape = MaterialTheme.shapes.large) {
+    GlassCard(kcal) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("ЗА НЕДЕЛЮ", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
             Text("${state.total.groupedNumber()} ккал", style = MaterialTheme.typography.headlineMedium,

@@ -53,8 +53,7 @@ internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
     val maximum = points.maxOf { it.value }
     val colors = MaterialTheme.colorScheme
     val workout = LocalDiaryAccents.current.workout
-    Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer, contentColor = colors.onSurface)) {
+    GlassCard(LocalDiaryAccents.current.workout, modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(if (showReps) "Максимум повторений со своим весом" else "Максимальный вес за тренировку",
                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
