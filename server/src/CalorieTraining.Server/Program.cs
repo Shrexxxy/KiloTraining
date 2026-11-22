@@ -55,6 +55,11 @@ products.MapGet("/search", ProductEndpoints.Search);
 products.MapGet("/{barcode}", ProductEndpoints.Get);
 products.MapPut("/{barcode}", ProductEndpoints.Put);
 products.MapPost("", ProductEndpoints.Post);
+
+var backups = app.MapGroup("/backups");
+backups.MapPost("", BackupEndpoints.Upload);
+backups.MapGet("", BackupEndpoints.List);
+backups.MapGet("/{id:guid}", BackupEndpoints.Download);
 app.Run();
 
 /// <summary>Точка входа сервера продуктов.</summary>

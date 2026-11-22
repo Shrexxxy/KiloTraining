@@ -87,11 +87,17 @@ internal class ProductServerSettings(
     val address get() = preferences.getString("address", "").orEmpty()
     val key get() = preferences.getString("key", "").orEmpty()
     val lastSent get() = preferences.getLong("lastSent", 0L).takeIf { it > 0L }?.let(Instant::ofEpochMilli)
+    var lastAutoBackupMillis: Long
+        get() = preferences.getLong("lastAutoBackup", 0L)
+        set(value) { preferences.edit().putLong("lastAutoBackup", value).apply() }
 
     fun setAddress(value: String) = preferences.edit().putString("address", value).apply()
     fun setKey(value: String) = preferences.edit().putString("key", value).apply()
 
     fun client() = address.trim().takeIf(String::isNotBlank)?.let { factory(it, key.trim()) }
+
+    fun backupClient() = address.trim().takeIf { it.isNotBlank() && key.isNotBlank() }
+        ?.let { HttpBackupServer(it, key.trim()) }
 
     suspend fun send(): ProductSyncReport? {
         val server = client() ?: return null

@@ -6,6 +6,7 @@ namespace CalorieTraining.Server;
 internal sealed class ProductsDb(DbContextOptions<ProductsDb> options) : DbContext(options)
 {
     internal DbSet<Product> Products => Set<Product>();
+    internal DbSet<DiaryBackup> DiaryBackups => Set<DiaryBackup>();
 
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -47,21 +47,21 @@ internal data class ServerProduct(
         .put("carbs", carbs ?: JSONObject.NULL)
 }
 
-internal class HttpProductServer(address: String, private val key: String) : ProductServer {
-    private val base = address.trim().trimEnd('/')
+internal class HttpProductServer(address: String, key: String) : ProductServer {
+    private val http = ServerHttpClient(address, key)
 
-    override suspend fun health() = request("/health", authenticated = false) {
+    override suspend fun health() = http.request("/health", authenticated = false) {
         JSONObject(it).run { getString("status") == "ok" && getBoolean("databaseAvailable") }
     } == true
 
     override suspend fun byBarcode(code: String): ServerProduct? {
         require(validBarcode(code))
-        return request("/products/$code", allowMissing = true) { JSONObject(it).card() }
+        return http.request("/products/$code", allowMissing = true) { JSONObject(it).card() }
     }
 
     override suspend fun search(query: String, limit: Int): List<ServerProduct> {
         val term = URLEncoder.encode(query.trim(), "UTF-8")
-        return requireNotNull(request("/products/search?q=$term&limit=$limit") {
+        return requireNotNull(http.request("/products/search?q=$term&limit=$limit") {
             val rows = JSONArray(it)
             List(rows.length()) { index -> rows.getJSONObject(index).card() }
         })
@@ -69,19 +69,24 @@ internal class HttpProductServer(address: String, private val key: String) : Pro
 
     override suspend fun put(card: ServerProduct) {
         val code = card.barcode?.takeIf(::validBarcode) ?: throw ProductServerException(ServerFailure.INVALID_DATA)
-        request("/products/$code", method = "PUT", body = card.json()) {}
+        http.request("/products/$code", method = "PUT", body = card.json().toString(), readBody = false) {}
     }
 
     override suspend fun post(card: ServerProduct) {
-        request("/products", method = "POST", body = card.json()) {}
+        http.request("/products", method = "POST", body = card.json().toString(), readBody = false) {}
     }
+}
 
-    private suspend fun <T> request(
+internal class ServerHttpClient(address: String, private val key: String, private val readTimeout: Int = 5_000) {
+    private val base = address.trim().trimEnd('/')
+
+    suspend fun <T> request(
         path: String,
         method: String = "GET",
-        body: JSONObject? = null,
+        body: String? = null,
         authenticated: Boolean = true,
         allowMissing: Boolean = false,
+        readBody: Boolean = true,
         parse: (String) -> T
     ): T? = withContext(Dispatchers.IO) {
         try {
@@ -92,17 +97,19 @@ internal class HttpProductServer(address: String, private val key: String) : Pro
             }
             fun exchange(connection: HttpURLConnection): T? {
                 connection.connectTimeout = 3_000
-                connection.readTimeout = 5_000
+                connection.readTimeout = readTimeout
                 connection.instanceFollowRedirects = false
                 connection.requestMethod = method
                 if (authenticated) connection.setRequestProperty("X-Api-Key", key)
                 if (body != null) {
                     connection.doOutput = true
                     connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    val bytes = body.toByteArray(Charsets.UTF_8)
+                    connection.setFixedLengthStreamingMode(bytes.size)
+                    connection.outputStream.use { it.write(bytes) }
                 }
                 return when (connection.responseCode) {
-                    in 200..299 -> parse(if (body == null) {
+                    in 200..299 -> parse(if (readBody) {
                         connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                     } else "")
                     404 -> if (allowMissing) null else throw ProductServerException(ServerFailure.OTHER)

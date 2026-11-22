@@ -46,6 +46,7 @@ internal fun LocalDate.caption(): String {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) launchAutoBackup(applicationContext)
         val settings = ThemeSettings(this)
         val initialMode = settings.mode
         applyDiaryBars(when (initialMode) {
