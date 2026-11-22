@@ -13,9 +13,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** Показывает статистику профиля и выбор темы дневника. */
 @Composable
@@ -23,14 +26,15 @@ fun ProfileScreen(model: ProfileViewModel, mode: ThemeMode, onThemeChange: (Them
     val state by model.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(model) { if (model.uiState.value.draft == null) model.refresh() }
     Box {
-        ProfileContent(state, model::event, mode, onThemeChange)
+        ProfileContent(state, model::event, mode, onThemeChange, server = { ProductServerBlock(model) })
         DelayedProgress(state.busy)
     }
 }
 
 @Composable
 private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
-                           mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit, modifier: Modifier = Modifier) {
+                           mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit, modifier: Modifier = Modifier,
+                           server: @Composable () -> Unit) {
     val draft = state.draft
     var history by rememberSaveable { mutableStateOf(false) }
     Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { padding ->
@@ -83,6 +87,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                     }
                 }
             } }
+            item { server() }
             state.error?.let { message -> item {
                 Text(message, color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = { event(ProfileEvent.Period(state.days)) }) { Text("Повторить") }
@@ -171,6 +176,35 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ProductServerBlock(model: ProfileViewModel) {
+    val state by model.productServerState.collectAsStateWithLifecycle()
+    val configured = state.address.isNotBlank()
+    ProfileBlock("Сервер продуктов") {
+        OutlinedTextField(state.address, model::changeServerAddress, Modifier.fillMaxWidth(),
+            enabled = !state.busy, label = { Text("Адрес") },
+            placeholder = { Text("http://192.168.1.10:5080") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+        OutlinedTextField(state.key, model::changeServerKey, Modifier.fillMaxWidth(),
+            enabled = !state.busy, label = { Text("Ключ") }, singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+        TextButton(onClick = model::checkProductServer, enabled = configured && !state.busy) {
+            Text("Проверить связь")
+        }
+        Text(if (configured) state.status.orEmpty().ifBlank { "Связь не проверена" } else "Не настроен")
+        state.pending?.let { Text("Ждут отправки: $it") }
+        val lastSent = state.lastSent?.let {
+            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault()).format(it)
+        } ?: "—"
+        Text("Последняя отправка: $lastSent")
+        if (state.unsuitable > 0) Text("Не подходят для отправки: ${state.unsuitable}")
+        TextButton(onClick = model::sendProducts, enabled = configured && !state.busy) {
+            Text("Отправить сейчас")
         }
     }
 }

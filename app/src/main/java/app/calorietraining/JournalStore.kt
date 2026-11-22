@@ -20,7 +20,7 @@ internal fun createJournalTables(db: SQLiteDatabase) {
 }
 
 data class Product(val name: String, val energy: String, val macros: Macros = Macros(), val brand: String = "")
-enum class ScanOutcome { PHONE, CATALOG, MISSING, NO_ENERGY, UNAVAILABLE }
+enum class ScanOutcome { PHONE, SERVER, CATALOG, MISSING, NO_ENERGY, UNAVAILABLE }
 
 data class ProductResult(val draft: FoodDraft, val hint: String, val outcome: ScanOutcome)
 fun validBarcode(code: String) = code.length in listOf(8,12,13,14) && code.all { it in '0'..'9' }
@@ -55,7 +55,7 @@ fun fetchProduct(code: String): Product? {
 
 internal fun searchCatalog(query: String): List<FoodDraft> {
     val term = java.net.URLEncoder.encode(query.trim(), "UTF-8")
-    val url = "https://search.openfoodfacts.org/search?q=$term&page_size=25&langs=ru&fields=$catalogFields"
+    val url = "https://search.openfoodfacts.org/search?q=$term&page_size=25&langs=ru&fields=code,$catalogFields"
     val rows = readCatalog(url)?.optJSONArray("hits") ?: throw IOException("Нет списка продуктов")
     return buildList {
         for (index in 0 until rows.length()) {
@@ -63,6 +63,7 @@ internal fun searchCatalog(query: String): List<FoodDraft> {
             val product = row.asProduct()
             if (product.name.isBlank() || product.energy.isBlank()) continue
             add(MyProduct(name = product.name, brand = product.brand, energy = product.energy,
+                barcode = row.optString("code").takeIf(::validBarcode),
                 macros = product.macros, source = "openfoodfacts").toDraft())
         }
     }
@@ -78,11 +79,31 @@ fun FoodStore.cacheProduct(code: String, product: Product) {
         energy = product.energy, macros = product.macros, source = "openfoodfacts"))
 }
 
+internal suspend fun FoodStore.lookup(
+    code: String,
+    server: ProductServer?,
+    fetch: (String) -> Product? = ::fetchProduct
+): ProductResult {
+    require(validBarcode(code))
+    localLookup(code)?.let { return it }
+    val card = try {
+        server?.byBarcode(code)
+    } catch (_: ProductServerException) {
+        null
+    }
+    if (card != null) return ProductResult(card.toDraft(), "Найдено в вашей базе", ScanOutcome.SERVER)
+    return lookupCatalog(code, fetch)
+}
+
+private fun FoodStore.localLookup(code: String): ProductResult? =
+    myProductByBarcode(code)?.let { ProductResult(it.toDraft(), "Сохранено на телефоне", ScanOutcome.PHONE) }
+
 fun FoodStore.lookup(code: String, fetch: (String) -> Product? = ::fetchProduct): ProductResult {
     require(validBarcode(code))
-    myProductByBarcode(code)?.let {
-        return ProductResult(it.toDraft(), "Сохранено на телефоне", ScanOutcome.PHONE)
-    }
+    return localLookup(code) ?: lookupCatalog(code, fetch)
+}
+
+private fun lookupCatalog(code: String, fetch: (String) -> Product?): ProductResult {
     val product = try {
         fetch(code)
     } catch (e: IOException) {

@@ -7,8 +7,10 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
 
 data class ProfileState(val days: Int = 30, val stats: ProfileStats? = null, val draft: Measurement? = null,
@@ -23,7 +25,87 @@ sealed interface ProfileEvent {
     data object Delete : ProfileEvent
 }
 
-class ProfileViewModel(application: Application) : AndroidViewModel(application) {
+internal data class ProductServerState(
+    val address: String,
+    val key: String,
+    val status: String? = null,
+    val pending: Int? = null,
+    val lastSent: Instant? = null,
+    val busy: Boolean = false,
+    val unsuitable: Int = 0
+)
+
+class ProfileViewModel internal constructor(
+    application: Application,
+    serverFactory: (String, String) -> ProductServer
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application, ::HttpProductServer)
+
+    private val settings = ProductServerSettings(application, serverFactory)
+    private val serverState = MutableStateFlow(ProductServerState(settings.address, settings.key, lastSent = settings.lastSent))
+    internal val productServerState = serverState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            ProductServerSettings.changes.collect {
+                val pending = withContext(Dispatchers.IO) {
+                    try {
+                        FoodStore(application).use { it.pendingSyncCount() }
+                    } catch (_: SQLException) {
+                        null
+                    }
+                }
+                serverState.update { it.copy(pending = pending, lastSent = settings.lastSent) }
+            }
+        }
+    }
+
+    internal fun changeServerAddress(value: String) {
+        settings.setAddress(value)
+        serverState.update { it.copy(address = value, status = null, unsuitable = 0) }
+    }
+
+    internal fun changeServerKey(value: String) {
+        settings.setKey(value)
+        serverState.update { it.copy(key = value, status = null, unsuitable = 0) }
+    }
+
+    internal fun checkProductServer() = serverAction {
+        val status = try {
+            val client = checkNotNull(settings.client())
+            if (client.health()) {
+                client.search("те", limit = 1)
+                "Связь есть"
+            } else "Сервер не отвечает"
+        } catch (error: ProductServerException) {
+            error.failure.connectionStatus()
+        }
+        serverState.update { it.copy(status = status) }
+    }
+
+    internal fun sendProducts() = serverAction {
+        val report = settings.send() ?: return@serverAction
+        serverState.update {
+            it.copy(status = report.failure?.connectionStatus() ?: if (report.sent > 0) "Связь есть" else it.status,
+                lastSent = settings.lastSent, unsuitable = report.unsuitable)
+        }
+    }
+
+    private fun serverAction(action: suspend () -> Unit) {
+        if (serverState.value.busy || serverState.value.address.isBlank()) return
+        serverState.update { it.copy(busy = true) }
+        viewModelScope.launch {
+            try {
+                action()
+            } finally {
+                serverState.update { it.copy(busy = false) }
+            }
+        }
+    }
+
+    private fun ServerFailure.connectionStatus() =
+        if (this == ServerFailure.UNAUTHORIZED) "Неверный ключ" else "Сервер не отвечает"
+
     private val state = MutableStateFlow(ProfileState())
     val uiState = state.asStateFlow()
 

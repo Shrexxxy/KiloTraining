@@ -97,7 +97,7 @@ class MyProductsTest {
             db.version = 13
         }
         FoodStore(context).use { store ->
-            assertEquals(14, store.readableDatabase.version)
+            assertEquals(15, store.readableDatabase.version)
             assertEquals(3, store.myProducts().size)
             assertEquals("openfoodfacts", store.myProductByBarcode(code)?.source)
             assertEquals("200", store.myProducts("творог 5%").single().energy)
