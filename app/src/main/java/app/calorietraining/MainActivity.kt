@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -84,7 +86,9 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
     }
     state.draft?.let { draft ->
         state.library?.let { foods ->
-            FoodLibrary(if (state.recipe == null) foods else foods.filter { it.weighted }, onChoose = { onEvent(FoodEvent.Edit(it.copy(meal = draft.meal, mealTime = draft.mealTime))) },
+            val barcode = draft.barcode.takeIf { state.scanOutcome != null }
+            FoodLibrary(if (state.recipe == null && barcode == null) foods else foods.filter { it.weighted },
+                onChoose = { onEvent(FoodEvent.Edit(it.copy(meal = draft.meal, mealTime = draft.mealTime, barcode = barcode ?: it.barcode))) },
                 onClose = { onEvent(FoodEvent.BackToEditor) }, modifier = modifier,
                 search = { onEvent(FoodEvent.FindFood(it)) }, online = state.online)
             return
@@ -233,6 +237,14 @@ internal fun DateArrow(icon: Int, label: String, enabled: Boolean, onClick: () -
 @Composable
 private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modifier = Modifier) {
     fun edit(value: FoodDraft) = onEvent(FoodEvent.Edit(value))
+    val scanCode = draft.barcode.takeIf { state.scanOutcome != null }
+    val nameFocus = remember { FocusRequester() }
+    LaunchedEffect(scanCode) {
+        if (scanCode != null && draft.name.isBlank()) {
+            withFrameNanos { }
+            nameFocus.requestFocus()
+        }
+    }
     Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -243,6 +255,9 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (scanCode != null && state.scanOutcome != null) {
+                    ScanResultCard(scanCode, state.scanOutcome, state.busy, onEvent)
+                }
                 if (draft.id != null && !state.confirmingDelete) {
                     TextButton(onClick = { onEvent(FoodEvent.AskDelete) }) {
                         Text("Удалить запись", color = MaterialTheme.colorScheme.error)
@@ -280,9 +295,9 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                         }
                     }
                 }
-                OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, Modifier.fillMaxWidth(),
+                OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, Modifier.fillMaxWidth().focusRequester(nameFocus),
                     label = { Text("Название") }, singleLine = true)
-                if (draft.barcode != null) Text(state.hint, style = MaterialTheme.typography.bodySmall)
+                if (scanCode == null && draft.barcode != null && state.hint.isNotBlank()) Text(state.hint, style = MaterialTheme.typography.bodySmall)
                 if (draft.barcode == null && state.recipe == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !draft.weighted, label = { Text("За порцию") },
                         onClick = { if (draft.weighted) edit(draft.copy(weighted = false, energy = "", macros = Macros())) })

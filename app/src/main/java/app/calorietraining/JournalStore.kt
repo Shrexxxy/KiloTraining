@@ -20,7 +20,9 @@ internal fun createJournalTables(db: SQLiteDatabase) {
 }
 
 data class Product(val name: String, val energy: String, val macros: Macros = Macros())
-data class ProductResult(val draft: FoodDraft, val hint: String)
+enum class ScanOutcome { PHONE, CATALOG, MISSING, NO_ENERGY, UNAVAILABLE }
+
+data class ProductResult(val draft: FoodDraft, val hint: String, val outcome: ScanOutcome)
 fun validBarcode(code: String) = code.length in listOf(8,12,13,14) && code.all { it in '0'..'9' }
 
 private const val catalogFields = "product_name_ru,product_name,brands,nutriments"
@@ -77,15 +79,30 @@ fun FoodStore.lookup(code: String, fetch: (String) -> Product? = ::fetchProduct)
     val cached = readableDatabase.rawQuery("SELECT name,energy,protein,fat,carbs FROM product WHERE code=?",arrayOf(code)).use {
         if(it.moveToFirst()) Product(it.getString(0),it.getString(1),Macros(it.getString(2),it.getString(3),it.getString(4))) else null
     }
-    var hint = if (cached != null) "Сохранено на телефоне" else "Данные: Open Food Facts · ODbL"
+    var outcome = ScanOutcome.PHONE
     val product = cached ?: try {
         fetch(code).also {
-            if(it == null || it.energy.isBlank()) hint = "Введите данные с упаковки"
-            else cacheProduct(code,it)
+            outcome = when {
+                it == null -> ScanOutcome.MISSING
+                it.energy.isBlank() -> ScanOutcome.NO_ENERGY
+                else -> {
+                    cacheProduct(code, it)
+                    ScanOutcome.CATALOG
+                }
+            }
         }
-    } catch (e: IOException) { hint = "Каталог недоступен. Введите данные с упаковки."; null }
+    } catch (e: IOException) {
+        outcome = ScanOutcome.UNAVAILABLE
+        null
+    }
+    val hint = when (outcome) {
+        ScanOutcome.PHONE -> "Сохранено на телефоне"
+        ScanOutcome.CATALOG -> "Данные: Open Food Facts · ODbL"
+        ScanOutcome.MISSING, ScanOutcome.NO_ENERGY -> "Введите данные с упаковки"
+        ScanOutcome.UNAVAILABLE -> "Каталог недоступен. Введите данные с упаковки."
+    }
     return ProductResult(FoodDraft(name=product?.name.orEmpty(),energy=product?.energy.orEmpty(),
-        weighted=true,barcode=code,macros=product?.macros ?: Macros()),hint)
+        weighted=true,barcode=code,macros=product?.macros ?: Macros()), hint, outcome)
 }
 
 data class SetDraft(val id: Long? = null, val group: String = UUID.randomUUID().toString(),

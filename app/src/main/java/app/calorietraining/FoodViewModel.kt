@@ -31,6 +31,7 @@ data class FoodUiState(
     val error: String? = null,
     val scanning: Boolean = false,
     val hint: String = "",
+    val scanOutcome: ScanOutcome? = null,
     val recipes: List<Recipe>? = null,
     val recipe: Recipe? = null,
     val ingredientIndex: Int? = null,
@@ -78,7 +79,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
             }
             is FoodEvent.Ingredient -> {
                 val item = event.index?.let { current.recipe?.ingredients?.getOrNull(it) } ?: FoodDraft(weighted = true)
-                state.value = current.copy(draft = item, ingredientIndex = event.index, error = null)
+                state.value = current.copy(draft = item, scanOutcome = null, ingredientIndex = event.index, error = null)
             }
             FoodEvent.SaveRecipe -> current.recipe?.takeIf { it.food() != null }?.let {
                 refresh(current.day, showRecipes = true) { saveRecipe(it) }
@@ -106,7 +107,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
             }
             FoodEvent.Scan -> state.value = current.copy(scanning = true, error = null)
             is FoodEvent.Barcode -> lookup(event.code)
-            FoodEvent.Close -> state.value = current.copy(draft = if (current.scanning && current.recipe != null) current.draft else null, scanning = false, hint = "", confirmingDelete = false, error = null)
+            FoodEvent.Close -> state.value = current.copy(draft = if (current.scanning && current.recipe != null) current.draft else null, scanning = false, hint = "", scanOutcome = current.scanOutcome.takeIf { current.scanning && current.recipe != null }, confirmingDelete = false, error = null)
             FoodEvent.Save -> current.draft?.takeIf { it.calories != null }?.let { draft ->
                 val recipe = current.recipe
                 if (recipe == null) refresh(current.day) { save(current.day, draft) }
@@ -114,7 +115,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
                     val ingredients = recipe.ingredients.toMutableList()
                     val index = current.ingredientIndex
                     if (index == null) ingredients.add(draft) else ingredients[index] = draft
-                    state.value = current.copy(recipe = recipe.copy(ingredients = ingredients), draft = null, ingredientIndex = null)
+                    state.value = current.copy(recipe = recipe.copy(ingredients = ingredients), draft = null, scanOutcome = null, ingredientIndex = null)
                 }
             }
             FoodEvent.AskDelete -> state.value = current.copy(confirmingDelete = true)
@@ -146,11 +147,22 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun lookup(code: String) {
         if (!validBarcode(code)) return
+        val current = state.value
+        val retry = current.draft?.takeIf {
+            !current.scanning && current.scanOutcome == ScanOutcome.UNAVAILABLE && it.barcode == code
+        }
         state.value = state.value.copy(busy = true)
         viewModelScope.launch {
             try {
                 val product = withContext(Dispatchers.IO) { FoodStore(getApplication()).use { it.lookup(code) } }
-                state.value = state.value.copy(draft = product.draft.copy(mealTime = defaultMealTime(state.value.day)), hint = product.hint, busy = false, scanning = false, error = null)
+                val found = product.draft
+                val draft = retry?.copy(
+                    name = retry.name.ifBlank { found.name },
+                    energy = retry.energy.ifBlank { found.energy },
+                    macros = if (retry.macros == Macros()) found.macros else retry.macros
+                ) ?: found.copy(mealTime = defaultMealTime(current.day))
+                state.value = current.copy(draft = draft, hint = product.hint, scanOutcome = product.outcome,
+                    busy = false, scanning = false, error = null)
             } catch (e: SQLException) {
                 state.value = state.value.copy(error = "Не удалось прочитать каталог", busy = false)
             }
