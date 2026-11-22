@@ -23,6 +23,8 @@ data class FoodUiState(
     val rows: List<FoodEntry> = emptyList(),
     val recent: List<FoodDraft> = emptyList(),
     val library: List<FoodDraft>? = null,
+    val myProducts: List<MyProduct> = emptyList(),
+    val managingProducts: Boolean = false,
     val online: CatalogSearch = CatalogSearch.Idle,
     val goals: DailyGoals = DailyGoals(),
     val draft: FoodDraft? = null,
@@ -49,6 +51,10 @@ sealed interface FoodEvent {
     data class Ingredient(val index: Int?) : FoodEvent
     data object SaveRecipe : FoodEvent
     data object BrowseFoods : FoodEvent
+    data object ManageProducts : FoodEvent
+    data object LeaveProducts : FoodEvent
+    data class SaveProduct(val product: MyProduct) : FoodEvent
+    data class DeleteProduct(val id: Long) : FoodEvent
     data object BackToEditor : FoodEvent
     data object Scan : FoodEvent
     data class Barcode(val code: String) : FoodEvent
@@ -94,12 +100,16 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
             is FoodEvent.Edit -> state.value = current.copy(draft = if (current.draft == null && event.value.id == null) event.value.copy(mealTime = defaultMealTime(current.day)) else event.value, error = null, library = null)
             is FoodEvent.FindFood -> findFood(event.term.trim())
             FoodEvent.BackToEditor -> state.value = current.copy(library = null)
+            FoodEvent.ManageProducts -> state.value = current.copy(managingProducts = true)
+            FoodEvent.LeaveProducts -> state.value = current.copy(managingProducts = false, error = null)
+            is FoodEvent.SaveProduct -> changeProducts { saveMyProduct(event.product) }
+            is FoodEvent.DeleteProduct -> changeProducts { deleteMyProduct(event.id) }
             FoodEvent.BrowseFoods -> {
                 state.value = current.copy(busy = true, error = null)
                 viewModelScope.launch {
                     try {
-                        val foods = withContext(Dispatchers.IO) { FoodStore(getApplication()).use { it.foodSuggestions() } }
-                        state.value = current.copy(busy = false, library = foods, draft = current.draft ?: FoodDraft(mealTime = defaultMealTime(current.day)), online = CatalogSearch.Idle, error = null)
+                        val foods = withContext(Dispatchers.IO) { FoodStore(getApplication()).use { it.myProducts() } }
+                        state.value = current.copy(busy = false, library = foods.map { it.toDraft() }, myProducts = foods, draft = current.draft ?: FoodDraft(mealTime = defaultMealTime(current.day)), online = CatalogSearch.Idle, error = null)
                     } catch (e: SQLException) {
                         state.value = current.copy(busy = false, error = "Не удалось загрузить список продуктов")
                     }
@@ -122,6 +132,24 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
             FoodEvent.CancelDelete -> state.value = current.copy(confirmingDelete = false)
             FoodEvent.Delete -> current.draft?.id?.let { id ->
                 refresh(current.day) { delete(current.day, id) }
+            }
+        }
+    }
+
+    private fun changeProducts(change: FoodStore.() -> Unit) {
+        val current = state.value
+        state.value = current.copy(busy = true, error = null)
+        viewModelScope.launch {
+            try {
+                val products = withContext(Dispatchers.IO) {
+                    FoodStore(getApplication()).use { store ->
+                        store.change()
+                        store.myProducts()
+                    }
+                }
+                state.value = current.copy(busy = false, myProducts = products, library = products.map { it.toDraft() })
+            } catch (e: SQLException) {
+                state.value = current.copy(busy = false, error = "Не удалось изменить продукт")
             }
         }
     }
@@ -159,7 +187,8 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
                 val draft = retry?.copy(
                     name = retry.name.ifBlank { found.name },
                     energy = retry.energy.ifBlank { found.energy },
-                    macros = if (retry.macros == Macros()) found.macros else retry.macros
+                    macros = if (retry.macros == Macros()) found.macros else retry.macros,
+                    brand = found.brand, origin = found.origin
                 ) ?: found.copy(mealTime = defaultMealTime(current.day))
                 state.value = current.copy(draft = draft, hint = product.hint, scanOutcome = product.outcome,
                     busy = false, scanning = false, error = null)

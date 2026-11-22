@@ -19,7 +19,7 @@ internal fun createJournalTables(db: SQLiteDatabase) {
     db.execSQL("CREATE INDEX lifting_session ON lifting(session)")
 }
 
-data class Product(val name: String, val energy: String, val macros: Macros = Macros())
+data class Product(val name: String, val energy: String, val macros: Macros = Macros(), val brand: String = "")
 enum class ScanOutcome { PHONE, CATALOG, MISSING, NO_ENERGY, UNAVAILABLE }
 
 data class ProductResult(val draft: FoodDraft, val hint: String, val outcome: ScanOutcome)
@@ -44,7 +44,7 @@ internal fun JSONObject.asProduct(): Product {
     val nutrients = optJSONObject("nutriments")
     fun nutrient(key: String) = nutrients?.optString(key)?.takeIf { it.amount() != null }.orEmpty()
     return Product(optString("product_name_ru").ifBlank { optString("product_name") },
-        nutrient("energy-kcal_100g"), Macros(nutrient("proteins_100g"), nutrient("fat_100g"), nutrient("carbohydrates_100g")))
+        nutrient("energy-kcal_100g"), Macros(nutrient("proteins_100g"), nutrient("fat_100g"), nutrient("carbohydrates_100g")), catalogBrand())
 }
 
 fun fetchProduct(code: String): Product? {
@@ -62,47 +62,41 @@ internal fun searchCatalog(query: String): List<FoodDraft> {
             val row = rows.optJSONObject(index) ?: continue
             val product = row.asProduct()
             if (product.name.isBlank() || product.energy.isBlank()) continue
-            val brands = row.optJSONArray("brands")
-            val brand = brands?.let { (0 until it.length()).joinToString(", ") { i -> brands.optString(i) } } ?: row.optString("brands")
-            val name = listOf(product.name, brand).filter(String::isNotBlank).joinToString(" · ")
-            add(FoodDraft(name = name, weighted = true, energy = product.energy, macros = product.macros))
+            add(MyProduct(name = product.name, brand = product.brand, energy = product.energy,
+                macros = product.macros, source = "openfoodfacts").toDraft())
         }
     }
 }
 
+private fun JSONObject.catalogBrand(): String =
+    optJSONArray("brands")?.let { brands ->
+        (0 until brands.length()).joinToString(", ") { brands.optString(it) }
+    } ?: optString("brands")
+
 fun FoodStore.cacheProduct(code: String, product: Product) {
-    writableDatabase.execSQL("INSERT OR REPLACE INTO product(code,name,energy,protein,fat,carbs) VALUES (?,?,?,?,?,?)", arrayOf(code,product.name,product.energy,product.macros.protein,product.macros.fat,product.macros.carbs))
+    saveMyProduct(MyProduct(name = product.name, brand = product.brand, barcode = code,
+        energy = product.energy, macros = product.macros, source = "openfoodfacts"))
 }
 
 fun FoodStore.lookup(code: String, fetch: (String) -> Product? = ::fetchProduct): ProductResult {
     require(validBarcode(code))
-    val cached = readableDatabase.rawQuery("SELECT name,energy,protein,fat,carbs FROM product WHERE code=?",arrayOf(code)).use {
-        if(it.moveToFirst()) Product(it.getString(0),it.getString(1),Macros(it.getString(2),it.getString(3),it.getString(4))) else null
+    myProductByBarcode(code)?.let {
+        return ProductResult(it.toDraft(), "Сохранено на телефоне", ScanOutcome.PHONE)
     }
-    var outcome = ScanOutcome.PHONE
-    val product = cached ?: try {
-        fetch(code).also {
-            outcome = when {
-                it == null -> ScanOutcome.MISSING
-                it.energy.isBlank() -> ScanOutcome.NO_ENERGY
-                else -> {
-                    cacheProduct(code, it)
-                    ScanOutcome.CATALOG
-                }
-            }
-        }
+    val product = try {
+        fetch(code)
     } catch (e: IOException) {
-        outcome = ScanOutcome.UNAVAILABLE
-        null
+        return ProductResult(FoodDraft(weighted = true, barcode = code),
+            "Каталог недоступен. Введите данные с упаковки.", ScanOutcome.UNAVAILABLE)
     }
-    val hint = when (outcome) {
-        ScanOutcome.PHONE -> "Сохранено на телефоне"
-        ScanOutcome.CATALOG -> "Данные: Open Food Facts · ODbL"
-        ScanOutcome.MISSING, ScanOutcome.NO_ENERGY -> "Введите данные с упаковки"
-        ScanOutcome.UNAVAILABLE -> "Каталог недоступен. Введите данные с упаковки."
+    if (product == null || product.energy.isBlank()) {
+        return ProductResult(FoodDraft(name = product?.name.orEmpty(), weighted = true, barcode = code,
+            macros = product?.macros ?: Macros(), brand = product?.brand.orEmpty()),
+            "Введите данные с упаковки", if (product == null) ScanOutcome.MISSING else ScanOutcome.NO_ENERGY)
     }
-    return ProductResult(FoodDraft(name=product?.name.orEmpty(),energy=product?.energy.orEmpty(),
-        weighted=true,barcode=code,macros=product?.macros ?: Macros()), hint, outcome)
+    val draft = MyProduct(name = product.name, brand = product.brand, barcode = code,
+        energy = product.energy, macros = product.macros, source = "openfoodfacts").toDraft()
+    return ProductResult(draft, "Данные: Open Food Facts · ODbL", ScanOutcome.CATALOG)
 }
 
 data class SetDraft(val id: Long? = null, val group: String = UUID.randomUUID().toString(),

@@ -18,7 +18,7 @@ data class Recipe(val id: Long? = null, val name: String = "", val cooked: Strin
             }
             return sum.divide(yield, 10, RoundingMode.HALF_UP).display()
         }
-        return FoodDraft(name = name.trim(), weighted = true, energy = perHundred { it.energy },
+        return FoodDraft(name = name.trim(), weighted = true, energy = perHundred { it.energy }, fromRecipe = true,
             macros = Macros(perHundred { it.macros.protein }, perHundred { it.macros.fat }, perHundred { it.macros.carbs }))
     }
 }
