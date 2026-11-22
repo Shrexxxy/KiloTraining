@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -30,7 +31,7 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
     }
     val loading = (online as? CatalogSearch.Loading)?.term == term
     BackHandler(onBack = onClose)
-    Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { insets ->
+    Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
             Text("Поиск продуктов", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineMedium)
             onManage?.let { TextButton(onClick = it) { Text("Мои продукты") } }

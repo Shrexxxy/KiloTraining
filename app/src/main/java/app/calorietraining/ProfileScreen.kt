@@ -42,7 +42,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                            server: @Composable () -> Unit) {
     val draft = state.draft
     var history by rememberSaveable { mutableStateOf(false) }
-    Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { padding ->
+    Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
         val body = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
         if (draft != null) {
             BackHandler { event(ProfileEvent.Close) }
@@ -100,11 +100,11 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
             if (profile != null) {
                 val stats = profile.current
                 profile.previous?.takeIf { state.days == 7 || state.days == 30 }?.let { previous ->
-                    item { ProfileBlock("Сравнение периодов") {
+                    item { ProfileBlock("Сравнение периодов", LocalDiaryAccents.current.kcal) {
                         PeriodComparison(stats, previous, profile.end, state.days)
                     } }
                 }
-                item { ProfileBlock("Тренировки") {
+                item { ProfileBlock("Тренировки", LocalDiaryAccents.current.workout) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ProfileMetric("ЗАНЯТИЙ", stats.workouts.toBigDecimal().groupedNumber(), Modifier.weight(1f))
                         ProfileMetric("ПОДХОДОВ", stats.sets.toBigDecimal().groupedNumber(), Modifier.weight(1f))
@@ -122,7 +122,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                             style = MaterialTheme.typography.bodySmall)
                     }
                 } }
-                item { ProfileBlock("Жим штанги лёжа") {
+                item { ProfileBlock("Жим штанги лёжа", LocalDiaryAccents.current.workout) {
                     if (stats.benchSets == 0) Text("За период нет выполненных рабочих подходов жима штанги лёжа.")
                     else {
                         ProfileValue("СРЕДНИЙ РАБОЧИЙ ВЕС", "${stats.benchAverage?.groupedNumber()} кг",
@@ -136,7 +136,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                         }
                     }
                 } }
-                item { ProfileBlock("Питание") {
+                item { ProfileBlock("Питание", LocalDiaryAccents.current.kcal) {
                     val accents = LocalDiaryAccents.current
                     if (stats.averageCalories != null) {
                         ProfileValue("В СРЕДНЕМ ЗА ДЕНЬ", "${stats.averageCalories.groupedNumber()} ккал", accents.kcal)
@@ -154,7 +154,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                     }
                     MealHours(profile.hours)
                 } }
-                item { ProfileBlock("Мои замеры") {
+                item { ProfileBlock("Мои замеры", LocalDiaryAccents.current.protein) {
                     val weight = profile.measurements.firstOrNull { it.weight.isNotEmpty() }
                     val fat = profile.measurements.firstOrNull { it.fat.isNotEmpty() }
                     if (weight == null && fat == null) Text("Добавь первый замер, чтобы отслеживать изменения.")
@@ -215,10 +215,12 @@ private fun ProductServerBlock(model: ProfileViewModel) {
 }
 
 @Composable
-private fun ProfileBlock(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            contentColor = MaterialTheme.colorScheme.onSurface)) {
+private fun ProfileBlock(
+    title: String,
+    accent: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    GlassCard(accent, Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             content()
@@ -229,7 +231,7 @@ private fun ProfileBlock(title: String, content: @Composable ColumnScope.() -> U
 @Composable
 private fun ProfileMetric(label: String, value: String, modifier: Modifier, caption: String? = null) {
     val colors = MaterialTheme.colorScheme
-    Surface(modifier, shape = MaterialTheme.shapes.medium, color = colors.surfaceContainerHighest) {
+    Surface(modifier, shape = MaterialTheme.shapes.medium, color = colors.surfaceContainerHighest.copy(alpha = .55f)) {
         Column(Modifier.padding(10.dp)) {
             ProfileValue(label, value, colors.onSurface)
             if (caption != null) Text(caption, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
@@ -250,7 +252,7 @@ private fun MealHours(hours: List<Int>) {
     val colors = MaterialTheme.colorScheme
     val kcal = LocalDiaryAccents.current.kcal
     val peak = hours.maxOrNull() ?: 0
-    Surface(shape = MaterialTheme.shapes.medium, color = colors.surfaceContainerHighest) {
+    Surface(shape = MaterialTheme.shapes.medium, color = colors.surfaceContainerHighest.copy(alpha = .55f)) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Когда я обычно ем", style = MaterialTheme.typography.titleSmall)
             if (peak == 0) Text("Укажи время еды в дневнике, чтобы увидеть распределение по часам.")

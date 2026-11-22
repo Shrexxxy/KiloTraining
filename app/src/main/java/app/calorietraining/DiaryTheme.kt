@@ -88,6 +88,11 @@ private val lightColors = lightColorScheme(
     surfaceVariant = Color(0xFFFFFFFF),
 )
 
+internal val DarkDiaryBackgroundTop = Color(0xFF07090B)
+internal val DarkGlassStart = Color(0xFF1C1E24)
+internal val DarkGlassEnd = Color(0xFF121317)
+internal val LocalDiaryDark = staticCompositionLocalOf { false }
+
 private val darkAccents = with(darkColors) { DiaryAccents(primary, secondary, tertiary, Color(0xFFFFB020), tertiary) }
 private val lightAccents = with(lightColors) { DiaryAccents(primary, secondary, tertiary, Color(0xFF9A6200), tertiary) }
 
@@ -148,7 +153,7 @@ fun DiaryTheme(mode: ThemeMode, content: @Composable () -> Unit) {
             previousDark = dark
         }
     }
-    CompositionLocalProvider(LocalDiaryAccents provides if (dark) darkAccents else lightAccents) {
+    CompositionLocalProvider(LocalDiaryDark provides dark, LocalDiaryAccents provides if (dark) darkAccents else lightAccents) {
         MaterialTheme(colorScheme = colors, typography = diaryTypography, shapes = diaryShapes, content = content)
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
@@ -118,7 +119,7 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
         editingGoal = false
         onEvent(FoodEvent.Goal(kcal, goals))
     }
-    Scaffold(modifier = modifier, containerColor = colors.surface) { insets ->
+    Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).padding(horizontal = 16.dp)) {
             Text("Питание", Modifier.padding(top = 16.dp, bottom = 12.dp),
                 style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
@@ -126,7 +127,7 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
             Spacer(Modifier.height(16.dp))
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (state.loaded) item {
-                    Surface(color = colors.surfaceContainer, contentColor = colors.onSurface, shape = MaterialTheme.shapes.large) {
+                    GlassCard(LocalDiaryAccents.current.kcal) {
                         Box(Modifier.padding(16.dp)) {
                             NutritionRings(total, macros, state.goals, state.rows.isNotEmpty(), today) { editingGoal = true }
                         }
@@ -156,7 +157,7 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
                     Triple("Рецепты", "Мои рецепты", FoodEvent.Recipes),
                     Triple("Вручную", "Ввести вручную", FoodEvent.Edit(FoodDraft()))
                 ).forEach { (label, description, event) ->
-                    FilledTonalButton(onClick = { onEvent(event) },
+                    GlassTonalButton(onClick = { onEvent(event) },
                         modifier = Modifier.weight(1f).semantics { contentDescription = description },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
                         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
@@ -172,7 +173,8 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
 private fun MealCard(day: LocalDate, meal: Meal, entries: List<FoodEntry>, total: BigDecimal, onEvent: (FoodEvent) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val barShape = RoundedCornerShape(3.dp)
-    Surface(shape = MaterialTheme.shapes.large, color = colors.surfaceContainer, contentColor = colors.onSurface) {
+    val accent = glassAccent(meal)
+    GlassCard(accent) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             MealGroupHeader(day, meal, entries, true) { destination ->
                 onEvent(FoodEvent.CopyMeal(day, destination, meal))
@@ -180,7 +182,7 @@ private fun MealCard(day: LocalDate, meal: Meal, entries: List<FoodEntry>, total
             val fraction = if (total.signum() == 0) 0f else
                 entries.sumOf { it.calories }.divide(total, MathContext.DECIMAL64).toFloat().coerceIn(0f, 1f)
             Box(Modifier.fillMaxWidth().height(5.dp).background(colors.outlineVariant, barShape)) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(LocalDiaryAccents.current.kcal, barShape))
+                Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(accent, barShape))
             }
             entries.forEach { row ->
                 Row(Modifier.fillMaxWidth().clickable { onEvent(FoodEvent.Edit(row.edit())) }
@@ -257,7 +259,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
             nameFocus.requestFocus()
         }
     }
-    Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { insets ->
+    Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

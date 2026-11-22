@@ -13,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import java.time.LocalDate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -68,36 +69,42 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
             requestedDay = null
         }
     }
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f)) {
-            if (tab == "История") historyHolder.SaveableStateProvider("history") {
-                HistoryScreen(viewModel { HistoryViewModel(app) }, onBackup = { copying = true },
-                    onFoodDay = { openDiary("Питание", it) },
-                    onWorkout = { openDiary("Тренировки", it.date, it.id) })
-            }
-            else if(workout != null && workoutState != null) WorkoutContent(workoutState,workout::event,
-                focusSession = requestedSession, onFocused = { requestedSession = null }) {
-                RestTimer(restUntil, restTotal, restStarted) { deadline, total, started ->
-                    restUntil = deadline
-                    restTotal = total
-                    restStarted = started
+    DiaryBackground {
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f)) {
+                if (tab == "История") historyHolder.SaveableStateProvider("history") {
+                    HistoryScreen(viewModel { HistoryViewModel(app) }, onBackup = { copying = true },
+                        onFoodDay = { openDiary("Питание", it) },
+                        onWorkout = { openDiary("Тренировки", it.date, it.id) })
                 }
+                else if(workout != null && workoutState != null) WorkoutContent(workoutState,workout::event,
+                    focusSession = requestedSession, onFocused = { requestedSession = null }) {
+                    RestTimer(restUntil, restTotal, restStarted) { deadline, total, started ->
+                        restUntil = deadline
+                        restTotal = total
+                        restStarted = started
+                    }
+                }
+                else if (tab == "Профиль") ProfileScreen(
+                    viewModel(key = "profile-${backupState.revision}") { ProfileViewModel(app) }, mode, onThemeChange
+                )
+                else FoodContent(foodState,food::onEvent)
             }
-            else if (tab == "Профиль") ProfileScreen(
-                viewModel(key = "profile-${backupState.revision}") { ProfileViewModel(app) }, mode, onThemeChange
-            )
-            else FoodContent(foodState,food::onEvent)
-        }
-        if (!editing) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                listOf("Питание" to R.drawable.ic_nav_food, "Тренировки" to R.drawable.ic_nav_workout,
-                    "История" to R.drawable.ic_nav_history, "Профиль" to R.drawable.ic_nav_profile).forEach { (title, icon) ->
-                    NavigationBarItem(selected = tab == title, onClick = { selectTab(title) },
-                        icon = { Icon(painterResource(icon), contentDescription = null) },
-                        label = { Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) },
-                        colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
+            if (!editing) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = .85f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = 0.dp,
+                ) {
+                    listOf("Питание" to R.drawable.ic_nav_food, "Тренировки" to R.drawable.ic_nav_workout,
+                        "История" to R.drawable.ic_nav_history, "Профиль" to R.drawable.ic_nav_profile).forEach { (title, icon) ->
+                        NavigationBarItem(selected = tab == title, onClick = { selectTab(title) },
+                            icon = { Icon(painterResource(icon), contentDescription = null) },
+                            label = { Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) },
+                            colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
+                    }
                 }
             }
         }
@@ -114,7 +121,7 @@ fun ScannerScreen(state: FoodUiState, onEvent: (FoodEvent)->Unit) {
         else message = if(code == null) "Сканирование закрыто. Можно ввести цифры вручную." else "Нужен товарный штрихкод с упаковки."
     }
     BackHandler { onEvent(FoodEvent.Close) }
-    Scaffold(containerColor=MaterialTheme.colorScheme.surface) { padding ->
+    Scaffold(containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
         Column(Modifier.padding(padding).imePadding().fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement=Arrangement.spacedBy(14.dp)) {
             Text("Штрихкод продукта",style=MaterialTheme.typography.headlineMedium)

@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
@@ -37,7 +38,7 @@ internal fun MyProductsScreen(
         }
     }
     BackHandler(onBack = close)
-    Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { insets ->
+    Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
             TextButton(onClick = close, enabled = !busy) { Text("Назад") }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -76,10 +77,7 @@ internal fun MyProductsScreen(
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(matches, key = { requireNotNull(it.id) }) { product ->
-                        Card(onClick = { editing = product }, enabled = !busy,
-                            modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                contentColor = MaterialTheme.colorScheme.onSurface)) {
+                        GlassCard(MaterialTheme.colorScheme.onSurfaceVariant, Modifier.fillMaxWidth(), onClick = { editing = product }, enabled = !busy) {
                             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Column(Modifier.weight(1f)) {
                                     Text(product.name, style = MaterialTheme.typography.titleMedium)
