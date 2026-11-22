@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,18 +37,16 @@ internal fun BigDecimal.groupedNumber(): String {
 }
 
 @Composable
-internal fun WorkoutMetrics(workout: Workout) {
+internal fun WorkoutMetrics(workout: Workout, minutes: Long?) {
     val colors = MaterialTheme.colorScheme
-    Surface(color = colors.surfaceContainer, contentColor = colors.onSurface, shape = MaterialTheme.shapes.large) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            val metrics = listOf("ПОДХОДЫ" to "${workout.sets.count { !it.planned }}/${workout.sets.size}",
-                "ВРЕМЯ" to (workout.minutes?.let { "$it мин" } ?: "—"), "ОБЪЁМ" to "${workout.volume().groupedNumber()} кг")
-            metrics.forEachIndexed { index, (name, value) ->
-                if (index > 0) VerticalDivider(Modifier.height(30.dp), color = colors.outlineVariant)
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(name, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
-                    Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
+    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        val metrics = listOf("ПОДХОДЫ" to "${workout.sets.count { !it.planned }}/${workout.sets.size}",
+            "ВРЕМЯ" to (minutes?.let { "$it мин" } ?: "—"), "ОБЪЁМ" to "${workout.volume().groupedNumber()} кг")
+        metrics.forEachIndexed { index, (name, value) ->
+            if (index > 0) VerticalDivider(Modifier.height(30.dp), color = colors.outlineVariant)
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(name, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -59,8 +56,7 @@ internal fun WorkoutMetrics(workout: Workout) {
 internal fun NextSetCard(set: SetDraft, enabled: Boolean, complete: () -> Unit) {
     val accent = LocalDiaryAccents.current.workout
     val colors = MaterialTheme.colorScheme
-    Surface(shape = MaterialTheme.shapes.large, color = colors.surfaceContainer, contentColor = colors.onSurface,
-        border = BorderStroke(1.5.dp, accent)) {
+    GlassCard(accent) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f)) {
@@ -77,10 +73,8 @@ internal fun NextSetCard(set: SetDraft, enabled: Boolean, complete: () -> Unit) 
 
 @Composable
 internal fun ExerciseCard(sets: List<SetDraft>, rests: Map<Long?, Duration>, edit: (SetDraft) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val accent = LocalDiaryAccents.current.workout
     val exercise = sets.first().exercise
-    Surface(shape = MaterialTheme.shapes.large, color = colors.surfaceContainer, contentColor = colors.onSurface) {
+    GlassCard(LocalDiaryAccents.current.workout) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 photoForExercise(exercise)?.let { Image(painterResource(it.second), null, Modifier.size(48.dp)) }

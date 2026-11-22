@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -37,7 +38,7 @@ fun WorkoutContent(state: WorkoutState, event: (WorkoutEvent) -> Unit, modifier:
     val opened = state.list.firstOrNull { it.id == state.opened }
     val session = state.session
     val draft = state.draft
-    Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { padding ->
+    Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
             DelayedProgress(state.busy)
             when {
@@ -56,6 +57,7 @@ private fun ColumnScope.WorkoutFeed(state: WorkoutState, event: (WorkoutEvent) -
     var jumping by rememberSaveable { mutableStateOf(false) }
     val scroll = rememberLazyListState()
     var jumped by rememberSaveable { mutableStateOf(false) }
+    val accent = LocalDiaryAccents.current.workout
     val active = state.activeWorkout
     val now = workoutNow(state, active, event)
     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -79,24 +81,23 @@ private fun ColumnScope.WorkoutFeed(state: WorkoutState, event: (WorkoutEvent) -
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (active == null) Button(onClick = { event(WorkoutEvent.StartLive) },
                         enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Начать тренировку") }
-                    else Card(onClick = { event(WorkoutEvent.Open(active.id)) }, modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large, colors = workoutCardColors()) {
+                    else GlassCard(accent, Modifier.fillMaxWidth(), onClick = { event(WorkoutEvent.Open(active.id)) }) {
                         Text("Идёт тренировка · ${formatRestElapsed(Duration.between(active.startedAt ?: now, now).seconds.coerceAtLeast(0))}",
                             Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
                     }
-                    FilledTonalButton(onClick = onRecord, enabled = !state.busy,
-                        modifier = Modifier.fillMaxWidth()) { Text("Записать тренировку") }
+                    GlassTonalButton(onClick = onRecord, modifier = Modifier.fillMaxWidth(), contentPadding = ButtonDefaults.ContentPadding, enabled = !state.busy) {
+                        Text("Записать тренировку")
+                    }
                     WorkoutTemplateMenu(state, event)
                 }
             }
             items(state.list, key = { it.id }) { workout ->
-                Card(onClick = { event(WorkoutEvent.Open(workout.id)) }, modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large, colors = workoutCardColors()) {
+                GlassCard(accent, Modifier.fillMaxWidth(), onClick = { event(WorkoutEvent.Open(workout.id)) }) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(workout.dateTimeCaption() + if (workout.active) " · Идёт" else "",
                             style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(workout.title.ifBlank { "Тренировка" }, style = MaterialTheme.typography.titleLarge)
-                        WorkoutMetrics(workout)
+                        WorkoutMetrics(workout, workout.elapsedMinutes(now))
                         val exercises = workout.sets.map { it.exercise }.distinct()
                         if (exercises.isNotEmpty()) Text(
                             exercises.take(3).joinToString() + if (exercises.size > 3) " и ещё ${exercises.size - 3}" else "",
@@ -109,11 +110,9 @@ private fun ColumnScope.WorkoutFeed(state: WorkoutState, event: (WorkoutEvent) -
     }
 }
 
-@Composable
-private fun workoutCardColors() = CardDefaults.cardColors(
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-    contentColor = MaterialTheme.colorScheme.onSurface,
-)
+private fun Workout.elapsedMinutes(now: LocalDateTime): Long? =
+    if (active) startedAt?.let { Duration.between(it, now).toMinutes().coerceAtLeast(0) }
+    else minutes?.toLong()
 
 @Composable
 private fun workoutNow(state: WorkoutState, workout: Workout?, event: (WorkoutEvent) -> Unit): LocalDateTime {
@@ -156,12 +155,15 @@ private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (Workou
                 item(key = "rest-timer") { WorkoutRestTimer(Duration.between(done, now).seconds.coerceAtLeast(0)) }
             }
             item(key = "finish") {
-                FilledTonalButton(onClick = { finishing = true }, modifier = Modifier.fillMaxWidth()) {
+                GlassTonalButton(onClick = { finishing = true }, modifier = Modifier.fillMaxWidth(),
+                    contentPadding = ButtonDefaults.ContentPadding) {
                     Text("Завершить тренировку")
                 }
             }
         }
-        item(key = "metrics") { WorkoutMetrics(workout) }
+        item(key = "metrics") {
+            GlassCard(LocalDiaryAccents.current.workout) { WorkoutMetrics(workout, workout.elapsedMinutes(now)) }
+        }
         workout.nextPlanned()?.let { next ->
             item(key = "next") {
                 NextSetCard(next, next.id != null) { next.id?.let { event(WorkoutEvent.Complete(workout.id, it)) } }
@@ -306,7 +308,8 @@ private fun WorkoutTemplateMenu(state: WorkoutState, event: (WorkoutEvent) -> Un
             })
         var choosingTemplate by rememberSaveable { mutableStateOf(false) }
         Box {
-            FilledTonalButton(onClick = { choosingTemplate = true }) { Text("Из шаблона") }
+            GlassTonalButton(onClick = { choosingTemplate = true }, modifier = Modifier,
+                contentPadding = ButtonDefaults.ContentPadding) { Text("Из шаблона") }
             DropdownMenu(expanded = choosingTemplate, onDismissRequest = { choosingTemplate = false }) {
                 state.templates.forEach { template ->
                     DropdownMenuItem(text = { Text(template.title) }, onClick = {
@@ -385,15 +388,19 @@ private fun SetEditor(state: WorkoutState, session: Long, draft: SetDraft, event
         }
         if (newExercise) catalogExercise?.let { ExerciseFrames(it) }
         state.previous?.let { previous ->
-            Text("Прошлая тренировка · ${previous.day.caption()}", style = MaterialTheme.typography.titleMedium)
-            previous.sets.forEachIndexed { index, set ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    val weight = if (set.weight.isBlank()) "Свой вес" else "${set.weight} кг"
-                    Text("${index + 1}.  $weight × ${set.reps}" + if (set.warmup) " · разминка" else "")
-                    TextButton(onClick = {
-                        edit(draft.copy(weight = set.weight, reps = set.reps, warmup = set.warmup))
-                    }) { Text("Повторить") }
+            GlassCard(colors.onSurfaceVariant) {
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text("Прошлая тренировка · ${previous.day.caption()}", style = MaterialTheme.typography.titleMedium)
+                    previous.sets.forEachIndexed { index, set ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            val weight = if (set.weight.isBlank()) "Свой вес" else "${set.weight} кг"
+                            Text("${index + 1}.  $weight × ${set.reps}" + if (set.warmup) " · разминка" else "")
+                            TextButton(onClick = {
+                                edit(draft.copy(weight = set.weight, reps = set.reps, warmup = set.warmup))
+                            }) { Text("Повторить") }
+                        }
+                    }
                 }
             }
         }
