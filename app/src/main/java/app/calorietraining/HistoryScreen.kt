@@ -2,6 +2,13 @@ package app.calorietraining
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import java.math.MathContext
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -28,28 +35,41 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
     var showTraining by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("История", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineLarge)
+                Text("История", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold)
                 TextButton(onClick = onBackup) { Text("Резервная копия") }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(!showTraining, { showTraining = false }, label = { Text("Калории") })
-                FilterChip(showTraining, { showTraining = true }, label = { Text("Упражнения") })
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                SegmentedButton(selected = !showTraining, onClick = { showTraining = false },
+                    shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Питание") }
+                SegmentedButton(selected = showTraining, onClick = { showTraining = true },
+                    shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Упражнения") }
             }
             DelayedProgress(state.loading)
             when {
                 state.error -> {
-                    Text("Не удалось загрузить историю")
+                    Text("Не удалось загрузить историю", Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.error)
                     TextButton(onClick = { load(state.monday, state.exercise) }) { Text("Повторить") }
                 }
                 showTraining -> {
                     if (state.exercise == null) {
                         Text("Здесь появятся упражнения после записи первого подхода.", Modifier.padding(vertical = 16.dp))
                     } else {
-                        Box {
-                            OutlinedButton(onClick = { choosing = true }) { Text("Упражнение · ${state.exercise} ▾") }
+                        Box(Modifier.padding(top = 12.dp)) {
+                            Card(onClick = { choosing = true }, modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large,
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSurface)) {
+                                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Text(state.exercise, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold)
+                                    Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(18.dp))
+                                }
+                            }
                             DropdownMenu(expanded = choosing, onDismissRequest = { choosing = false }) {
                                 state.exercises.forEach { name ->
                                     DropdownMenuItem(text = { Text(name) }, onClick = { choosing = false; load(state.monday, name) })
@@ -61,13 +81,17 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                                 ExerciseProgress(state.exercise, state.sessions, onWorkout)
                             }
                             items(state.sessions, key = { it.id }) { session ->
-                                OutlinedCard(onClick = { onWorkout(session) }, modifier = Modifier.fillMaxWidth()) {
-                                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text(session.date.caption(), style = MaterialTheme.typography.titleMedium)
+                                Card(onClick = { onWorkout(session) }, modifier = Modifier.fillMaxWidth(),
+                                    shape = MaterialTheme.shapes.large,
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSurface)) {
+                                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(session.date.caption(), style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold)
                                         if (session.title.isNotEmpty()) Text(session.title, style = MaterialTheme.typography.titleSmall)
-                                        session.sets.forEachIndexed { i, set ->
-                                            val weight = if (set.weight.isBlank()) "Свой вес" else "${set.weight} кг"
-                                            Text("Подход ${i + 1} · $weight × ${set.reps}" + if (set.warmup) " · разминка" else "")
+                                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            session.sets.forEach { set -> WorkoutSetTile(set.weight, set.reps, set.warmup) }
                                         }
                                     }
                                 }
@@ -85,12 +109,7 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                                 style = MaterialTheme.typography.titleSmall)
                             DateArrow(R.drawable.ic_chevron_right, "Следующая неделя", true) { load(state.monday.plusWeeks(1), state.exercise) }
                         }
-                        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.large) {
-                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                                Text("${state.total.display()} ккал за неделю", style = MaterialTheme.typography.titleLarge)
-                                state.average?.let { Text("Среднее за день с записями · ${it.display()} ккал") }
-                            }
-                        }
+                        WeekNutrition(state)
                     }
                     items(7) { i ->
                         val day = state.monday.plusDays(i.toLong())
@@ -98,9 +117,48 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                             .heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(day.caption())
-                            Text(state.totals[day]?.let { "${it.display()} ккал" } ?: "Нет записей")
+                            Text(state.totals[day]?.let { "${it.groupedNumber()} ккал" } ?: "Нет записей")
                         }
                         HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekNutrition(state: HistoryState) {
+    val colors = MaterialTheme.colorScheme
+    val kcal = LocalDiaryAccents.current.kcal
+    val peak = state.totals.values.maxOrNull()
+    Surface(color = colors.surfaceContainer, shape = MaterialTheme.shapes.large) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("ЗА НЕДЕЛЮ", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+            Text("${state.total.groupedNumber()} ккал", style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold, color = kcal)
+            state.average?.let {
+                Text("Среднее за день с записями · ${it.groupedNumber()} ккал",
+                    style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс").forEachIndexed { index, label ->
+                    val day = state.monday.plusDays(index.toLong())
+                    val value = state.totals[day]
+                    val fraction = if (value != null && peak != null && peak.signum() > 0)
+                        value.divide(peak, MathContext.DECIMAL32).toFloat().coerceIn(0f, 1f) else 0f
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.fillMaxWidth().height(68.dp).testTag("week-bar")
+                            .background(colors.surfaceContainerHighest, MaterialTheme.shapes.extraSmall)
+                            .semantics {
+                                val amount = value?.let { "${it.groupedNumber()} ккал" } ?: "нет записей"
+                                contentDescription = "${day.caption()}: $amount"
+                            }, contentAlignment = Alignment.BottomCenter) {
+                            if (value != null) Box(Modifier.fillMaxWidth().fillMaxHeight(fraction)
+                                .heightIn(min = 2.dp).background(kcal, MaterialTheme.shapes.extraSmall))
+                        }
+                        Text(label, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant)
                     }
                 }
             }

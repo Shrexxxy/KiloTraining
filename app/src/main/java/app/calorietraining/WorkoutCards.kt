@@ -25,11 +25,12 @@ internal fun Workout.nextPlanned(): SetDraft? =
 
 private fun SetDraft.tileLabel() = "${if (weight.isBlank()) "Свой вес" else "$weight кг"} × $reps"
 
-private fun BigDecimal.groupedVolume(): String {
+internal fun BigDecimal.groupedNumber(): String {
     val number = display()
-    val integer = number.substringBefore(',')
+    val digits = number.removePrefix("-")
+    val integer = digits.substringBefore(',')
     val grouped = integer.reversed().chunked(3).joinToString("\u00a0").reversed()
-    return grouped + number.substring(integer.length)
+    return (if (number.startsWith("-")) "-" else "") + grouped + digits.substring(integer.length)
 }
 
 @Composable
@@ -38,7 +39,7 @@ internal fun WorkoutMetrics(workout: Workout) {
     Surface(color = colors.surfaceContainer, contentColor = colors.onSurface, shape = MaterialTheme.shapes.large) {
         Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             val metrics = listOf("ПОДХОДЫ" to "${workout.sets.count { !it.planned }}/${workout.sets.size}",
-                "ВРЕМЯ" to (workout.minutes?.let { "$it мин" } ?: "—"), "ОБЪЁМ" to "${workout.volume().groupedVolume()} кг")
+                "ВРЕМЯ" to (workout.minutes?.let { "$it мин" } ?: "—"), "ОБЪЁМ" to "${workout.volume().groupedNumber()} кг")
             metrics.forEachIndexed { index, (name, value) ->
                 if (index > 0) VerticalDivider(Modifier.height(30.dp), color = colors.outlineVariant)
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -83,19 +84,8 @@ internal fun ExerciseCard(sets: List<SetDraft>, edit: (SetDraft) -> Unit) {
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 sets.forEachIndexed { index, set ->
-                    val (background, foreground, status) = when {
-                        set.planned -> Triple(colors.surfaceContainerHighest, colors.onSurfaceVariant, "в плане")
-                        set.warmup -> Triple(accent.copy(alpha = 0.35f).compositeOver(colors.surfaceContainer), colors.onSurface, "разминка")
-                        else -> Triple(accent, colors.onTertiary, "выполнен")
-                    }
-                    val label = set.tileLabel()
-                    Surface(onClick = { edit(set) }, shape = RoundedCornerShape(12.dp),
-                        color = background, contentColor = foreground,
-                        modifier = Modifier.height(40.dp).semantics { contentDescription = "Подход ${index + 1}: $label, $status" }) {
-                        Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                            Text(label, style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
+                    WorkoutSetTile(set.weight, set.reps, set.warmup, set.planned, index + 1,
+                        onClick = { edit(set) })
                 }
             }
             TextButton(onClick = { edit(sets.last().copy(id = null, planned = false)) }) {
@@ -103,4 +93,41 @@ internal fun ExerciseCard(sets: List<SetDraft>, edit: (SetDraft) -> Unit) {
             }
         }
     }
+}
+
+@Composable
+internal fun WorkoutSetTile(
+    weight: String,
+    reps: String,
+    warmup: Boolean = false,
+    planned: Boolean = false,
+    number: Int? = null,
+    caption: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    val colors = MaterialTheme.colorScheme
+    val accent = LocalDiaryAccents.current.workout
+    val (background, foreground, status) = when {
+        planned -> Triple(colors.surfaceContainerHighest, colors.onSurfaceVariant, "в плане")
+        warmup -> Triple(accent.copy(alpha = 0.35f).compositeOver(colors.surfaceContainer), colors.onSurface, "разминка")
+        else -> Triple(accent, colors.onTertiary, "выполнен")
+    }
+    val label = "${if (weight.isBlank()) "Свой вес" else "$weight кг"} × $reps"
+    val description = when {
+        number != null -> "Подход $number: $label, $status"
+        warmup -> "Разминка"
+        else -> null
+    }
+    val modifier = if (description == null) Modifier else Modifier.semantics { contentDescription = description }
+    val shape = RoundedCornerShape(12.dp)
+    val content: @Composable () -> Unit = {
+        Column(Modifier.heightIn(min = 40.dp).padding(horizontal = 10.dp),
+            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label, style = MaterialTheme.typography.labelLarge)
+            if (caption != null) Text(caption, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+    if (onClick == null) Surface(modifier, shape, background, foreground, content = content)
+    else Surface(onClick = onClick, modifier = modifier, shape = shape, color = background,
+        contentColor = foreground, content = content)
 }

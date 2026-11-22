@@ -31,7 +31,7 @@ class AppScreenshotTest {
         } }
         val ready = if (tab == "Профиль") {
             ui.onNodeWithText(tab).performClick()
-            "Изменения за период"
+            "Сравнение периодов"
         } else "За этот день пока нет записей"
         ui.waitUntil(10_000) { ui.onAllNodesWithText(ready).fetchSemanticsNodes().isNotEmpty() }
         // В Robolectric captureToImage ждёт обратный вызов перерисовки окна, который здесь не приходит.
