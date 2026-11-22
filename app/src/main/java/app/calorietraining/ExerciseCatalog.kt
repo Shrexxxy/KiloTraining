@@ -34,11 +34,67 @@ internal val exerciseCatalog = listOf(
     ExercisePhoto("Сгибание ног лёжа", "Ноги", "бицепс бедра тренажёр", R.drawable.ex_lying_leg_curls_0, R.drawable.ex_lying_leg_curls_1),
     ExercisePhoto("Жим гантелей сидя", "Плечи", "гантели вверх", R.drawable.ex_dumbbell_shoulder_press_0, R.drawable.ex_dumbbell_shoulder_press_1, dumbbell = true),
     ExercisePhoto("Подъём гантелей в стороны", "Плечи", "махи разведения гантели", R.drawable.ex_side_lateral_raise_0, R.drawable.ex_side_lateral_raise_1, dumbbell = true),
-    ExercisePhoto("Сгибание рук молотком", "Руки", "молотки бицепс гантели", R.drawable.ex_hammer_curls_0, R.drawable.ex_hammer_curls_1, dumbbell = true),
-    ExercisePhoto("Разгибание рук на блоке с канатом", "Руки", "трицепс канатная рукоять", R.drawable.ex_triceps_pushdown_rope_attachment_0, R.drawable.ex_triceps_pushdown_rope_attachment_1)
+    ExercisePhoto("Сгибание рук молотком", "Руки", "молотки молоточки бицепс гантели", R.drawable.ex_hammer_curls_0, R.drawable.ex_hammer_curls_1, dumbbell = true),
+    ExercisePhoto("Разгибание рук на блоке с канатом", "Руки", "трицепс канатная рукоять сверху вниз", R.drawable.ex_triceps_pushdown_rope_attachment_0, R.drawable.ex_triceps_pushdown_rope_attachment_1),
+
+    ExercisePhoto("Сведение рук в кроссовере", "Грудь", "кроссовер бабочка блоки", R.drawable.ex_cable_crossover_0, R.drawable.ex_cable_crossover_1),
+    ExercisePhoto("Жим штанги на наклонной скамье", "Грудь", "наклонная штанга верх груди", R.drawable.ex_barbell_incline_bench_press_medium_grip_0, R.drawable.ex_barbell_incline_bench_press_medium_grip_1),
+    ExercisePhoto("Разводка гантелей лёжа", "Грудь", "разводка гантели", R.drawable.ex_dumbbell_flyes_0, R.drawable.ex_dumbbell_flyes_1, dumbbell = true),
+    ExercisePhoto("Отжимания на брусьях на грудь", "Грудь", "собственный вес", R.drawable.ex_dips_chest_version_0, R.drawable.ex_dips_chest_version_1),
+    ExercisePhoto("Отжимания от пола", "Грудь", "собственный вес", R.drawable.ex_pushups_0, R.drawable.ex_pushups_1),
+    ExercisePhoto("Жим в тренажёре сидя", "Грудь", "тренажер хаммер", R.drawable.ex_leverage_chest_press_0, R.drawable.ex_leverage_chest_press_1),
+
+    ExercisePhoto("Тяга штанги в наклоне", "Спина", "штанга наклон", R.drawable.ex_bent_over_barbell_row_0, R.drawable.ex_bent_over_barbell_row_1),
+    ExercisePhoto("Т-тяга", "Спина", "т-гриф тбар тяга в наклоне", R.drawable.ex_tbar_row_with_handle_0, R.drawable.ex_tbar_row_with_handle_1),
+    ExercisePhoto("Тяга верхнего блока узким хватом", "Спина", "верхний блок узкий", R.drawable.ex_closegrip_front_lat_pulldown_0, R.drawable.ex_closegrip_front_lat_pulldown_1),
+    ExercisePhoto("Гиперэкстензия", "Спина", "поясница разгибание спины", R.drawable.ex_hyperextensions_back_extensions_0, R.drawable.ex_hyperextensions_back_extensions_1),
+    ExercisePhoto("Пуловер на блоке прямыми руками", "Спина", "широчайшие прямые руки", R.drawable.ex_straightarm_pulldown_0, R.drawable.ex_straightarm_pulldown_1),
+    ExercisePhoto("Шраги с гантелями", "Спина", "трапеции шраги", R.drawable.ex_dumbbell_shrug_0, R.drawable.ex_dumbbell_shrug_1, dumbbell = true),
+
+    ExercisePhoto("Румынская тяга", "Ноги", "штанга бицепс бедра", R.drawable.ex_romanian_deadlift_0, R.drawable.ex_romanian_deadlift_1),
+    ExercisePhoto("Выпады с гантелями", "Ноги", "выпады", R.drawable.ex_dumbbell_lunges_0, R.drawable.ex_dumbbell_lunges_1, dumbbell = true),
+    ExercisePhoto("Болгарские сплит-приседания", "Ноги", "болгарские сплит выпады гантели", R.drawable.ex_split_squat_with_dumbbells_0, R.drawable.ex_split_squat_with_dumbbells_1, dumbbell = true),
+    ExercisePhoto("Подъём на носки стоя", "Ноги", "икры голень тренажер", R.drawable.ex_standing_calf_raises_0, R.drawable.ex_standing_calf_raises_1),
+    ExercisePhoto("Подъём на носки сидя", "Ноги", "икры голень тренажер", R.drawable.ex_seated_calf_raise_0, R.drawable.ex_seated_calf_raise_1),
+    ExercisePhoto("Ягодичный мост со штангой", "Ноги", "ягодицы хип траст мост", R.drawable.ex_barbell_hip_thrust_0, R.drawable.ex_barbell_hip_thrust_1),
+    ExercisePhoto("Гоблет-присед", "Ноги", "присед гантель кубок", R.drawable.ex_goblet_squat_0, R.drawable.ex_goblet_squat_1, dumbbell = true),
+    ExercisePhoto("Гакк-присед", "Ноги", "гак тренажер присед", R.drawable.ex_hack_squat_0, R.drawable.ex_hack_squat_1),
+    ExercisePhoto("Сведение ног в тренажёре", "Ноги", "приводящие внутренняя поверхность бедра", R.drawable.ex_thigh_adductor_0, R.drawable.ex_thigh_adductor_1),
+    ExercisePhoto("Разведение ног в тренажёре", "Ноги", "отводящие ягодицы", R.drawable.ex_thigh_abductor_0, R.drawable.ex_thigh_abductor_1),
+    ExercisePhoto("Приседания в Смите", "Ноги", "смит тренажер присед", R.drawable.ex_smith_machine_squat_0, R.drawable.ex_smith_machine_squat_1),
+
+    ExercisePhoto("Армейский жим стоя", "Плечи", "штанга над головой", R.drawable.ex_standing_military_press_0, R.drawable.ex_standing_military_press_1),
+    ExercisePhoto("Разведение гантелей в наклоне", "Плечи", "задняя дельта махи", R.drawable.ex_reverse_flyes_0, R.drawable.ex_reverse_flyes_1, dumbbell = true),
+    ExercisePhoto("Подъём гантелей перед собой", "Плечи", "передняя дельта махи", R.drawable.ex_front_dumbbell_raise_0, R.drawable.ex_front_dumbbell_raise_1, dumbbell = true),
+    ExercisePhoto("Тяга штанги к подбородку", "Плечи", "протяжка", R.drawable.ex_upright_barbell_row_0, R.drawable.ex_upright_barbell_row_1),
+    ExercisePhoto("Тяга каната к лицу", "Плечи", "фейс пулл задняя дельта блок", R.drawable.ex_face_pull_0, R.drawable.ex_face_pull_1),
+
+    ExercisePhoto("Подъём штанги на бицепс", "Руки", "бицепс штанга", R.drawable.ex_barbell_curl_0, R.drawable.ex_barbell_curl_1),
+    ExercisePhoto("Подъём гантелей на бицепс поочерёдно", "Руки", "бицепс гантели", R.drawable.ex_dumbbell_alternate_bicep_curl_0, R.drawable.ex_dumbbell_alternate_bicep_curl_1, dumbbell = true),
+    ExercisePhoto("Сгибание рук на нижнем блоке", "Руки", "бицепс блок кроссовер", R.drawable.ex_standing_biceps_cable_curl_0, R.drawable.ex_standing_biceps_cable_curl_1),
+    ExercisePhoto("Сгибание рук на скамье Скотта", "Руки", "скотт бицепс", R.drawable.ex_preacher_curl_0, R.drawable.ex_preacher_curl_1),
+    ExercisePhoto("Разгибание рук на блоке с V-рукоятью", "Руки", "трицепс сверху вниз", R.drawable.ex_triceps_pushdown_vbar_attachment_0, R.drawable.ex_triceps_pushdown_vbar_attachment_1),
+    ExercisePhoto("Разгибание из-за головы на блоке с канатом", "Руки", "трицепс кроссовер", R.drawable.ex_cable_rope_overhead_triceps_extension_0, R.drawable.ex_cable_rope_overhead_triceps_extension_1),
+    ExercisePhoto("Французский жим EZ-штангой", "Руки", "трицепс лежа", R.drawable.ex_ezbar_skullcrusher_0, R.drawable.ex_ezbar_skullcrusher_1),
+    ExercisePhoto("Жим штанги узким хватом", "Руки", "трицепс лежа", R.drawable.ex_closegrip_barbell_bench_press_0, R.drawable.ex_closegrip_barbell_bench_press_1),
+    ExercisePhoto("Отжимания на брусьях на трицепс", "Руки", "собственный вес", R.drawable.ex_dips_triceps_version_0, R.drawable.ex_dips_triceps_version_1),
+
+    ExercisePhoto("Скручивания", "Пресс", "лежа", R.drawable.ex_crunches_0, R.drawable.ex_crunches_1),
+    ExercisePhoto("Подъём ног в висе", "Пресс", "турник", R.drawable.ex_hanging_leg_raise_0, R.drawable.ex_hanging_leg_raise_1),
+    ExercisePhoto("Планка", "Пресс", "статика кор", R.drawable.ex_plank_0, R.drawable.ex_plank_1),
+    ExercisePhoto("Скручивания на блоке", "Пресс", "блок молитва на коленях", R.drawable.ex_cable_crunch_0, R.drawable.ex_cable_crunch_1)
 )
 
 private fun String.searchKey() = trim().lowercase().replace('ё', 'е')
+
+/** Ищет упражнения каталога по всем словам запроса в названии, группе мышц и синонимах. */
+internal fun searchExercises(query: String): List<ExercisePhoto> {
+    val words = query.searchKey().split(Regex("""\s+""")).filter(String::isNotEmpty)
+    return exerciseCatalog.filter { item ->
+        val text = "${item.name} ${item.muscle} ${item.keywords}".searchKey()
+        words.all(text::contains)
+    }
+}
 internal fun photoForExercise(name: String) = exerciseCatalog.firstOrNull {
     it.name.searchKey() == name.searchKey()
 }
@@ -49,13 +105,7 @@ internal fun usesDumbbell(name: String): Boolean =
 @Composable
 internal fun ExercisePicker(onSelect: (ExercisePhoto) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
-    val matches = remember(query) {
-        val words = query.searchKey().split(Regex("""\s+"""))
-        exerciseCatalog.filter { item ->
-            val text = "${item.name} ${item.muscle} ${item.keywords}".searchKey()
-            words.all(text::contains)
-        }
-    }
+    val matches = remember(query) { searchExercises(query) }
     BackHandler(onBack = onClose)
     Column(modifier.fillMaxSize().imePadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Каталог упражнений", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium)
