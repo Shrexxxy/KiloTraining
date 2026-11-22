@@ -106,15 +106,23 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                         }
                         WeekNutrition(state)
                     }
-                    items(7) { i ->
-                        val day = state.monday.plusDays(i.toLong())
-                        Row(Modifier.fillMaxWidth().clickable(onClickLabel = "Открыть дневник питания") { onFoodDay(day) }
-                            .heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(day.caption())
-                            Text(state.totals[day]?.let { "${it.groupedNumber()} ккал" } ?: "Нет записей")
+                    item {
+                        GlassCard(LocalDiaryAccents.current.kcal) {
+                            Column {
+                                repeat(7) { index ->
+                                    val day = state.monday.plusDays(index.toLong())
+                                    if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                                    Row(Modifier.fillMaxWidth()
+                                        .clickable(onClickLabel = "Открыть дневник питания") { onFoodDay(day) }
+                                        .heightIn(min = 48.dp).padding(horizontal = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(day.caption())
+                                        Text(state.totals[day]?.let { "${it.groupedNumber()} ккал" } ?: "Нет записей")
+                                    }
+                                }
+                            }
                         }
-                        HorizontalDivider()
                     }
                 }
             }

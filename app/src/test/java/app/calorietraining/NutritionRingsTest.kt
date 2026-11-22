@@ -42,7 +42,7 @@ class NutritionRingsTest {
         ui.onNodeWithContentDescription("Калории 1536 из 2200", substring = true).assertIsDisplayed()
     }
 
-    @Test fun pastDayShowsShortfallWithoutEditing() {
+    @Test fun pastDayShowsShortfallAndAllowsEditing() {
         show(DailyGoals(2200), day = LocalDate.now().minusDays(1))
         ui.onNodeWithText("недобор 664 ккал").assertIsDisplayed()
         ui.onNodeWithText("Изменить цель").assertExists()

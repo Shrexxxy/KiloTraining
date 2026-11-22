@@ -109,10 +109,11 @@ internal fun GlassTonalButton(
     onClick: () -> Unit,
     modifier: Modifier,
     contentPadding: PaddingValues,
+    enabled: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    FilledTonalButton(onClick = onClick, modifier = modifier, contentPadding = contentPadding,
+    FilledTonalButton(onClick = onClick, modifier = modifier, contentPadding = contentPadding, enabled = enabled,
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = LocalDiaryAccents.current.protein.copy(alpha = .16f),
             contentColor = colors.onSurface,

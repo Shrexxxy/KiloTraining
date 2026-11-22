@@ -55,6 +55,13 @@ internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
     val workout = LocalDiaryAccents.current.workout
     GlassCard(LocalDiaryAccents.current.workout, modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            var expanded by rememberSaveable(exercise) { mutableStateOf(false) }
+            if (records.isNotEmpty()) TextButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text(if (expanded) "Скрыть рекорды" else "Рекорды по повторам")
+            }
             Text(if (showReps) "Максимум повторений со своим весом" else "Максимальный вес за тренировку",
                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             if (weights.isNotEmpty() && repetitions.isNotEmpty()) {
@@ -63,17 +70,11 @@ internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
                     FilterChip(showReps, { preferReps = true }, label = { Text("Свой вес") })
                 }
             }
-            if (records.isNotEmpty()) {
-                var expanded by rememberSaveable(exercise) { mutableStateOf(false) }
-                TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "Скрыть рекорды" else "Рекорды по повторам")
-                }
-                if (expanded) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    records.forEach { record ->
-                        WorkoutSetTile(record.weight.groupedNumber(), record.reps.toString(),
-                            caption = record.session.date.format(chartDate), onClick = { onWorkout(record.session) })
-                    }
+            if (expanded && records.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                records.forEach { record ->
+                    WorkoutSetTile(record.weight.groupedNumber(), record.reps.toString(),
+                        caption = record.session.date.format(chartDate), onClick = { onWorkout(record.session) })
                 }
             }
             points.forEach { point ->
