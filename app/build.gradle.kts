@@ -10,8 +10,8 @@ android {
         applicationId = "app.calorietraining"
         minSdk = 26
         targetSdk = 36
-        versionCode = 36
-        versionName = "0.36"
+        versionCode = 37
+        versionName = "0.37"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
