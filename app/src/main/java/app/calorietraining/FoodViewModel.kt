@@ -4,6 +4,7 @@ import android.app.Application
 import android.database.SQLException
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +14,7 @@ import java.time.LocalDate
 
 sealed interface CatalogSearch {
     data object Idle : CatalogSearch
-    data class Loading(val term: String) : CatalogSearch
+    data class Loading(val term: String, val serverFoods: List<FoodDraft>? = null) : CatalogSearch
     data class Results(val term: String, val foods: List<FoodDraft>,
         val serverFoods: List<FoodDraft>? = null) : CatalogSearch
     data class Failed(val term: String, val serverFoods: List<FoodDraft>? = null) : CatalogSearch
@@ -68,7 +69,15 @@ sealed interface FoodEvent {
     data object Delete : FoodEvent
 }
 
-class FoodViewModel(application: Application) : AndroidViewModel(application) {
+class FoodViewModel internal constructor(
+    application: Application,
+    private val io: CoroutineDispatcher,
+    private val searchServer: (ProductServerSettings) -> ProductServer?,
+    private val catalogSearch: suspend (String) -> List<FoodDraft>
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application, Dispatchers.IO,
+        ProductServerSettings::client, ::searchCatalog)
+
     private val state = MutableStateFlow(FoodUiState())
     val uiState = state.asStateFlow()
 
@@ -119,7 +128,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
                 state.value = current.copy(busy = true, error = null)
                 viewModelScope.launch {
                     try {
-                        val foods = withContext(Dispatchers.IO) { FoodStore(getApplication()).use { it.myProducts() } }
+                        val foods = withContext(io) { FoodStore(getApplication()).use { it.myProducts() } }
                         state.value = current.copy(busy = false, library = foods.map { it.toDraft() }, myProducts = foods, draft = current.draft ?: FoodDraft(mealTime = defaultMealTime(current.day)), online = CatalogSearch.Idle, error = null)
                     } catch (e: SQLException) {
                         state.value = current.copy(busy = false, error = "Не удалось загрузить список продуктов")
@@ -152,7 +161,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
         state.value = current.copy(busy = true, error = null)
         viewModelScope.launch {
             try {
-                val products = withContext(Dispatchers.IO) {
+                val products = withContext(io) {
                     FoodStore(getApplication()).use { store ->
                         store.change()
                         store.myProducts()
@@ -172,26 +181,41 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
     private fun findFood(term: String) {
         if (term.length < 2 || state.value.library == null) return
         searchJob?.cancel()
-        val pending = CatalogSearch.Loading(term)
-        state.value = state.value.copy(online = pending)
+        state.value = state.value.copy(online = CatalogSearch.Loading(term))
+        var published = state.value.online
         searchJob = viewModelScope.launch {
-            val serverFoods = withContext(Dispatchers.IO) {
-                productServer.client()?.let { server ->
-                    try {
-                        server.search(term).map { it.toDraft() }
-                    } catch (_: ProductServerException) {
-                        emptyList()
-                    }
+            fun publish(result: CatalogSearch) {
+                if (state.value.library != null && state.value.online === published) {
+                    state.value = state.value.copy(online = result)
+                    published = state.value.online
                 }
             }
-            val result = try {
-                CatalogSearch.Results(term, withContext(Dispatchers.IO) { searchCatalog(term) }, serverFoods)
+
+            var serverFoods: List<FoodDraft>? = null
+            launch {
+                serverFoods = withContext(io) {
+                    try {
+                        searchServer(productServer)?.search(term)?.map { it.toDraft() }
+                    } catch (_: java.io.IOException) {
+                        null
+                    }
+                }
+                val foods = serverFoods ?: return@launch
+                publish(when (val current = published) {
+                    is CatalogSearch.Loading -> current.copy(serverFoods = foods)
+                    is CatalogSearch.Results -> current.copy(serverFoods = foods)
+                    is CatalogSearch.Failed -> current.copy(serverFoods = foods)
+                    CatalogSearch.Idle -> return@launch
+                })
+            }
+
+            val foods = try {
+                withContext(io) { catalogSearch(term) }
             } catch (_: java.io.IOException) {
-                CatalogSearch.Failed(term, serverFoods)
+                null
             }
-            if (state.value.library != null && state.value.online === pending) {
-                state.value = state.value.copy(online = result)
-            }
+            publish(if (foods == null) CatalogSearch.Failed(term, serverFoods)
+                else CatalogSearch.Results(term, foods, serverFoods))
         }
     }
 
@@ -204,7 +228,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
         state.value = state.value.copy(busy = true)
         viewModelScope.launch {
             try {
-                val product = withContext(Dispatchers.IO) { FoodStore(getApplication()).use { it.lookup(code, productServer.client()) } }
+                val product = withContext(io) { FoodStore(getApplication()).use { it.lookup(code, productServer.client()) } }
                 val found = product.draft
                 val draft = retry?.copy(
                     name = retry.name.ifBlank { found.name },
@@ -224,7 +248,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
         state.value = state.value.copy(busy = true, error = null, confirmingDelete = false)
         viewModelScope.launch {
             try {
-                val snapshot = withContext(Dispatchers.IO) {
+                val snapshot = withContext(io) {
                     FoodStore(getApplication()).use { store ->
                         fun snapshot() = FoodUiState(day = day, rows = store.entries(day), recent = store.foodSuggestions(day, 12),
                             goals = store.goalsFor(day), loaded = true, recipes = if (showRecipes) store.recipes() else null)

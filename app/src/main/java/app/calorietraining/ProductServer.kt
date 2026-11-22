@@ -90,8 +90,7 @@ internal class HttpProductServer(address: String, private val key: String) : Pro
                 endpoint.userInfo != null || endpoint.query != null || endpoint.ref != null) {
                 throw ProductServerException(ServerFailure.OFFLINE)
             }
-            val connection = URL(base + path).openConnection() as HttpURLConnection
-            try {
+            fun exchange(connection: HttpURLConnection): T? {
                 connection.connectTimeout = 3_000
                 connection.readTimeout = 5_000
                 connection.instanceFollowRedirects = false
@@ -102,7 +101,7 @@ internal class HttpProductServer(address: String, private val key: String) : Pro
                     connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                     connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                 }
-                when (connection.responseCode) {
+                return when (connection.responseCode) {
                     in 200..299 -> parse(if (body == null) {
                         connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                     } else "")
@@ -111,9 +110,10 @@ internal class HttpProductServer(address: String, private val key: String) : Pro
                     400 -> throw ProductServerException(ServerFailure.INVALID_DATA)
                     else -> throw ProductServerException(ServerFailure.OTHER)
                 }
-            } finally {
-                connection.disconnect()
             }
+            val url = URL(base + path)
+            if (method == "GET") url.withCancellableHttpConnection(::exchange)
+            else url.withHttpConnection(::exchange)
         } catch (error: ProductServerException) {
             throw error
         } catch (_: IOException) {

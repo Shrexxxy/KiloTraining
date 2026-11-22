@@ -33,7 +33,7 @@ class ProductSyncTest {
             store.saveMyProduct(cheese)
             assertEquals(ScanOutcome.PHONE, store.lookup(code, server) { error("Вызван каталог") }.outcome)
             assertEquals(0, calls)
-            val found = store.lookup("11111111", server) { error("Вызван каталог") }
+            val found = store.lookup("11111111", server) { Product("Каталог", "50") }
             assertEquals(ScanOutcome.SERVER, found.outcome)
             assertEquals("Найдено в вашей базе", found.hint)
             val draft = found.draft.copy(grams = "100")

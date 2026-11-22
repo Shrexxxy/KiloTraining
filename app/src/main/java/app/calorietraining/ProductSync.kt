@@ -51,14 +51,11 @@ internal suspend fun FoodStore.syncProducts(server: ProductServer): ProductSyncR
                 sent++
                 processed.add(product)
             } catch (error: ProductServerException) {
-                when (error.failure) {
-                    ServerFailure.INVALID_DATA -> unsuitable++
-                    ServerFailure.OFFLINE, ServerFailure.UNAUTHORIZED ->
-                        return@withLock ProductSyncReport(sent, unsuitable, error.failure)
-                    ServerFailure.OTHER -> {
-                        failure = error.failure
-                        break
-                    }
+                if (error.failure == ServerFailure.INVALID_DATA) {
+                    unsuitable++
+                } else {
+                    failure = error.failure
+                    break
                 }
             }
         }
