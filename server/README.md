@@ -47,6 +47,22 @@ Invoke-RestMethod http://127.0.0.1:5080/health
 
 Выполните `ipconfig` и найдите IPv4-адрес активного Wi-Fi или Ethernet-адаптера. Подключите телефон к той же сети и откройте `http://<IPv4 компьютера>:5080/health`. Если брандмауэр Windows блокирует запрос, разрешите входящие подключения к порту API для профиля «Частная сеть». Используйте HTTP API в доверенной локальной сети.
 
+## Импорт Open Food Facts
+
+Поднимите PostgreSQL, задайте `ConnectionStrings__Products` и примените миграции, как описано выше. Запускать API для импорта не требуется.
+
+```powershell
+dotnet run --project src/CalorieTraining.Server -- import-off
+dotnet run --project src/CalorieTraining.Server -- import-off --file data/products.csv.gz
+dotnet run --project src/CalorieTraining.Server -- import-off --url https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
+```
+
+Команда без параметров читает официальную выгрузку по сети. Для повторного использования можно вручную сохранить архив в `server/data/` и передать его через `--file`. Поддерживаются архивы `.csv.gz` и распакованные `.csv` с разделителем-табуляцией. Скачивание и разбор идут потоком. Полный прогон архива объёмом около 1 ГБ занял примерно 18 минут на локальной базе Compose. Время зависит от сети и компьютера.
+
+Импорт берёт товары с тегом `en:russia`. При повторном запуске он обновляет изменившиеся карточки Open Food Facts и сохраняет карточки телефона. В конце команда выводит количество обработанных строк, добавления, обновления, пропуски, причины отбраковки и время.
+
+База Open Food Facts распространяется по [лицензии ODbL](https://openfoodfacts.github.io/openfoodfacts-server/api/tutorials/license-be-on-the-legal-side/). При показе импортированной карточки пользователю укажите «Данные: Open Food Facts» со ссылкой на [Open Food Facts](https://openfoodfacts.org/).
+
 ## Тесты
 
 При запущенном Docker команда `dotnet test CalorieTraining.Server.sln` поднимет отдельный PostgreSQL, применит миграции и выполнит проверки API. Для интеграционных тестов сервис из Compose запускать не требуется.

@@ -8,3 +8,4 @@ local.properties
 /server/.env
 /server/**/bin/
 /server/**/obj/
+/server/data/

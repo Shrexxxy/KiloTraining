@@ -3,6 +3,23 @@ using System.Text;
 using CalorieTraining.Server;
 using Microsoft.EntityFrameworkCore;
 
+if (args is ["import-off", .. var importArgs])
+{
+    var configuration = WebApplication.CreateBuilder().Configuration;
+    try
+    {
+        await OffImporter.RunCommandAsync(configuration.GetConnectionString("Products"), importArgs);
+    }
+    catch (Exception error) when (error is ArgumentException or IOException or HttpRequestException
+                                  or Npgsql.NpgsqlException or FormatException)
+    {
+        Console.Error.WriteLine($"Ошибка импорта: {error.Message}");
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration["Urls"] ??= "http://0.0.0.0:5080";
 builder.Services.AddProblemDetails();
