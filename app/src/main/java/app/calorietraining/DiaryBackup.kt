@@ -13,7 +13,7 @@ private val tables = linkedMapOf(
     "recipe" to listOf("id","name","cooked"),
     "ingredient" to listOf("id","recipe_id","name","grams","energy","protein","fat","carbs"),
     "food" to listOf("id", "day", "name", "energy", "grams", "calories", "meal", "meal_time", "protein", "fat", "carbs"),
-    "product" to listOf("code", "name", "energy", "protein", "fat", "carbs"),
+    "my_product" to listOf("id", "name", "brand", "barcode", "weighted", "energy", "protein", "fat", "carbs", "source", "search_key", "updated_at"),
     "workout" to listOf("id", "day", "title", "minutes"),
     "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup"),
     "workout_template" to listOf("id", "title"),
@@ -22,12 +22,14 @@ private val tables = linkedMapOf(
     "measurement" to listOf("day", "weight", "fat")
 )
 
+private val legacyProductColumns = listOf("code", "name", "energy", "protein", "fat", "carbs")
+
 private val legacyGoalTables = mapOf(
     "macro_goal" to listOf("id", "protein", "fat", "carbs"),
     "daily_goal" to listOf("id", "kcal"),
 )
 
-private const val FORMAT_VERSION = 12
+private const val FORMAT_VERSION = 13
 private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
 internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
@@ -38,7 +40,7 @@ internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
     } finally { endTransaction() }
 }
 
-private fun SQLiteDatabase.eachRow(table: String, columns: List<String>, consume: (List<String>) -> Unit) {
+private fun SQLiteDatabase.eachRow(table: String, columns: List<String>, consume: (List<String?>) -> Unit) {
     query(table, columns.toTypedArray(), null, null, null, null, null).use { cursor ->
         while (cursor.moveToNext()) consume(columns.indices.map { cursor.getString(it) })
     }
@@ -93,6 +95,16 @@ private fun validateRow(table: String, row: ContentValues) {
             require(kcal != null && field("calories").amount()?.compareTo(kcal) == 0)
         }
         "product" -> require(validBarcode(field("code")) && field("energy").amount() != null)
+        "my_product" -> {
+            require(field("barcode")?.let(::validBarcode) != false)
+            require(field("weighted") in listOf("0", "1"))
+            require(field("source") in listOf("manual", "openfoodfacts"))
+            require(field("search_key") == field("name").searchableName())
+            require(listOf("energy", "protein", "fat", "carbs").all {
+                field(it).isEmpty() || field(it).amount() != null
+            })
+            java.time.Instant.parse(field("updated_at"))
+        }
         "lifting" -> require(field("planned") in setOf("0", "1") && field("session").toLong() > 0 && field("exercise_group").isNotBlank() &&
             SetDraft(exercise = field("exercise"), weight = field("weight"), reps = field("reps")).valid)
     }
@@ -124,7 +136,10 @@ fun FoodStore.readBackup(input: Reader): String {
                     require(version in 1..FORMAT_VERSION && format == "calorietraining/$version")
                     continue
                 }
-                val columns = requireNotNull(tables[key] ?: legacyGoalTables[key])
+                val columns = requireNotNull(if (key == "product") legacyProductColumns else tables[key] ?: legacyGoalTables[key])
+                if (key == "product") db.execSQL("""CREATE TEMP TABLE legacy_product (
+                    code TEXT PRIMARY KEY, name TEXT NOT NULL, energy TEXT NOT NULL,
+                    protein TEXT NOT NULL, fat TEXT NOT NULL, carbs TEXT NOT NULL)""")
                 json.beginArray()
                 var count = 0
                 while (json.hasNext()) {
@@ -132,8 +147,14 @@ fun FoodStore.readBackup(input: Reader): String {
                     json.beginObject()
                     while (json.hasNext()) {
                         val field = json.nextName()
-                        require(field in columns && !row.containsKey(field) && json.peek() == JsonToken.STRING)
-                        row.put(field, json.nextString())
+                        require(field in columns && !row.containsKey(field))
+                        if (key == "my_product" && field == "barcode" && json.peek() == JsonToken.NULL) {
+                            json.nextNull()
+                            row.putNull(field)
+                        } else {
+                            require(json.peek() == JsonToken.STRING)
+                            row.put(field, json.nextString())
+                        }
                     }
                     json.endObject()
                     if (key == "food" && !row.containsKey("meal_time")) {
@@ -175,7 +196,7 @@ fun FoodStore.readBackup(input: Reader): String {
                     if (key in legacyGoalTables) {
                         require(count == 0)
                         legacyGoals.putAll(row)
-                    } else db.insertOrThrow(key, null, row)
+                    } else db.insertOrThrow(if (key == "product") "legacy_product" else key, null, row)
                     count++
                 }
                 json.endArray()
@@ -183,6 +204,10 @@ fun FoodStore.readBackup(input: Reader): String {
             }
             json.endObject()
             val expected = tables.keys.toMutableSet()
+            if (version < 13) {
+                expected.remove("my_product")
+                expected.add("product")
+            }
             if (version < 12) {
                 expected.remove("goal")
                 if (version >= 2) expected.add("daily_goal")
@@ -199,6 +224,13 @@ fun FoodStore.readBackup(input: Reader): String {
             require(version < 4 || !missingMeal)
             require(version < 3 || !missingWorkoutTitle)
             require(json.peek() == JsonToken.END_DOCUMENT && seen == expected + "format")
+            if (version < 13) {
+                db.transferLegacyProducts("legacy_product")
+                counts["my_product"] = db.rawQuery("SELECT COUNT(*) FROM my_product", null).use {
+                    it.moveToFirst()
+                    it.getInt(0)
+                }
+            }
             if (version < 12) {
                 fun value(name: String) = legacyGoals.getAsInteger(name) ?: 0
                 db.importLegacyGoals(value("kcal"), value("protein"), value("fat"), value("carbs"))
@@ -214,7 +246,7 @@ fun FoodStore.readBackup(input: Reader): String {
                 WHERE w.id IS NULL LIMIT 1""", null).use { require(!it.moveToFirst()) }
         }
     }
-    return "Записей питания: ${counts["food"]}. Продуктов: ${counts["product"]}. Тренировок: ${counts["workout"]}. Подходов: ${counts["lifting"]}. Замеров: ${counts["measurement"] ?: 0}. Шаблонов: ${counts["workout_template"] ?: 0}. Рецептов: ${counts["recipe"] ?: 0}."
+    return "Записей питания: ${counts["food"]}. Продуктов: ${counts["my_product"]}. Тренировок: ${counts["workout"]}. Подходов: ${counts["lifting"]}. Замеров: ${counts["measurement"] ?: 0}. Шаблонов: ${counts["workout_template"] ?: 0}. Рецептов: ${counts["recipe"] ?: 0}."
 }
 
 fun FoodStore.replaceFrom(staged: FoodStore) {

@@ -86,12 +86,19 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
         return
     }
     state.draft?.let { draft ->
+        if (state.managingProducts) {
+            MyProductsScreen(state.myProducts, { onEvent(FoodEvent.SaveProduct(it)) },
+                { onEvent(FoodEvent.DeleteProduct(it)) }, { onEvent(FoodEvent.LeaveProducts) },
+                modifier = modifier, error = state.error, busy = state.busy)
+            return
+        }
         state.library?.let { foods ->
             val barcode = draft.barcode.takeIf { state.scanOutcome != null }
             FoodLibrary(if (state.recipe == null && barcode == null) foods else foods.filter { it.weighted },
                 onChoose = { onEvent(FoodEvent.Edit(it.copy(meal = draft.meal, mealTime = draft.mealTime, barcode = barcode ?: it.barcode))) },
                 onClose = { onEvent(FoodEvent.BackToEditor) }, modifier = modifier,
-                search = { onEvent(FoodEvent.FindFood(it)) }, online = state.online)
+                search = { onEvent(FoodEvent.FindFood(it)) }, online = state.online,
+                onManage = { onEvent(FoodEvent.ManageProducts) })
             return
         }
         val back = if (state.confirmingDelete) FoodEvent.CancelDelete else FoodEvent.Close

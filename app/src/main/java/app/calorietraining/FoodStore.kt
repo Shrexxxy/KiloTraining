@@ -57,7 +57,10 @@ data class FoodDraft(
     val barcode: String? = null,
     val meal: Meal = Meal.UNSPECIFIED,
     val mealTime: String = "",
-    val macros: Macros = Macros()
+    val macros: Macros = Macros(),
+    val brand: String = "",
+    val origin: ProductOrigin? = null,
+    val fromRecipe: Boolean = false
 ) {
     val portionMacros get() = macros.forPortion(if (weighted) grams.amount()?.movePointLeft(2) else BigDecimal.ONE)
     val calories: BigDecimal?
@@ -101,7 +104,7 @@ internal fun SQLiteDatabase.importLegacyGoals(kcal: Int, protein: Int, fat: Int,
         arrayOf<Any>(firstDay ?: LocalDate.now().toString(), kcal, protein, fat, carbs))
 }
 
-class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 13) {
+class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 14) {
     private fun createLegacyCalorieTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
     }
@@ -168,6 +171,12 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         createTemplateTables(db)
         createRecipeTables(db)
         addDuration(db)
+        createMyProductsOnOpen(db)
+    }
+
+    private fun createMyProductsOnOpen(db: SQLiteDatabase) {
+        db.createMyProducts()
+        db.transferLegacyProducts("product")
     }
 
     private fun addDuration(db: SQLiteDatabase) {
@@ -196,6 +205,7 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         if (oldVersion < 11) addDuration(db)
         if (oldVersion < 12) createLegacyMacroTable(db)
         if (oldVersion < 13) migrateGoals(db)
+        if (oldVersion < 14) createMyProductsOnOpen(db)
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(
@@ -241,9 +251,20 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
             put("grams", if (draft.weighted) draft.grams.trim() else "")
             put("calories", requireNotNull(draft.calories).toPlainString())
         }
-        draft.barcode?.let { code -> cacheProduct(code, Product(draft.name.trim(), draft.energy.trim(), draft.macros)) }
-        if (draft.id == null) writableDatabase.insertOrThrow("food", null, values)
-        else writableDatabase.update("food", values, "id = ? AND day = ?", arrayOf(draft.id.toString(), day.toString()))
+        val db = writableDatabase
+        db.atomic {
+            val saved = if (draft.id == null) {
+                db.insertOrThrow("food", null, values)
+                true
+            } else db.update("food", values, "id = ? AND day = ?", arrayOf(draft.id.toString(), day.toString())) > 0
+            if (saved && !draft.fromRecipe) {
+                val origin = draft.origin
+                val source = if (origin != null && draft.name == origin.name &&
+                    draft.energy == origin.energy && draft.macros == origin.macros) origin.source else "manual"
+                db.upsertCard(MyProduct(name = draft.name, brand = draft.brand, barcode = draft.barcode,
+                    weighted = draft.weighted, energy = draft.energy, macros = draft.macros, source = source))
+            }
+        }
     }
 
     fun copyMeal(source: LocalDate, destination: LocalDate, meal: Meal) {
