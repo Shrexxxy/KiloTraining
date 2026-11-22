@@ -21,7 +21,8 @@ internal fun ScanResultCard(code: String, outcome: ScanOutcome, busy: Boolean, o
         ScanOutcome.NO_ENERGY -> "В каталоге есть товар, но без калорийности. Допишите её с упаковки"
         ScanOutcome.UNAVAILABLE -> "Не удалось связаться с каталогом. Заполните с упаковки или попробуйте позже"
     }
-    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer) {
+    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Штрихкод $code", style = MaterialTheme.typography.titleMedium)
             Text(message, style = MaterialTheme.typography.bodyMedium)

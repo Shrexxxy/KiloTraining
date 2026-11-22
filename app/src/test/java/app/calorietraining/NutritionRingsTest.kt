@@ -45,7 +45,7 @@ class NutritionRingsTest {
     @Test fun pastDayShowsShortfallWithoutEditing() {
         show(DailyGoals(2200), day = LocalDate.now().minusDays(1))
         ui.onNodeWithText("недобор 664 ккал").assertIsDisplayed()
-        ui.onNodeWithText("Изменить цель").assertDoesNotExist()
+        ui.onNodeWithText("Изменить цель").assertExists()
         ui.onNodeWithText("Задать дневную цель").assertDoesNotExist()
     }
 

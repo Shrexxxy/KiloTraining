@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.math.MathContext
@@ -106,7 +107,7 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
     val macros = remember(state.rows) { state.rows.dailyMacros() }
     val today = state.day == LocalDate.now()
     var editingGoal by rememberSaveable(state.day.toEpochDay()) { mutableStateOf(false) }
-    if (today && editingGoal) GoalDialog(state.goals, { editingGoal = false }) { kcal, goals ->
+    if (editingGoal) GoalDialog(state.day, state.goals, { editingGoal = false }) { kcal, goals ->
         editingGoal = false
         onEvent(FoodEvent.Goal(kcal, goals))
     }
@@ -192,7 +193,7 @@ private fun MealCard(day: LocalDate, meal: Meal, entries: List<FoodEntry>, total
 }
 
 @Composable
-private fun GoalDialog(goals: DailyGoals, dismiss: () -> Unit, save: (Int?, MacroGoals) -> Unit) {
+private fun GoalDialog(day: LocalDate, goals: DailyGoals, dismiss: () -> Unit, save: (Int?, MacroGoals) -> Unit) {
     val (goal, macros) = goals
     val hasGoal = goals != DailyGoals()
     var kcal by rememberSaveable { mutableStateOf(goal?.toString().orEmpty()) }
@@ -202,9 +203,13 @@ private fun GoalDialog(goals: DailyGoals, dismiss: () -> Unit, save: (Int?, Macr
     val valid = listOf(kcal, protein, fat, carbs).all { it.isEmpty() || (it.toIntOrNull() ?: 0) > 0 }
     AlertDialog(
         onDismissRequest = dismiss,
+        modifier = Modifier.padding(horizontal = 24.dp).widthIn(max = 560.dp).fillMaxWidth(),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = { Text("Дневная цель") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                Text("Действует с ${day.caption()} до следующего изменения",
+                    Modifier.padding(bottom = 8.dp), style = MaterialTheme.typography.bodyMedium)
                 GoalField("Ккал в день", kcal) { kcal = it }
                 GoalField("Белки, г", protein) { protein = it }
                 GoalField("Жиры, г", fat) { fat = it }

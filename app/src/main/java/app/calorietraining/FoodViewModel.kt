@@ -86,7 +86,7 @@ class FoodViewModel(application: Application) : AndroidViewModel(application) {
             }
             is FoodEvent.Day -> refresh(event.value)
             is FoodEvent.Goal -> refresh(current.day) {
-                setGoals(LocalDate.now(), DailyGoals(event.kcal, event.macros))
+                setGoals(current.day, DailyGoals(event.kcal, event.macros))
             }
             is FoodEvent.CopyMeal -> if (current.day == event.source && current.rows.any { it.meal == event.meal }) {
                 refresh(event.destination) { copyMeal(event.source, event.destination, event.meal) }

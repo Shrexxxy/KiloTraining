@@ -20,32 +20,62 @@ import kotlinx.coroutines.delay
 internal fun restFraction(remainingMs: Long, totalMs: Long): Float =
     if (totalMs <= 0) 0f else (remainingMs.toDouble() / totalMs).coerceIn(0.0, 1.0).toFloat()
 
+private fun formatRestMinutes(seconds: Long): String =
+    "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
+
+internal fun formatRestElapsed(seconds: Long): String {
+    if (seconds < 3600) return formatRestMinutes(seconds)
+    return "${seconds / 3600}:${formatRestMinutes(seconds % 3600).padStart(5, '0')}"
+}
+
 @Composable
 internal fun RestTimer(deadline: Long, total: Long, onChange: (deadline: Long, total: Long) -> Unit) {
+    RestTimer(deadline, total, 0) { end, duration, _ -> onChange(end, duration) }
+}
+
+@Composable
+internal fun RestTimer(
+    deadline: Long,
+    total: Long,
+    started: Long,
+    onChange: (deadline: Long, total: Long, started: Long) -> Unit
+) {
     val accent = LocalDiaryAccents.current.workout
-    if (deadline == 0L) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Отдых", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            for (minutes in 1..3) {
-                FilledTonalButton(onClick = {
-                    val duration = minutes * 60_000L
-                    onChange(SystemClock.elapsedRealtime() + duration, duration)
-                }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("$minutes мин") }
+    val stopwatch = started != 0L
+    if (deadline == 0L && !stopwatch) {
+        Column(Modifier.fillMaxWidth()) {
+            Text("Отдых", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val padding = PaddingValues(horizontal = 8.dp)
+                FilledTonalButton(onClick = { onChange(0, 0, SystemClock.elapsedRealtime()) },
+                    contentPadding = padding) { Text("Засечь") }
+                for (minutes in 1..3) {
+                    FilledTonalButton(onClick = {
+                        val duration = minutes * 60_000L
+                        onChange(SystemClock.elapsedRealtime() + duration, duration, 0)
+                    }, contentPadding = padding) { Text("$minutes мин") }
+                }
             }
         }
         return
     }
-    fun remainingMillis() = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0)
-    var remaining by remember(deadline) { mutableLongStateOf(remainingMillis()) }
-    LaunchedEffect(deadline) {
+
+    fun timerMillis(): Long {
+        val now = SystemClock.elapsedRealtime()
+        return (if (stopwatch) now - started else deadline - now).coerceAtLeast(0L)
+    }
+
+    var millis by remember(deadline, started) { mutableLongStateOf(timerMillis()) }
+    LaunchedEffect(deadline, started) {
         while (true) {
-            remaining = remainingMillis()
-            if (remaining == 0L) break
-            delay((remaining - 1) % 1000 + 1)
+            millis = timerMillis()
+            if (!stopwatch && millis == 0L) break
+            delay(if (stopwatch) 1000 - millis % 1000 else (millis - 1) % 1000 + 1)
         }
     }
-    val seconds = (remaining + 999) / 1000
+    val seconds = if (stopwatch) millis / 1000 else (millis + 999) / 1000
+    val running = stopwatch || millis > 0L
+    val fraction = if (stopwatch) (seconds % 60) / 60f else restFraction(millis, total)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(200.dp).testTag("rest-ring")) {
@@ -53,26 +83,29 @@ internal fun RestTimer(deadline: Long, total: Long, onChange: (deadline: Long, t
                 val inset = stroke.width / 2
                 val diameter = size.minDimension - stroke.width
                 drawCircle(accent.copy(alpha = 0.22f), diameter / 2, style = stroke)
-                val fraction = restFraction(remaining, total)
                 if (fraction > 0) drawArc(accent, -90f, 360f * fraction, false, Offset(inset, inset),
                     Size(diameter, diameter), style = stroke)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("ОТДЫХ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}",
-                    style = MaterialTheme.typography.displayMedium.copy(fontSize = 54.sp,
+                Text(if (stopwatch) "ОТДЫХ ИДЁТ" else "ОТДЫХ",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (stopwatch) formatRestElapsed(seconds) else formatRestMinutes(seconds),
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontSize = if (stopwatch && seconds >= 3600) 40.sp else 54.sp,
                         fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"))
             }
         }
-        if (remaining == 0L) Text("Время отдыха закончилось", style = MaterialTheme.typography.titleMedium)
+        if (!running) Text("Время отдыха закончилось", style = MaterialTheme.typography.titleMedium)
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (remaining > 0L) {
-                FilledTonalButton(onClick = { onChange(deadline + 30_000L, total + 30_000L) }) { Text("+30 с") }
-                Button(onClick = { onChange(0, 0) }, colors = ButtonDefaults.buttonColors(containerColor = accent,
+            if (running) {
+                if (!stopwatch) {
+                    FilledTonalButton(onClick = { onChange(deadline + 30_000L, total + 30_000L, 0) }) { Text("+30 с") }
+                }
+                Button(onClick = { onChange(0, 0, 0) }, colors = ButtonDefaults.buttonColors(containerColor = accent,
                     contentColor = MaterialTheme.colorScheme.onTertiary)) { Text("Стоп") }
             } else {
-                FilledTonalButton(onClick = { onChange(0, 0) }) { Text("Начать снова") }
-                TextButton(onClick = { onChange(0, 0) }) { Text("Закрыть") }
+                FilledTonalButton(onClick = { onChange(0, 0, 0) }) { Text("Начать снова") }
+                TextButton(onClick = { onChange(0, 0, 0) }) { Text("Закрыть") }
             }
         }
     }

@@ -91,7 +91,7 @@ internal fun NutritionRings(
         }
         if (metrics.any { it.total == null }) Text("Прочерк означает, что для итога не хватает данных",
             Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (today) TextButton(onClick = edit) {
+        TextButton(onClick = edit) {
             Text(if (goals == DailyGoals()) "Задать дневную цель" else "Изменить цель")
         }
     }
