@@ -40,25 +40,57 @@ class PhoneFixesTest {
         ui.onNodeWithTag("loading").assertDoesNotExist()
     }
 
-    @Test fun busyModelsIgnoreSecondRequest() {
-        val history = HistoryViewModel(app)
-        val firstWeek = history.uiState.value.monday.minusWeeks(1)
+    @Test fun busyProfileIgnoresSecondRequest() {
         ui.runOnIdle {
             val profile = ProfileViewModel(app)
             profile.refresh()
             profile.event(ProfileEvent.Open(LocalDate.now()))
             assertTrue(profile.uiState.value.busy)
             assertNull(profile.uiState.value.draft)
+        }
+    }
+
+    @Test fun latestHistoryWeekWins() {
+        val history = HistoryViewModel(app)
+        val firstWeek = history.uiState.value.monday.minusWeeks(1)
+        val secondWeek = firstWeek.plusWeeks(2)
+        ui.runOnIdle {
             history.load(firstWeek)
-            history.load(firstWeek.plusWeeks(2))
+            history.load(secondWeek)
             assertTrue(history.uiState.value.loading)
         }
+        awaitHistory(history)
+        assertEquals(secondWeek, history.uiState.value.monday)
+        assertFalse(history.uiState.value.loading)
+    }
+
+    @Test fun latestHistoryExerciseWins() {
+        val history = HistoryViewModel(app)
+        val monday = history.uiState.value.monday
+        val first = "Жим штанги лёжа"
+        val second = "Приседания"
+        val session = FoodStore(app).use { store ->
+            store.newWorkout(monday).also {
+                store.saveSet(it, SetDraft(exercise = first, reps = "5"))
+                store.saveSet(it, SetDraft(exercise = second, reps = "8"))
+            }
+        }
+        ui.runOnIdle {
+            history.load(monday, first)
+            history.load(monday, second)
+        }
+        awaitHistory(history)
+        assertEquals(second, history.uiState.value.exercise)
+        assertEquals(session, history.uiState.value.sessions.single().id)
+        assertEquals("8", history.uiState.value.sessions.single().sets.single().reps)
+    }
+
+    private fun awaitHistory(history: HistoryViewModel) {
         ui.waitUntil(10_000) {
             org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
             !history.uiState.value.loading
         }
         assertFalse(history.uiState.value.error)
-        assertEquals(firstWeek, history.uiState.value.monday)
     }
 
     @Test fun ringsFollowCalorieCarbProteinFatOrder() {
@@ -94,6 +126,13 @@ class PhoneFixesTest {
             ui.runOnIdle { draft.value = draft.value.copy(exercise = name) }
             ui.onNodeWithText(label).assertExists()
         }
+    }
+
+    @Test fun catalogNameIgnoresCaseAndYo() {
+        editor("жим штанги лежа")
+        ui.onNodeWithText("Название упражнения").assertDoesNotExist()
+        ui.onNodeWithText("жим штанги лежа").assertExists()
+        ui.onNodeWithText("Сменить").assertHasClickAction()
     }
 
     @Test fun catalogNameCanBeReplacedWithEmptyCustomName() {

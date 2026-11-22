@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -69,8 +70,8 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
     private var pending: Job? = null
 
     fun load(monday: LocalDate = state.value.monday, exercise: String? = state.value.exercise) {
-        if (pending?.isActive == true) return
-        state.value = state.value.copy(loading = true, error = false)
+        pending?.cancel()
+        state.value = state.value.copy(monday = monday, exercise = exercise, loading = true, error = false)
         pending = viewModelScope.launch {
             try {
                 state.value = withContext(Dispatchers.IO) {
@@ -86,6 +87,7 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             } catch (e: SQLException) {
+                ensureActive()
                 state.value = state.value.copy(loading = false, error = true)
             }
         }

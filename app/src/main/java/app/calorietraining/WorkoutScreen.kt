@@ -55,7 +55,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                     verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     Text("Подход",Modifier.padding(top=16.dp),style=MaterialTheme.typography.headlineLarge)
                     val original = state.list.firstOrNull { it.id == state.session }?.sets?.firstOrNull { it.group == draft.group }
-                    val catalogExercise = exerciseCatalog.firstOrNull { it.name == draft.exercise }
+                    val catalogExercise = photoForExercise(draft.exercise)
                     if (catalogExercise != null) {
                         Text(draft.exercise, style = MaterialTheme.typography.titleMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -67,7 +67,7 @@ fun WorkoutContent(state:WorkoutState,event:(WorkoutEvent)->Unit,modifier:Modifi
                         OutlinedTextField(draft.exercise, { edit(draft.copy(exercise = it)) },
                             label = { Text("Название упражнения") }, singleLine = true)
                     }
-                    photoForExercise(draft.exercise)?.let { ExerciseFrames(it) }
+                    catalogExercise?.let { ExerciseFrames(it) }
                     state.previous?.let { previous ->
                         Text("Прошлая тренировка · ${previous.day.caption()}", style = MaterialTheme.typography.titleMedium)
                         previous.sets.forEachIndexed { index, set ->
