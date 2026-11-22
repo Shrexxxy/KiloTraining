@@ -28,9 +28,6 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as android.app.Application
     val backup: BackupViewModel = viewModel { BackupViewModel(app) }
     val backupState by backup.uiState.collectAsStateWithLifecycle()
-    var restUntil by rememberSaveable(backupState.revision) { mutableLongStateOf(0L) }
-    var restTotal by rememberSaveable(backupState.revision) { mutableLongStateOf(0L) }
-    var restStarted by rememberSaveable(backupState.revision) { mutableLongStateOf(0L) }
     var copying by rememberSaveable { mutableStateOf(false) }
     if (copying) {
         BackupScreen(backup) { copying = false }
@@ -57,13 +54,15 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
         requestedSession = session
         tab = title
     }
-    BackHandler(enabled = fromHistory && !editing) { selectTab("История") }
-    LaunchedEffect(requestedDay, tab, foodState.busy, workoutState?.busy) {
-        val day = requestedDay?.let(LocalDate::parse) ?: return@LaunchedEffect
-        if (training && workout != null && workoutState?.busy == false) {
-            workout.event(WorkoutEvent.Day(day))
+    BackHandler(enabled = fromHistory && !editing && !training) { selectTab("История") }
+    LaunchedEffect(requestedDay, requestedSession, tab, foodState.busy, workoutState?.busy) {
+        val session = requestedSession
+        if (training && session != null && workout != null && workoutState?.busy == false) {
+            workout.event(WorkoutEvent.Open(session))
+            requestedSession = null
             requestedDay = null
         } else if (!training && !foodState.busy) {
+            val day = requestedDay?.let(LocalDate::parse) ?: return@LaunchedEffect
             food.onEvent(FoodEvent.Day(day))
             requestedDay = null
         }
@@ -75,13 +74,12 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
                     onFoodDay = { openDiary("Питание", it) },
                     onWorkout = { openDiary("Тренировки", it.date, it.id) })
             }
-            else if(workout != null && workoutState != null) WorkoutContent(workoutState,workout::event,
-                focusSession = requestedSession, onFocused = { requestedSession = null }) {
-                RestTimer(restUntil, restTotal, restStarted) { deadline, total, started ->
-                    restUntil = deadline
-                    restTotal = total
-                    restStarted = started
-                }
+            else if(workout != null && workoutState != null) {
+                LaunchedEffect(workout) { workout.event(WorkoutEvent.Refresh) }
+                WorkoutContent(workoutState, { event ->
+                    workout.event(event)
+                    if (fromHistory && event == WorkoutEvent.BackToList) selectTab("История")
+                })
             }
             else if (tab == "Профиль") ProfileScreen(
                 viewModel(key = "profile-${backupState.revision}") { ProfileViewModel(app) }, mode, onThemeChange

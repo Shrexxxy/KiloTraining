@@ -27,7 +27,7 @@ class WorkoutScreenTest {
 
     private fun show(session: Workout) {
         ui.setContent { MaterialTheme {
-            WorkoutContent(WorkoutState(day = LocalDate.now().minusDays(1), list = listOf(session)), { event = it })
+            WorkoutContent(WorkoutState(day = LocalDate.now().minusDays(1), list = listOf(session), opened = session.id), { event = it })
         } }
     }
 
@@ -83,6 +83,7 @@ class WorkoutScreenTest {
         val model = WorkoutViewModel(app)
         ui.setContent { MaterialTheme { WorkoutContent(model.uiState.collectAsState().value, model::event) } }
         ui.waitUntil(10_000) { model.uiState.value.list.isNotEmpty() }
+        ui.runOnIdle { model.event(WorkoutEvent.Open(model.uiState.value.list.single().id)) }
         reveal(hasContentDescription("Подход 2: 62,5 кг × 6, в плане")).performClick()
         ui.onNodeWithText("Отметить выполненным").performScrollTo().performClick()
         ui.waitUntil(10_000) { ui.onAllNodesWithText("1/2").fetchSemanticsNodes().isNotEmpty() }

@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.math.BigDecimal
+import java.time.Duration
 
 internal fun Workout.volume(): BigDecimal = sets.filterNot { it.planned }.sumOf { set ->
     (set.weight.amount() ?: BigDecimal.ZERO) * set.reps.toBigDecimal()
@@ -22,6 +23,9 @@ internal fun Workout.volume(): BigDecimal = sets.filterNot { it.planned }.sumOf 
 
 internal fun Workout.nextPlanned(): SetDraft? =
     sets.groupBy { it.group }.values.firstNotNullOfOrNull { group -> group.firstOrNull { it.planned } }
+
+internal fun List<SetDraft>.inExecutionOrder(): List<SetDraft> =
+    sortedWith(compareBy({ it.planned }, { it.doneAt }, { it.id }))
 
 private fun SetDraft.tileLabel() = "${if (weight.isBlank()) "Свой вес" else "$weight кг"} × $reps"
 
@@ -72,7 +76,7 @@ internal fun NextSetCard(set: SetDraft, enabled: Boolean, complete: () -> Unit) 
 }
 
 @Composable
-internal fun ExerciseCard(sets: List<SetDraft>, edit: (SetDraft) -> Unit) {
+internal fun ExerciseCard(sets: List<SetDraft>, rests: Map<Long?, Duration>, edit: (SetDraft) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val accent = LocalDiaryAccents.current.workout
     val exercise = sets.first().exercise
@@ -85,11 +89,12 @@ internal fun ExerciseCard(sets: List<SetDraft>, edit: (SetDraft) -> Unit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 sets.forEachIndexed { index, set ->
                     WorkoutSetTile(set.weight, set.reps, set.warmup, set.planned, index + 1,
+                        caption = rests[set.id]?.let { "отдых ${formatRestElapsed(it.seconds)}" },
                         onClick = { edit(set) })
                 }
             }
-            TextButton(onClick = { edit(sets.last().copy(id = null, planned = false)) }) {
-                Text("Добавить подход")
+            TextButton(onClick = { edit(sets.maxBy { it.id ?: 0L }.copy(id = null, planned = false, doneAt = null)) }) {
+                Text("+ Подход")
             }
         }
     }

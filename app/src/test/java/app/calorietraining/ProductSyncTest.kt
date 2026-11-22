@@ -102,10 +102,12 @@ class ProductSyncTest {
                 carbs TEXT NOT NULL, source TEXT NOT NULL, search_key TEXT NOT NULL, updated_at TEXT NOT NULL)""")
             db.execSQL("""INSERT INTO my_product VALUES
                 (1,'Сырок','',?,1,'410','','','','manual','сырок','2026-11-20T00:00:00Z')""", arrayOf(code))
+            db.execSQL("CREATE TABLE workout(id INTEGER PRIMARY KEY, day TEXT, title TEXT, minutes INTEGER)")
+            db.execSQL("CREATE TABLE lifting(id INTEGER PRIMARY KEY, session INTEGER, exercise_group TEXT, exercise TEXT, weight TEXT, reps INTEGER, planned INTEGER, warmup INTEGER)")
             db.version = 14
         }
         FoodStore(context, "upgrade14.db").use { store ->
-            assertEquals(15, store.readableDatabase.version)
+            assertEquals(16, store.readableDatabase.version)
             assertEquals(1, store.pendingSyncCount())
             assertEquals("Сырок", store.myProductByBarcode(code)?.name)
         }
@@ -117,7 +119,7 @@ class ProductSyncTest {
             assertEquals(0, store.pendingSyncCount())
             store.exportDiary(backup)
         }
-        assertTrue(backup.toString().contains("calorietraining/13"))
+        assertTrue(backup.toString().contains("calorietraining/14"))
         assertFalse(backup.toString().contains("pending_sync"))
         FoodStore(context, "restored.db").use { store ->
             store.readBackup(backup.toString().reader())

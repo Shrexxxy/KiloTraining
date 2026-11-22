@@ -51,7 +51,7 @@ class WorkoutTemplateTest {
         var action: WorkoutEvent? = null
         val workout = Workout(7, listOf(SetDraft(exercise="Жим", weight="60", reps="8")), "Понедельник")
         compose.setContent { MaterialTheme {
-            WorkoutContent(WorkoutState(day=day.minusDays(1), list=listOf(workout),
+            WorkoutContent(WorkoutState(day=day.minusDays(1), list=listOf(workout), opened=workout.id,
                 templates=listOf(WorkoutTemplate(4,"Верх А"))), { action = it })
         } }
         compose.onNodeWithText("Действия").performClick()
@@ -128,7 +128,7 @@ class WorkoutTemplateTest {
         assertEquals(WorkoutEvent.Edit(2, set.copy(warmup = true)), action)
     }
 
-    @Test fun chooseTemplateForSelectedDay() {
+    @Test fun chooseTemplateFromFeed() {
         var action: WorkoutEvent? = null
         compose.setContent { MaterialTheme {
             WorkoutContent(WorkoutState(day = day, templates = listOf(WorkoutTemplate(4, "Верх А"))), { action = it })

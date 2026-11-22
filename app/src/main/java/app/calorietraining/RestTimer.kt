@@ -77,24 +77,7 @@ internal fun RestTimer(
     val running = stopwatch || millis > 0L
     val fraction = if (stopwatch) (seconds % 60) / 60f else restFraction(millis, total)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(contentAlignment = Alignment.Center) {
-            Canvas(Modifier.size(200.dp).testTag("rest-ring")) {
-                val stroke = Stroke(12.dp.toPx(), cap = StrokeCap.Round)
-                val inset = stroke.width / 2
-                val diameter = size.minDimension - stroke.width
-                drawCircle(accent.copy(alpha = 0.22f), diameter / 2, style = stroke)
-                if (fraction > 0) drawArc(accent, -90f, 360f * fraction, false, Offset(inset, inset),
-                    Size(diameter, diameter), style = stroke)
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(if (stopwatch) "ОТДЫХ ИДЁТ" else "ОТДЫХ",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(if (stopwatch) formatRestElapsed(seconds) else formatRestMinutes(seconds),
-                    style = MaterialTheme.typography.displayMedium.copy(
-                        fontSize = if (stopwatch && seconds >= 3600) 40.sp else 54.sp,
-                        fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"))
-            }
-        }
+        RestRing(seconds, fraction, stopwatch, 200.dp)
         if (!running) Text("Время отдыха закончилось", style = MaterialTheme.typography.titleMedium)
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (running) {
@@ -107,6 +90,36 @@ internal fun RestTimer(
                 FilledTonalButton(onClick = { onChange(0, 0, 0) }) { Text("Начать снова") }
                 TextButton(onClick = { onChange(0, 0, 0) }) { Text("Закрыть") }
             }
+        }
+    }
+}
+
+@Composable
+internal fun WorkoutRestTimer(seconds: Long) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        RestRing(seconds, (seconds % 60) / 60f, stopwatch = true, diameter = 144.dp)
+    }
+}
+
+@Composable
+private fun RestRing(seconds: Long, fraction: Float, stopwatch: Boolean, diameter: androidx.compose.ui.unit.Dp) {
+    val accent = LocalDiaryAccents.current.workout
+    Box(contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(diameter).testTag("rest-ring")) {
+            val stroke = Stroke(10.dp.toPx(), cap = StrokeCap.Round)
+            val inset = stroke.width / 2
+            val arc = size.minDimension - stroke.width
+            drawCircle(accent.copy(alpha = 0.22f), arc / 2, style = stroke)
+            if (fraction > 0) drawArc(accent, -90f, 360f * fraction, false,
+                Offset(inset, inset), Size(arc, arc), style = stroke)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(if (stopwatch) "ОТДЫХ ИДЁТ" else "ОТДЫХ",
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if (stopwatch) formatRestElapsed(seconds) else formatRestMinutes(seconds),
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontSize = if (seconds >= 3600) 32.sp else 42.sp,
+                    fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"))
         }
     }
 }
