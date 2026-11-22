@@ -16,7 +16,8 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "ru-rRU-w393dp-h850dp")
 class ProfileThemeTest {
-    @get:Rule val ui = createAndroidComposeRule<MainActivity>()
+    @get:Rule(order = 0) internal val skipOnboarding = SkipOnboardingRule()
+    @get:Rule(order = 1) val ui = createAndroidComposeRule<MainActivity>()
 
     @Test fun selectsAndPersistsThemeFromProfile() {
         ui.onNodeWithText("Профиль").performClick()

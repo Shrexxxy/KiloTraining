@@ -17,7 +17,8 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk=[35], qualifiers="ru-rRU-w393dp-h850dp")
 class RecipeFlowTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule(order = 0) internal val skipOnboarding = SkipOnboardingRule()
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<MainActivity>()
 
     private fun node(label: String) = compose.onNodeWithText(label)
     private fun waitFor(label: String) = compose.waitUntil(10_000) {

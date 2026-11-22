@@ -20,7 +20,8 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "ru-rRU-w393dp-h850dp")
 class FoodScreenTest {
-    @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule(order = 0) internal val skipOnboarding = SkipOnboardingRule()
+    @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     private fun text(value: String) = composeTestRule.onNodeWithText(value)
 

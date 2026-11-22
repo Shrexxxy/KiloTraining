@@ -34,7 +34,36 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
         BackupScreen(backup) { copying = false }
         return
     }
-    val food: FoodViewModel = viewModel(key = "food-${backupState.revision}") { FoodViewModel(app) }
+    val settings = remember(app) { OnboardingSettings(app) }
+    var onboardingRevision by rememberSaveable { mutableIntStateOf(0) }
+    val revision = "${backupState.revision}-$onboardingRevision"
+    val onboardingData = remember(revision) {
+        FoodStore(app).use { it.onboardingData(LocalDate.now()) }
+    }
+    var questionnaire by rememberSaveable(backupState.revision) {
+        mutableStateOf(!settings.skipped && onboardingData.profile == null && !onboardingData.hasGoals)
+    }
+    var questionnaireWeight by remember { mutableStateOf<Measurement?>(null) }
+    if (questionnaire) {
+        OnboardingScreen(
+            onboardingData.copy(measurement = questionnaireWeight ?: onboardingData.measurement),
+            save = { profile, measurement, goals ->
+                FoodStore(app).use { it.saveOnboarding(profile, measurement, goals) }
+            },
+            onSaved = {
+                onboardingRevision++
+                questionnaire = false
+                tab = "Питание"
+            },
+            onBack = { questionnaire = false },
+            onSkip = {
+                settings.skipped = true
+                questionnaire = false
+            },
+        )
+        return
+    }
+    val food: FoodViewModel = viewModel(key = "food-$revision") { FoodViewModel(app) }
     val foodState by food.uiState.collectAsStateWithLifecycle()
     val workout: WorkoutViewModel? = if (training) viewModel(key = "workout-${backupState.revision}") { WorkoutViewModel(app) } else null
     val workoutState = workout?.uiState?.collectAsStateWithLifecycle()?.value
@@ -84,7 +113,12 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
                     })
                 }
                 else if (tab == "Профиль") ProfileScreen(
-                    viewModel(key = "profile-${backupState.revision}") { ProfileViewModel(app) }, mode, onThemeChange
+                    viewModel(key = "profile-$revision") { ProfileViewModel(app) }, mode, onThemeChange,
+                    onboardingData.profile, onboardingData.measurement,
+                    onRecalculate = { measurement ->
+                        questionnaireWeight = measurement
+                        questionnaire = true
+                    }
                 )
                 else FoodContent(foodState,food::onEvent)
             }

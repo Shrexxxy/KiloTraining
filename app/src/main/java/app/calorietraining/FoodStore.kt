@@ -106,7 +106,7 @@ internal fun SQLiteDatabase.importLegacyGoals(kcal: Int, protein: Int, fat: Int,
 
 class FoodStore(context: Context, databaseName: String = "food.db",
     internal val clock: java.time.Clock = java.time.Clock.systemDefaultZone(),
-) : SQLiteOpenHelper(context, databaseName, null, 16) {
+) : SQLiteOpenHelper(context, databaseName, null, 17) {
     private fun createLegacyCalorieTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
     }
@@ -132,19 +132,19 @@ class FoodStore(context: Context, databaseName: String = "food.db",
 
     /** Возвращает цели, действовавшие в выбранный день. */
     fun goalsFor(day: LocalDate): DailyGoals = readableDatabase.rawQuery(
-        "SELECT kcal,protein,fat,carbs FROM goal WHERE start_day <= ? ORDER BY start_day DESC LIMIT 1",
+        "SELECT kcal,protein,fat,carbs,carbs_zero FROM goal WHERE start_day <= ? ORDER BY start_day DESC LIMIT 1",
         arrayOf(day.toString())
     ).use { row ->
         fun value(index: Int) = row.getInt(index).takeIf { it > 0 }
-        if (row.moveToFirst()) DailyGoals(value(0), MacroGoals(value(1), value(2), value(3))) else DailyGoals()
+        if (row.moveToFirst()) DailyGoals(value(0), MacroGoals(value(1), value(2), if (row.getInt(4) == 1) 0 else value(3))) else DailyGoals()
     }
 
     /** Устанавливает цели с указанного дня. Пустая запись завершает действие предыдущих целей. */
     fun setGoals(from: LocalDate, goals: DailyGoals) {
         val (protein, fat, carbs) = goals.macros
-        require(listOfNotNull(goals.kcal, protein, fat, carbs).all { it > 0 })
-        writableDatabase.execSQL("INSERT OR REPLACE INTO goal(start_day,kcal,protein,fat,carbs) VALUES(?,?,?,?,?)",
-            arrayOf<Any>(from.toString(), goals.kcal ?: 0, protein ?: 0, fat ?: 0, carbs ?: 0))
+        require(listOfNotNull(goals.kcal, protein, fat).all { it > 0 } && (carbs == null || carbs >= 0))
+        writableDatabase.execSQL("INSERT OR REPLACE INTO goal(start_day,kcal,protein,fat,carbs,carbs_zero) VALUES(?,?,?,?,?,?)",
+            arrayOf<Any>(from.toString(), goals.kcal ?: 0, protein ?: 0, fat ?: 0, carbs ?: 0, if (carbs == 0) 1 else 0))
     }
 
     private fun migrateGoals(db: SQLiteDatabase) {
@@ -175,6 +175,13 @@ class FoodStore(context: Context, databaseName: String = "food.db",
         addDuration(db)
         createMyProductsOnOpen(db)
         addWorkoutTimes(db)
+        createUserProfileAndZeroCarbs(db)
+    }
+
+    private fun createUserProfileAndZeroCarbs(db: SQLiteDatabase) {
+        db.createUserProfile()
+        // В существующих целях 0 обозначает отсутствие цели по этому макронутриенту.
+        db.execSQL("ALTER TABLE goal ADD COLUMN carbs_zero INTEGER NOT NULL DEFAULT 0 CHECK(carbs_zero IN (0,1))")
     }
 
     private fun createMyProductsOnOpen(db: SQLiteDatabase) {
@@ -211,6 +218,7 @@ class FoodStore(context: Context, databaseName: String = "food.db",
         if (oldVersion < 14) createMyProductsOnOpen(db)
         if (oldVersion == 14) db.execSQL("ALTER TABLE my_product ADD COLUMN pending_sync INTEGER NOT NULL DEFAULT 1")
         if (oldVersion < 16) addWorkoutTimes(db)
+        if (oldVersion < 17) createUserProfileAndZeroCarbs(db)
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(

@@ -210,6 +210,7 @@ class WorkoutFlowTest {
             store.fixtureSet(requested, "bench", "Жим", "60", "8", null)
             store.fixture("Другая тренировка", "2026-11-20")
         }
+        OnboardingSettings(org.robolectric.RuntimeEnvironment.getApplication()).skipped = true
         ui.setContent { MaterialTheme { DiaryApp(ThemeMode.DARK) {} } }
         ui.onNodeWithText("История").performClick()
         await("Упражнения").performClick()

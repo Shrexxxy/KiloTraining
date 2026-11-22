@@ -30,7 +30,8 @@ fun ringState(total: BigDecimal?, goal: Int?): RingState? {
     if (total == null) return RingState(0f, null, false)
     val target = goal.toBigDecimal()
     val excess = (total - target).takeIf { it.signum() > 0 }
-    return RingState(total.divide(target, MathContext.DECIMAL64).toFloat().coerceIn(0f, 1f),
+    val fraction = if (goal == 0) 1f else total.divide(target, MathContext.DECIMAL64).toFloat().coerceIn(0f, 1f)
+    return RingState(fraction,
         excess?.setScale(0, RoundingMode.HALF_UP)?.min(Int.MAX_VALUE.toBigDecimal())?.toInt(), true)
 }
 
