@@ -9,6 +9,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import java.math.BigDecimal
 import java.math.MathContext
 import java.time.format.DateTimeFormatter
@@ -51,10 +52,12 @@ internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
     val unit = if (showReps) "повт." else "кг"
     val maximum = points.maxOf { it.value }
     val colors = MaterialTheme.colorScheme
-    OutlinedCard(modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+    val workout = LocalDiaryAccents.current.workout
+    Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer, contentColor = colors.onSurface)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(if (showReps) "Максимум повторений со своим весом" else "Максимальный вес за тренировку",
-                style = MaterialTheme.typography.titleMedium)
+                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             if (weights.isNotEmpty() && repetitions.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(!showReps, { preferReps = false }, label = { Text("С весом") })
@@ -66,9 +69,11 @@ internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
                 TextButton(onClick = { expanded = !expanded }) {
                     Text(if (expanded) "Скрыть рекорды" else "Рекорды по повторам")
                 }
-                if (expanded) records.forEach { record ->
-                    TextButton(onClick = { onWorkout(record.session) }) {
-                        Text("${record.weight.display()} кг × ${record.reps} · ${record.session.date.format(chartDate)}")
+                if (expanded) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    records.forEach { record ->
+                        WorkoutSetTile(record.weight.groupedNumber(), record.reps.toString(),
+                            caption = record.session.date.format(chartDate), onClick = { onWorkout(record.session) })
                     }
                 }
             }
@@ -78,10 +83,10 @@ internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
                     .heightIn(min = 48.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(point.session.date.format(chartDate), style = MaterialTheme.typography.bodySmall)
-                    Box(Modifier.weight(1f).height(10.dp).background(colors.primaryContainer, MaterialTheme.shapes.small)) {
-                        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(colors.primary, MaterialTheme.shapes.small))
+                    Box(Modifier.weight(1f).height(10.dp).background(colors.surfaceContainerHighest, MaterialTheme.shapes.small)) {
+                        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(workout, MaterialTheme.shapes.small))
                     }
-                    Text("${point.value.display()} $unit", modifier = Modifier.widthIn(min = 60.dp),
+                    Text("${point.value.groupedNumber()} $unit", modifier = Modifier.widthIn(min = 60.dp),
                         style = MaterialTheme.typography.labelLarge)
                 }
             }

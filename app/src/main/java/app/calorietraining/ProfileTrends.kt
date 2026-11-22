@@ -4,6 +4,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -17,26 +22,67 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private val shortDate = DateTimeFormatter.ofPattern("dd.MM.yy")
-private fun BigDecimal.signed() = if (signum() > 0) "+${display()}" else display()
+private fun BigDecimal.signed(): String = when (signum()) {
+    1 -> "+${groupedNumber()}"
+    -1 -> "−${abs().groupedNumber()}"
+    else -> groupedNumber()
+}
 
 @Composable
 internal fun PeriodComparison(now: PeriodStats, before: PeriodStats, end: LocalDate, days: Int) {
     val start = end.minusDays(days - 1L)
     fun interval(a: LocalDate, b: LocalDate) = "${a.format(shortDate)}–${b.format(shortDate)}"
-    Text("Раньше: ${interval(start.minusDays(days.toLong()), start.minusDays(1))}")
-    Text("Сейчас: ${interval(start, end)}")
-    val workouts = (now.workouts - before.workouts).toBigDecimal()
-    Text("Записано тренировок: ${before.workouts} → ${now.workouts} (${workouts.signed()})")
-    ComparisonMetric("Средний рабочий жим", "кг", "Подходов", before.benchAverage, now.benchAverage, before.benchSets, now.benchSets)
-    ComparisonMetric("Средние калории", "ккал", "Дней с записями", before.averageCalories, now.averageCalories, before.foodDays, now.foodDays)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ComparisonHeading("Прошлые $days дней", interval(start.minusDays(days.toLong()), start.minusDays(1)),
+            Modifier.weight(1f))
+        ComparisonHeading("Последние $days дней", interval(start, end), Modifier.weight(1f))
+        Spacer(Modifier.width(72.dp))
+    }
+    ComparisonMetric("Тренировки", "", before.workouts.toBigDecimal(), now.workouts.toBigDecimal())
+    ComparisonMetric("Средний рабочий жим", " кг", before.benchAverage, now.benchAverage,
+        "подходов: ${before.benchSets}", "подходов: ${now.benchSets}")
+    ComparisonMetric("Средние калории", " ккал", before.averageCalories, now.averageCalories,
+        "дней с записями: ${before.foodDays}", "дней с записями: ${now.foodDays}")
 }
 
 @Composable
-private fun ComparisonMetric(title: String, unit: String, countLabel: String, before: BigDecimal?, now: BigDecimal?,
-    oldCount: Int, newCount: Int) {
-    val change = if (before != null && now != null) " · ${(now - before).signed()} $unit" else ""
-    Text("$title: ${before?.display() ?: "—"} → ${now?.display() ?: "—"} $unit$change")
-    Text("$countLabel: $oldCount → $newCount", style = MaterialTheme.typography.bodySmall)
+private fun ComparisonHeading(title: String, dates: String, modifier: Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        ComparisonCaption(dates)
+    }
+}
+
+@Composable
+private fun ComparisonCaption(text: String) {
+    Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun ComparisonMetric(title: String, unit: String, before: BigDecimal?, now: BigDecimal?,
+    oldSample: String? = null, newSample: String? = null) {
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text(before?.let { it.groupedNumber() + unit } ?: "—", fontWeight = FontWeight.Bold)
+                oldSample?.let { ComparisonCaption(it) }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(now?.let { it.groupedNumber() + unit } ?: "—", fontWeight = FontWeight.Bold)
+                newSample?.let { ComparisonCaption(it) }
+            }
+            Box(Modifier.width(72.dp), contentAlignment = Alignment.TopEnd) {
+                val change = if (before != null && now != null) (now - before).signed() + unit else "—"
+                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                    Text(change, Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -49,12 +95,12 @@ internal fun MeasurementTrends(records: List<Measurement>, end: LocalDate, days:
         Text("В выбранном периоде замеров нет.")
         return
     }
-    MeasurementChart("Вес", "кг", remember(window) { window.mapNotNull { m -> m.weight.amount()?.let { m.day to it } } })
-    MeasurementChart("Жир", "%", remember(window) { window.mapNotNull { m -> m.fat.amount()?.let { m.day to it } } })
+    MeasurementChart("Вес", "кг", LocalDiaryAccents.current.workout, remember(window) { window.mapNotNull { m -> m.weight.amount()?.let { m.day to it } } })
+    MeasurementChart("Жир", "%", LocalDiaryAccents.current.fat, remember(window) { window.mapNotNull { m -> m.fat.amount()?.let { m.day to it } } })
 }
 
 @Composable
-private fun MeasurementChart(title: String, unit: String, points: List<Pair<LocalDate, BigDecimal>>) {
+private fun MeasurementChart(title: String, unit: String, color: Color, points: List<Pair<LocalDate, BigDecimal>>) {
     if (points.isEmpty()) return
     val first = points.first()
     val last = points.last()
@@ -66,10 +112,9 @@ private fun MeasurementChart(title: String, unit: String, points: List<Pair<Loca
     val high = points.maxOf { it.second }
     val spread = high - low
     val duration = (last.first.toEpochDay() - first.first.toEpochDay()).toFloat()
-    val color = MaterialTheme.colorScheme.primary
     val guide = MaterialTheme.colorScheme.outlineVariant
     val deltaUnit = if (unit == "%") "п. п." else unit
-    Text("$title: ${first.second.display()} → ${last.second.display()} $unit · ${(last.second - first.second).signed()} $deltaUnit")
+    Text("$title: с ${first.second.display()} до ${last.second.display()} $unit · ${(last.second - first.second).signed()} $deltaUnit")
     Text("Замеров: ${points.size} · Шкала: ${low.display()}–${high.display()} $unit", style = MaterialTheme.typography.bodySmall)
     Canvas(Modifier.fillMaxWidth().height(84.dp).semantics { contentDescription = "График: $title по датам замеров" }) {
         val pad = 4.dp.toPx()
