@@ -73,6 +73,8 @@ class GoalHistoryTest {
                 db.execSQL("INSERT INTO daily_goal VALUES(1,2200)")
                 db.execSQL("INSERT INTO macro_goal VALUES(1,140,0,0)")
             }
+            db.execSQL("CREATE TABLE workout(id INTEGER PRIMARY KEY, day TEXT, title TEXT, minutes INTEGER)")
+            db.execSQL("CREATE TABLE lifting(id INTEGER PRIMARY KEY, session INTEGER, exercise_group TEXT, exercise TEXT, weight TEXT, reps INTEGER, planned INTEGER, warmup INTEGER)")
             db.version = 12
         }
     }
@@ -111,7 +113,7 @@ class GoalHistoryTest {
             store.setGoals(third, DailyGoals(2000))
             store.backup()
         }
-        assertEquals("calorietraining/13", backup.getString("format"))
+        assertEquals("calorietraining/14", backup.getString("format"))
         FoodStore(context, "restored").use { store ->
             store.readBackup(backup.toString().reader())
             assertEquals(2, store.countGoals())

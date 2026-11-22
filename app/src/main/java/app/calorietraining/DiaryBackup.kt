@@ -8,14 +8,15 @@ import android.util.JsonWriter
 import java.io.Reader
 import java.io.Writer
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 private val tables = linkedMapOf(
     "recipe" to listOf("id","name","cooked"),
     "ingredient" to listOf("id","recipe_id","name","grams","energy","protein","fat","carbs"),
     "food" to listOf("id", "day", "name", "energy", "grams", "calories", "meal", "meal_time", "protein", "fat", "carbs"),
     "my_product" to listOf("id", "name", "brand", "barcode", "weighted", "energy", "protein", "fat", "carbs", "source", "search_key", "updated_at"),
-    "workout" to listOf("id", "day", "title", "minutes"),
-    "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup"),
+    "workout" to listOf("id", "day", "title", "minutes", "started_at", "finished_at", "live"),
+    "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup", "done_at"),
     "workout_template" to listOf("id", "title"),
     "template_set" to listOf("id", "template", "exercise_group", "exercise", "weight", "reps", "warmup"),
     "goal" to listOf("start_day", "kcal", "protein", "fat", "carbs"),
@@ -29,7 +30,13 @@ private val legacyGoalTables = mapOf(
     "daily_goal" to listOf("id", "kcal"),
 )
 
-private const val FORMAT_VERSION = 13
+private val workoutTimeFields = mapOf(
+    "workout" to listOf("started_at", "finished_at", "live"),
+    "lifting" to listOf("done_at"),
+)
+private val nullableTimeFields = setOf("started_at", "finished_at", "done_at")
+
+private const val FORMAT_VERSION = 14
 private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
 internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
@@ -74,7 +81,14 @@ private fun validateRow(table: String, row: ContentValues) {
         "recipe" -> require(field("name").isNotBlank() && field("cooked").amount()?.signum() == 1)
         "ingredient" -> require(field("recipe_id").toLong() > 0 && FoodDraft(name=field("name"), weighted=true,
             grams=field("grams"), energy=field("energy"), macros=Macros(field("protein"),field("fat"),field("carbs"))).calories != null)
-        "workout" -> require(field("minutes") == "0" || field("minutes").toIntOrNull() in workoutMinutesRange)
+        "workout" -> {
+            require(field("minutes") == "0" || field("minutes").toIntOrNull() in workoutMinutesRange)
+            require(field("live") in setOf("0", "1"))
+            val start = field("started_at")?.let(LocalDateTime::parse)
+            require(start == null || start.toLocalDate().toString() == field("day"))
+            require(field("live") == "0" || start != null)
+            field("finished_at")?.let(LocalDateTime::parse)
+        }
         "workout_template" -> require(field("title").isNotBlank())
         "template_set" -> require(field("template").toLong() > 0 && field("exercise_group").isNotBlank() &&
             SetDraft(exercise = field("exercise"), weight = field("weight"), reps = field("reps")).valid)
@@ -105,8 +119,14 @@ private fun validateRow(table: String, row: ContentValues) {
             })
             java.time.Instant.parse(field("updated_at"))
         }
-        "lifting" -> require(field("planned") in setOf("0", "1") && field("session").toLong() > 0 && field("exercise_group").isNotBlank() &&
-            SetDraft(exercise = field("exercise"), weight = field("weight"), reps = field("reps")).valid)
+        "lifting" -> {
+            require(field("planned") in setOf("0", "1") && field("session").toLong() > 0 && field("exercise_group").isNotBlank() &&
+                SetDraft(exercise = field("exercise"), weight = field("weight"), reps = field("reps")).valid)
+            field("done_at")?.let {
+                require(field("planned") == "0")
+                LocalDateTime.parse(it)
+            }
+        }
     }
 }
 
@@ -124,6 +144,8 @@ fun FoodStore.readBackup(input: Reader): String {
     var missingTime = false
     var missingWarmup = false
     var missingMacros = false
+    var missingWorkoutTimes = false
+    var hasWorkoutTimes = false
     JsonReader(input).use { json ->
         db.atomic {
             json.beginObject()
@@ -148,7 +170,8 @@ fun FoodStore.readBackup(input: Reader): String {
                     while (json.hasNext()) {
                         val field = json.nextName()
                         require(field in columns && !row.containsKey(field))
-                        if (key == "my_product" && field == "barcode" && json.peek() == JsonToken.NULL) {
+                        if ((key == "my_product" && field == "barcode" || field in nullableTimeFields) &&
+                            json.peek() == JsonToken.NULL) {
                             json.nextNull()
                             row.putNull(field)
                         } else {
@@ -157,6 +180,13 @@ fun FoodStore.readBackup(input: Reader): String {
                         }
                     }
                     json.endObject()
+                    workoutTimeFields[key].orEmpty().forEach { field ->
+                        if (row.containsKey(field)) hasWorkoutTimes = true
+                        else {
+                            missingWorkoutTimes = true
+                            if (field == "live") row.put(field, "0") else row.putNull(field)
+                        }
+                    }
                     if (key == "food" && !row.containsKey("meal_time")) {
                         row.put("meal_time", "")
                         missingTime = true
@@ -223,6 +253,7 @@ fun FoodStore.readBackup(input: Reader): String {
             require(version < 5 || !missingPlan)
             require(version < 4 || !missingMeal)
             require(version < 3 || !missingWorkoutTitle)
+            require(if (version == 14) !missingWorkoutTimes else !hasWorkoutTimes)
             require(json.peek() == JsonToken.END_DOCUMENT && seen == expected + "format")
             if (version < 13) {
                 db.transferLegacyProducts("legacy_product")

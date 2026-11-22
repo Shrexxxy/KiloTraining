@@ -96,11 +96,9 @@ class GoalAnyDayAndStopwatchTest {
         var clickTime = 0L
         ui.setContent {
             DiaryTheme(ThemeMode.DARK) {
-                WorkoutContent(WorkoutState(list = listOf(Workout(1, emptyList()))), {}) {
-                    RestTimer(0, 0, 0) { end, total, started ->
-                        clickTime = SystemClock.elapsedRealtime()
-                        change = Triple(end, total, started)
-                    }
+                RestTimer(0, 0, 0) { end, total, started ->
+                    clickTime = SystemClock.elapsedRealtime()
+                    change = Triple(end, total, started)
                 }
             }
         }
@@ -123,9 +121,7 @@ class GoalAnyDayAndStopwatchTest {
         ui.setContent {
             DiaryTheme(ThemeMode.DARK) {
                 view = LocalView.current
-                WorkoutContent(WorkoutState(list = listOf(Workout(1, emptyList()))), {}) {
-                    RestTimer(0, 0, started) { end, total, start -> change = Triple(end, total, start) }
-                }
+                RestTimer(0, 0, started) { end, total, start -> change = Triple(end, total, start) }
             }
         }
         ui.onNodeWithText("ОТДЫХ ИДЁТ").assertIsDisplayed()

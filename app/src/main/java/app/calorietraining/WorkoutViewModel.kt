@@ -11,12 +11,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.Clock
 
 data class WorkoutState(val day:LocalDate=LocalDate.now(), val list:List<Workout> = emptyList(),
     val session:Long?=null, val draft:SetDraft?=null, val busy:Boolean=false,val error:String?=null,
-    val previous: PreviousExercise? = null, val templates: List<WorkoutTemplate> = emptyList())
+    val previous: PreviousExercise? = null, val templates: List<WorkoutTemplate> = emptyList(),
+    val opened: Long? = null, val clock: Clock = Clock.systemDefaultZone()) {
+    val activeWorkout get() = list.firstOrNull { it.active }
+}
 sealed interface WorkoutEvent {
-    data class Day(val day:LocalDate):WorkoutEvent
     data class Edit(val session:Long,val draft:SetDraft):WorkoutEvent
     data class Remove(val session:Long):WorkoutEvent
     data class Duration(val session: Long, val minutes: Int?) : WorkoutEvent
@@ -27,15 +31,21 @@ sealed interface WorkoutEvent {
     data class ReplaceTemplate(val id: Long, val session: Long) : WorkoutEvent
     data class SaveTemplate(val session: Long, val title: String) : WorkoutEvent
     data class Repeat(val session: Long, val date: LocalDate) : WorkoutEvent
-    data object Create:WorkoutEvent
+    data object StartLive : WorkoutEvent
+    data class Record(val start: LocalDateTime) : WorkoutEvent
+    data class Open(val id: Long) : WorkoutEvent
+    data object BackToList : WorkoutEvent
+    data object Refresh : WorkoutEvent
+    data class Finish(val id: Long) : WorkoutEvent
+    data class ChangeStart(val id: Long, val start: LocalDateTime) : WorkoutEvent
     data object Close:WorkoutEvent
     data class Save(val planned: Boolean = false) : WorkoutEvent
     data class Complete(val session: Long, val setId: Long) : WorkoutEvent
     data object DeleteSet : WorkoutEvent
 }
 
-class WorkoutViewModel(app:Application):AndroidViewModel(app) {
-    private val state=MutableStateFlow(WorkoutState())
+class WorkoutViewModel(app: Application, private val clock: Clock = Clock.systemDefaultZone()) : AndroidViewModel(app) {
+    private val state = MutableStateFlow(WorkoutState(day = LocalDate.now(clock), clock = clock))
     val uiState=state.asStateFlow()
     private var historyLookup: Job? = null
     init { update(state.value.day) }
@@ -43,33 +53,36 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
         val s=state.value
         if(s.busy) return
         when(event) {
-            is WorkoutEvent.Day -> update(event.day)
-            is WorkoutEvent.StartTemplate -> update(s.day) { startTemplate(event.id, s.day) }
+            is WorkoutEvent.StartTemplate -> update(s.day, openCreated = true) { startTemplate(event.id, LocalDateTime.now(clock)) }
             is WorkoutEvent.RenameTemplate -> if (event.title.isNotBlank()) update(s.day) { renameTemplate(event.id, event.title) }
             is WorkoutEvent.ReplaceTemplate -> update(s.day) { replaceTemplate(event.id, event.session) }
             is WorkoutEvent.SaveTemplate -> if (event.title.isNotBlank()) update(s.day) { saveTemplate(event.session, event.title) }
             is WorkoutEvent.Repeat -> s.list.find { it.id == event.session && it.sets.any { set -> !set.planned } }?.let { source ->
-                update(event.date) { repeatWorkout(source, event.date) }
+                update(event.date, openCreated = true) { repeatWorkout(source, event.date) }
             }
-            is WorkoutEvent.Move -> if (event.date != s.day && s.list.any { it.id == event.session }) {
-                update(event.date) {
-                    writableDatabase.execSQL("UPDATE workout SET day=? WHERE id=? AND day=?",
-                        arrayOf(event.date.toString(), event.session, s.day.toString()))
-                }
+            is WorkoutEvent.Move -> if (s.list.any { it.id == event.session && it.day != event.date }) {
+                update(event.date) { moveWorkout(event.session, event.date) }
             }
             is WorkoutEvent.Duration -> if (event.minutes == null || event.minutes in workoutMinutesRange) update(s.day) {
                 setDuration(event.session, event.minutes)
             }
             is WorkoutEvent.Rename -> update(s.day) {
-                writableDatabase.execSQL("UPDATE workout SET title=? WHERE id=? AND day=?",
-                    arrayOf(event.title.trim(), event.session, s.day.toString()))
+                writableDatabase.execSQL("UPDATE workout SET title=? WHERE id=?",
+                    arrayOf<Any>(event.title.trim(), event.session))
             }
-            WorkoutEvent.Create -> update(s.day) { newWorkout(s.day) }
+            WorkoutEvent.StartLive -> update(s.day, openCreated = true) { newWorkout(LocalDateTime.now(clock), live = true) }
+            is WorkoutEvent.Record -> update(event.start.toLocalDate(), openCreated = true) { newWorkout(event.start, live = false) }
+            is WorkoutEvent.Open -> state.value = s.copy(opened = event.id, draft = null, session = null)
+            WorkoutEvent.BackToList -> update(s.day, opened = null)
+            WorkoutEvent.Refresh -> update(s.day)
+            is WorkoutEvent.Finish -> update(s.day) { finishWorkout(event.id) }
+            is WorkoutEvent.ChangeStart -> update(event.start.toLocalDate()) { changeWorkoutStart(event.id, event.start) }
             is WorkoutEvent.Edit -> {
                 val changed = s.session != event.session || s.draft?.exercise != event.draft.exercise || s.draft.id != event.draft.id
                 state.value = s.copy(session = event.session, draft = event.draft, error = null,
                     previous = if (changed) null else s.previous)
-                if (changed) loadPrevious(s.day, event.session, event.draft)
+                if (changed) loadPrevious(s.list.firstOrNull { it.id == event.session }?.day ?: s.day,
+                    event.session, event.draft)
             }
             WorkoutEvent.Close -> state.value=s.copy(draft=null,error=null)
             WorkoutEvent.DeleteSet -> {
@@ -81,10 +94,7 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
             is WorkoutEvent.Save -> if(s.session!=null && s.draft?.valid == true) update(s.day) {
                 saveSet(s.session, s.draft, planned = event.planned)
             }
-            is WorkoutEvent.Complete -> update(s.day) {
-                writableDatabase.execSQL("UPDATE lifting SET planned=0 WHERE session=? AND id=? AND planned=1",
-                    arrayOf(event.session, event.setId))
-            }
+            is WorkoutEvent.Complete -> update(s.day) { completeSet(event.session, event.setId) }
             is WorkoutEvent.Remove -> update(s.day) {
                 val args=arrayOf(event.session.toString())
                 writableDatabase.delete("lifting","session=?",args)
@@ -98,7 +108,7 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
         historyLookup = viewModelScope.launch {
             val previous = try {
                 withContext(Dispatchers.IO) {
-                    FoodStore(getApplication()).use { it.previousExercise(day, session, draft.exercise.trim()) }
+                    FoodStore(getApplication(), clock = clock).use { it.previousExercise(day, session, draft.exercise.trim()) }
                 }
             } catch (e: SQLException) { null }
             val current = state.value
@@ -107,19 +117,27 @@ class WorkoutViewModel(app:Application):AndroidViewModel(app) {
             }
         }
     }
-    private fun update(day:LocalDate,change:(FoodStore.()->Unit)?=null) {
+    private fun update(
+        day: LocalDate,
+        opened: Long? = state.value.opened,
+        openCreated: Boolean = false,
+        change: (FoodStore.() -> Any?)? = null,
+    ) {
         state.value=state.value.copy(busy=true,error=null)
         viewModelScope.launch {
             try {
                 val rows=withContext(Dispatchers.IO) {
-                    FoodStore(getApplication()).use { store ->
-                        fun snapshot() = WorkoutState(day = day, list = store.workouts(day), templates = store.templates())
-                        if(change==null) return@use snapshot()
+                    FoodStore(getApplication(), clock = clock).use { store ->
                         val db=store.writableDatabase
                         db.beginTransaction()
                         try {
-                            store.change()
-                            snapshot().also { db.setTransactionSuccessful() }
+                            store.finishInactiveWorkouts()
+                            val created = change?.invoke(store)
+                            val list = store.workouts()
+                            val selected = if (openCreated) created as Long else opened
+                            WorkoutState(day = day, list = list, templates = store.templates(),
+                                opened = selected?.takeIf { id -> list.any { it.id == id } }, clock = clock)
+                                .also { db.setTransactionSuccessful() }
                         } finally { db.endTransaction() }
                     }
                 }

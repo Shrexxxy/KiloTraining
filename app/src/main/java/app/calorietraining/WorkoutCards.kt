@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.math.BigDecimal
+import java.time.Duration
 
 internal fun Workout.volume(): BigDecimal = sets.filterNot { it.planned }.sumOf { set ->
     (set.weight.amount() ?: BigDecimal.ZERO) * set.reps.toBigDecimal()
@@ -22,6 +23,9 @@ internal fun Workout.volume(): BigDecimal = sets.filterNot { it.planned }.sumOf 
 
 internal fun Workout.nextPlanned(): SetDraft? =
     sets.groupBy { it.group }.values.firstNotNullOfOrNull { group -> group.firstOrNull { it.planned } }
+
+internal fun List<SetDraft>.inExecutionOrder(): List<SetDraft> =
+    sortedWith(compareBy({ it.planned }, { it.doneAt }, { it.id }))
 
 private fun SetDraft.tileLabel() = "${if (weight.isBlank()) "Свой вес" else "$weight кг"} × $reps"
 
@@ -71,7 +75,7 @@ internal fun NextSetCard(set: SetDraft, enabled: Boolean, complete: () -> Unit) 
 }
 
 @Composable
-internal fun ExerciseCard(sets: List<SetDraft>, edit: (SetDraft) -> Unit) {
+internal fun ExerciseCard(sets: List<SetDraft>, rests: Map<Long?, Duration>, edit: (SetDraft) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val accent = LocalDiaryAccents.current.workout
     val exercise = sets.first().exercise
@@ -89,17 +93,23 @@ internal fun ExerciseCard(sets: List<SetDraft>, edit: (SetDraft) -> Unit) {
                         else -> Triple(accent, colors.onTertiary, "выполнен")
                     }
                     val label = set.tileLabel()
-                    Surface(onClick = { edit(set) }, shape = RoundedCornerShape(12.dp),
-                        color = background, contentColor = foreground,
-                        modifier = Modifier.height(40.dp).semantics { contentDescription = "Подход ${index + 1}: $label, $status" }) {
-                        Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                            Text(label, style = MaterialTheme.typography.labelLarge)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Surface(onClick = { edit(set) }, shape = RoundedCornerShape(12.dp),
+                            color = background, contentColor = foreground,
+                            modifier = Modifier.height(40.dp).semantics { contentDescription = "Подход ${index + 1}: $label, $status" }) {
+                            Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                                Text(label, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                        rests[set.id]?.let { rest ->
+                            Text("отдых ${formatRestElapsed(rest.seconds)}", style = MaterialTheme.typography.labelSmall,
+                                color = colors.onSurfaceVariant)
                         }
                     }
                 }
             }
-            TextButton(onClick = { edit(sets.last().copy(id = null, planned = false)) }) {
-                Text("Добавить подход")
+            TextButton(onClick = { edit(sets.maxBy { it.id ?: 0L }.copy(id = null, planned = false, doneAt = null)) }) {
+                Text("+ Подход")
             }
         }
     }

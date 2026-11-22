@@ -57,6 +57,7 @@ class WorkoutDurationTest {
         context.openOrCreateDatabase("upgrade", 0, null).use { db ->
             db.execSQL("CREATE TABLE workout(id INTEGER PRIMARY KEY, day TEXT, title TEXT)")
             db.execSQL("INSERT INTO workout VALUES(7,?,'Силовая')", arrayOf(day.toString()))
+            db.execSQL("CREATE TABLE lifting(id INTEGER PRIMARY KEY, session INTEGER, exercise_group TEXT, exercise TEXT, weight TEXT, reps INTEGER, planned INTEGER, warmup INTEGER)")
             db.version = 10
         }
         FoodStore(context,"upgrade").use { store ->
@@ -78,7 +79,7 @@ class WorkoutDurationTest {
     @Test fun durationEditorValidatesMinutes() {
         var event: WorkoutEvent? = null
         compose.setContent { MaterialTheme {
-            WorkoutContent(WorkoutState(day=LocalDate.now().minusDays(1), list=listOf(Workout(1,emptyList()))), { event=it })
+            WorkoutContent(WorkoutState(day=LocalDate.now().minusDays(1), list=listOf(Workout(1,emptyList())), opened=1), { event=it })
         } }
         compose.onNodeWithText("Действия").performClick()
         compose.onNodeWithText("Длительность").performClick()

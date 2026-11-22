@@ -104,7 +104,9 @@ internal fun SQLiteDatabase.importLegacyGoals(kcal: Int, protein: Int, fat: Int,
         arrayOf<Any>(firstDay ?: LocalDate.now().toString(), kcal, protein, fat, carbs))
 }
 
-class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 14) {
+class FoodStore(context: Context, databaseName: String = "food.db",
+    internal val clock: java.time.Clock = java.time.Clock.systemDefaultZone(),
+) : SQLiteOpenHelper(context, databaseName, null, 16) {
     private fun createLegacyCalorieTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
     }
@@ -172,6 +174,7 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         createRecipeTables(db)
         addDuration(db)
         createMyProductsOnOpen(db)
+        addWorkoutTimes(db)
     }
 
     private fun createMyProductsOnOpen(db: SQLiteDatabase) {
@@ -206,6 +209,7 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         if (oldVersion < 12) createLegacyMacroTable(db)
         if (oldVersion < 13) migrateGoals(db)
         if (oldVersion < 14) createMyProductsOnOpen(db)
+        if (oldVersion < 16) addWorkoutTimes(db)
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(

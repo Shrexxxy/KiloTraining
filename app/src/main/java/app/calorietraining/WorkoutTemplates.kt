@@ -3,6 +3,7 @@ package app.calorietraining
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.UUID
 
 data class WorkoutTemplate(val id: Long, val title: String)
@@ -60,18 +61,25 @@ fun FoodStore.replaceTemplate(id: Long, session: Long) {
 }
 
 fun FoodStore.startTemplate(template: Long, date: LocalDate) {
+    startTemplate(template) { newWorkout(date) }
+}
+
+internal fun FoodStore.startTemplate(template: Long, start: LocalDateTime): Long =
+    startTemplate(template) { newWorkout(start, live = false) }
+
+private fun FoodStore.startTemplate(template: Long, create: () -> Long): Long {
     val db = writableDatabase
+    var session = 0L
     db.atomic {
         val title = db.rawQuery("SELECT title FROM workout_template WHERE id=?", arrayOf(template.toString())).use {
             if (!it.moveToFirst()) throw android.database.SQLException("Шаблон не найден")
             it.getString(0)
         }
-        val session = db.insertOrThrow("workout", null, ContentValues().apply {
-            put("day", date.toString())
-            put("title", title)
-        })
+        session = create()
+        db.execSQL("UPDATE workout SET title=? WHERE id=?", arrayOf<Any>(title, session))
         db.execSQL("""INSERT INTO lifting(session,exercise_group,exercise,weight,reps,warmup,planned)
             SELECT ?,? || exercise_group,exercise,weight,reps,warmup,1
             FROM template_set WHERE template=? ORDER BY id""", arrayOf(session, UUID.randomUUID().toString(), template))
     }
+    return session
 }

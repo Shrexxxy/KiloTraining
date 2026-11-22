@@ -43,17 +43,18 @@ class MvpScreenTest {
 
     @Test fun savesAndEditsSet() {
         node("Тренировки").performClick()
-        node("Новая тренировка").performClick()
+        waitText("Начать тренировку")
+        node("Начать тренировку").performClick()
         waitText("Добавить упражнение")
         node("Добавить упражнение").performClick()
         node("Название упражнения").performTextInput("Жим лёжа")
         node("Вес, кг").performTextInput("40")
         node("Повторы").performTextInput("12")
-        node("Сохранить").performClick()
+        node("Записать подход").performScrollTo().performClick()
         waitText("40 кг × 12")
         node("40 кг × 12").performClick()
         node("Повторы").performTextReplacement("9")
-        node("Сохранить").performClick()
+        node("Сохранить изменения").performScrollTo().performClick()
         waitText("40 кг × 9")
     }
 }

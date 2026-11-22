@@ -49,6 +49,7 @@ class RecipeTest {
         context.openOrCreateDatabase("beforeRecipes", 0, null).use { db ->
             db.execSQL("CREATE TABLE workout(id INTEGER PRIMARY KEY, day TEXT, title TEXT)")
             db.execSQL("INSERT INTO workout VALUES(1,'2026-11-01','Верх А')")
+            db.execSQL("CREATE TABLE lifting(id INTEGER PRIMARY KEY, session INTEGER, exercise_group TEXT, exercise TEXT, weight TEXT, reps INTEGER, planned INTEGER, warmup INTEGER)")
             db.version = 9
         }
         FoodStore(context, "beforeRecipes").use { store ->

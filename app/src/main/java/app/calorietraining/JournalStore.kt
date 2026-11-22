@@ -8,6 +8,10 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.Duration
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 internal fun createJournalTables(db: SQLiteDatabase) {
@@ -100,11 +104,35 @@ fun FoodStore.lookup(code: String, fetch: (String) -> Product? = ::fetchProduct)
 }
 
 data class SetDraft(val id: Long? = null, val group: String = UUID.randomUUID().toString(),
-    val exercise: String = "", val weight: String = "", val reps: String = "", val planned: Boolean = false, val warmup: Boolean = false) {
+    val exercise: String = "", val weight: String = "", val reps: String = "", val planned: Boolean = false,
+    val warmup: Boolean = false, val doneAt: LocalDateTime? = null) {
     val valid get() = exercise.isNotBlank() && (weight.isBlank() || weight.amount() != null) && (reps.toIntOrNull() ?: 0) > 0
 }
-data class Workout(val id: Long,val sets: List<SetDraft>, val title: String = "", val minutes: Int? = null)
+data class Workout(val id: Long,val sets: List<SetDraft>, val title: String = "", val minutes: Int? = null,
+    val day: LocalDate = LocalDate.now(), val startedAt: LocalDateTime? = null,
+    val finishedAt: LocalDateTime? = null, val live: Boolean = false) {
+    val active get() = live && finishedAt == null
+    val lastDoneAt get() = sets.filterNot { it.planned }.mapNotNull { it.doneAt }.maxOrNull()
+
+    internal fun restBySet(): Map<Long?, Duration> {
+        val completed = sets.filter { !it.planned && it.doneAt != null }
+            .sortedWith(compareBy({ it.doneAt }, { it.id }))
+        return completed.zipWithNext().associate { (previous, next) ->
+            next.id to Duration.between(previous.doneAt, next.doneAt)
+        }
+    }
+}
 internal val workoutMinutesRange = 1..1440
+private val workoutMinuteFormat = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm")
+private val workoutSecondFormat = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss")
+private const val workoutSortTime = "COALESCE(w.started_at, w.day || 'T00:00')"
+
+internal fun addWorkoutTimes(db: SQLiteDatabase) {
+    db.execSQL("ALTER TABLE workout ADD COLUMN started_at TEXT")
+    db.execSQL("ALTER TABLE workout ADD COLUMN finished_at TEXT")
+    db.execSQL("ALTER TABLE workout ADD COLUMN live INTEGER NOT NULL DEFAULT 0")
+    db.execSQL("ALTER TABLE lifting ADD COLUMN done_at TEXT")
+}
 
 fun FoodStore.setDuration(session: Long, minutes: Int?) {
     require(minutes == null || minutes in workoutMinutesRange)
@@ -112,6 +140,59 @@ fun FoodStore.setDuration(session: Long, minutes: Int?) {
 }
 
 fun FoodStore.newWorkout(day: LocalDate): Long = writableDatabase.insertOrThrow("workout",null,ContentValues().apply { put("day",day.toString()) })
+
+internal fun FoodStore.newWorkout(start: LocalDateTime, live: Boolean): Long {
+    var session = 0L
+    writableDatabase.atomic {
+        if (live) {
+            finishInactiveWorkouts()
+            writableDatabase.rawQuery("SELECT id FROM workout WHERE live=1 AND finished_at IS NULL LIMIT 1", null).use {
+                if (it.moveToFirst()) session = it.getLong(0)
+            }
+        }
+        if (session == 0L) session = writableDatabase.insertOrThrow("workout", null, ContentValues().apply {
+            put("day", start.toLocalDate().toString())
+            put("started_at", start.format(workoutMinuteFormat))
+            put("live", if (live) 1 else 0)
+        })
+    }
+    return session
+}
+
+internal fun FoodStore.changeWorkoutStart(session: Long, start: LocalDateTime) {
+    writableDatabase.execSQL("UPDATE workout SET day=?, started_at=? WHERE id=?",
+        arrayOf<Any>(start.toLocalDate().toString(), start.format(workoutMinuteFormat), session))
+}
+
+internal fun FoodStore.moveWorkout(session: Long, date: LocalDate) {
+    writableDatabase.execSQL("""UPDATE workout SET day=?, started_at=CASE WHEN started_at IS NULL THEN NULL
+        ELSE ? || substr(started_at,11) END WHERE id=?""", arrayOf<Any>(date.toString(), date.toString(), session))
+}
+
+internal fun FoodStore.finishWorkout(session: Long, at: LocalDateTime = LocalDateTime.now(clock)) {
+    val workout = workouts(session = session).singleOrNull() ?: return
+    val start = workout.startedAt ?: return
+    if (!workout.active) return
+    val elapsed = Duration.between(start, at).coerceAtLeast(Duration.ZERO)
+    val minutes = (elapsed.toMinutes() + if (elapsed.minusMinutes(elapsed.toMinutes()).isZero) 0 else 1)
+        .coerceAtMost(1440)
+    writableDatabase.execSQL("UPDATE workout SET finished_at=?,minutes=? WHERE id=? AND finished_at IS NULL",
+        arrayOf<Any>(at.format(workoutMinuteFormat), minutes, session))
+}
+
+internal fun FoodStore.finishInactiveWorkouts() {
+    val cutoff = LocalDateTime.now(clock).minusHours(3)
+    workouts(activeOnly = true).forEach { workout ->
+        val last = workout.lastDoneAt ?: workout.startedAt ?: return@forEach
+        if (last <= cutoff) finishWorkout(workout.id, last)
+    }
+}
+
+internal fun FoodStore.completeSet(session: Long, setId: Long) {
+    writableDatabase.execSQL("UPDATE lifting SET planned=0,done_at=? WHERE session=? AND id=? AND planned=1",
+        arrayOf<Any>(LocalDateTime.now(clock).format(workoutSecondFormat), session, setId))
+}
+
 fun FoodStore.saveSet(session: Long,set: SetDraft, planned: Boolean = false) {
     require(set.valid)
     val values = ContentValues().apply {
@@ -123,33 +204,43 @@ fun FoodStore.saveSet(session: Long,set: SetDraft, planned: Boolean = false) {
         put("warmup", if (set.warmup) 1 else 0)
         put("planned", if (planned) 1 else 0)
     }
-    if(set.id == null) writableDatabase.insertOrThrow("lifting",null,values)
-    else writableDatabase.update("lifting",values,"session=? AND id=?",arrayOf(session.toString(),set.id.toString()))
-    writableDatabase.execSQL(
-        "UPDATE lifting SET exercise=? WHERE session=? AND exercise_group=? AND exercise<>?",
-        arrayOf(set.exercise.trim(), session, set.group, set.exercise.trim())
-    )
+    val db = writableDatabase
+    db.atomic {
+        if (set.id == null) {
+            if (!planned) values.put("done_at", LocalDateTime.now(clock).format(workoutSecondFormat))
+            db.insertOrThrow("lifting", null, values)
+        } else {
+            if (planned) values.putNull("done_at")
+            else completeSet(session, set.id)
+            db.update("lifting", values, "session=? AND id=?", arrayOf(session.toString(), set.id.toString()))
+        }
+        db.execSQL("UPDATE lifting SET exercise=? WHERE session=? AND exercise_group=? AND exercise<>?",
+            arrayOf<Any>(set.exercise.trim(), session, set.group, set.exercise.trim()))
+    }
 }
 
 data class PreviousSet(val weight: String, val reps: String, val warmup: Boolean = false)
 
-fun FoodStore.repeatWorkout(source: Workout, date: LocalDate) {
-    val target = writableDatabase.insertOrThrow("workout", null, ContentValues().apply {
-        put("day", date.toString())
-        put("title", source.title)
-    })
+fun FoodStore.repeatWorkout(source: Workout, date: LocalDate): Long {
+    var target = 0L
     val groups = mutableMapOf<String, String>()
-    for (set in source.sets.filterNot { it.planned }) {
-        writableDatabase.insertOrThrow("lifting", null, ContentValues().apply {
-            put("session", target)
-            put("exercise_group", groups.getOrPut(set.group) { UUID.randomUUID().toString() })
-            put("exercise", set.exercise)
-            put("weight", set.weight)
-            put("reps", set.reps.toInt())
-            put("warmup", if (set.warmup) 1 else 0)
-            put("planned", 1)
-        })
+    val db = writableDatabase
+    db.atomic {
+        target = newWorkout(LocalDateTime.now(clock).with(date), live = false)
+        db.execSQL("UPDATE workout SET title=? WHERE id=?", arrayOf<Any>(source.title, target))
+        for (set in source.sets.filterNot { it.planned }) {
+            db.insertOrThrow("lifting", null, ContentValues().apply {
+                put("session", target)
+                put("exercise_group", groups.getOrPut(set.group) { UUID.randomUUID().toString() })
+                put("exercise", set.exercise)
+                put("weight", set.weight)
+                put("reps", set.reps.toInt())
+                put("warmup", if (set.warmup) 1 else 0)
+                put("planned", 1)
+            })
+        }
     }
+    return target
 }
 data class PreviousExercise(val day: LocalDate, val sets: List<PreviousSet>)
 
@@ -170,18 +261,30 @@ fun FoodStore.previousExercise(day: LocalDate, session: Long, exercise: String):
     }
 }
 
-fun FoodStore.workouts(day: LocalDate): List<Workout> {
+fun FoodStore.workouts(day: LocalDate): List<Workout> = readWorkouts("w.day=?", arrayOf(day.toString()), "w.id")
+
+internal fun FoodStore.workouts(session: Long? = null, activeOnly: Boolean = false): List<Workout> = when {
+    session != null -> readWorkouts("w.id=?", arrayOf(session.toString()), "w.id")
+    activeOnly -> readWorkouts("w.live=1 AND w.finished_at IS NULL", null, "w.id DESC")
+    else -> readWorkouts("1", null, "$workoutSortTime DESC, w.id DESC")
+}
+
+private fun FoodStore.readWorkouts(where: String, args: Array<String>?, order: String): List<Workout> {
     val result = mutableListOf<Workout>()
     var sets = mutableListOf<SetDraft>()
-    readableDatabase.rawQuery("""SELECT w.id,l.id,l.exercise_group,l.exercise,l.weight,l.reps,w.title,l.planned,l.warmup,w.minutes
-        FROM workout w LEFT JOIN lifting l ON w.id=l.session WHERE w.day=? ORDER BY w.id,l.id""",arrayOf(day.toString())).use {
+    readableDatabase.rawQuery("""SELECT w.id,l.id,l.exercise_group,l.exercise,l.weight,l.reps,w.title,l.planned,l.warmup,w.minutes,
+        w.day,w.started_at,w.finished_at,w.live,l.done_at
+        FROM workout w LEFT JOIN lifting l ON w.id=l.session WHERE $where ORDER BY $order,l.id""", args).use {
         while(it.moveToNext()) {
             val id = it.getLong(0)
             if (result.lastOrNull()?.id != id) {
                 sets = mutableListOf()
-                result.add(Workout(id, sets, it.getString(6), it.getInt(9).takeIf { value -> value > 0 }))
+                result.add(Workout(id, sets, it.getString(6), it.getInt(9).takeIf { value -> value > 0 },
+                    LocalDate.parse(it.getString(10)), it.getString(11)?.let(LocalDateTime::parse),
+                    it.getString(12)?.let(LocalDateTime::parse), it.getInt(13) == 1))
             }
-            if(!it.isNull(1)) sets.add(SetDraft(it.getLong(1),it.getString(2),it.getString(3),it.getString(4),it.getString(5),it.getInt(7) == 1,it.getInt(8) == 1))
+            if(!it.isNull(1)) sets.add(SetDraft(it.getLong(1),it.getString(2),it.getString(3),it.getString(4),it.getString(5),
+                it.getInt(7) == 1,it.getInt(8) == 1,it.getString(14)?.let(LocalDateTime::parse)))
         }
     }
     return result
