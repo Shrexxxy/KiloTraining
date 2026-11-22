@@ -28,10 +28,11 @@ data class MyProduct(
 
     internal fun toDraft() = FoodDraft(name = name, weighted = weighted, energy = energy,
         barcode = barcode, macros = macros, brand = brand,
-        origin = ProductOrigin(source, name, energy, macros))
+        origin = ProductOrigin(source, name, energy, macros, brand, barcode, weighted))
 }
 
-data class ProductOrigin(val source: String, val name: String, val energy: String, val macros: Macros)
+data class ProductOrigin(val source: String, val name: String, val energy: String, val macros: Macros,
+    val brand: String = "", val barcode: String? = null, val weighted: Boolean = true)
 
 internal fun SQLiteDatabase.createMyProducts() {
     execSQL("""CREATE TABLE my_product (
@@ -39,15 +40,15 @@ internal fun SQLiteDatabase.createMyProducts() {
         barcode TEXT UNIQUE, weighted INTEGER NOT NULL CHECK(weighted IN (0,1)),
         energy TEXT NOT NULL, protein TEXT NOT NULL, fat TEXT NOT NULL, carbs TEXT NOT NULL,
         source TEXT NOT NULL CHECK(source IN ('manual','openfoodfacts')),
-        search_key TEXT NOT NULL, updated_at TEXT NOT NULL
+        search_key TEXT NOT NULL, updated_at TEXT NOT NULL, pending_sync INTEGER NOT NULL DEFAULT 1
     )""")
     execSQL("CREATE UNIQUE INDEX my_product_name ON my_product(search_key,weighted) WHERE barcode IS NULL")
 }
 
-private fun Cursor.card() = MyProduct(getLong(0), getString(1), getString(2), getString(3),
+internal fun Cursor.card() = MyProduct(getLong(0), getString(1), getString(2), getString(3),
     getInt(4) == 1, getString(5), Macros(getString(6), getString(7), getString(8)), getString(9), getString(10))
 
-private const val selectCard = "SELECT id,name,brand,barcode,weighted,energy,protein,fat,carbs,source,updated_at FROM my_product"
+internal const val selectCard = "SELECT id,name,brand,barcode,weighted,energy,protein,fat,carbs,source,updated_at FROM my_product"
 
 fun FoodStore.myProducts(query: String = ""): List<MyProduct> =
     readableDatabase.rawQuery("$selectCard ORDER BY updated_at DESC,id DESC", null).use { rows ->
@@ -94,6 +95,7 @@ internal fun SQLiteDatabase.upsertCard(card: MyProduct) {
         put("carbs", card.macros.carbs.trim())
         put("source", card.source)
         put("search_key", key)
+        put("pending_sync", 1)
         put("updated_at", card.updatedAt.ifEmpty { cardTimestamp.format(Instant.now()) })
     }
     val id = duplicate ?: card.id

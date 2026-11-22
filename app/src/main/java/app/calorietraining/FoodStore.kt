@@ -104,7 +104,7 @@ internal fun SQLiteDatabase.importLegacyGoals(kcal: Int, protein: Int, fat: Int,
         arrayOf<Any>(firstDay ?: LocalDate.now().toString(), kcal, protein, fat, carbs))
 }
 
-class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 14) {
+class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpenHelper(context, databaseName, null, 15) {
     private fun createLegacyCalorieTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
     }
@@ -206,6 +206,7 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
         if (oldVersion < 12) createLegacyMacroTable(db)
         if (oldVersion < 13) migrateGoals(db)
         if (oldVersion < 14) createMyProductsOnOpen(db)
+        if (oldVersion == 14) db.execSQL("ALTER TABLE my_product ADD COLUMN pending_sync INTEGER NOT NULL DEFAULT 1")
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(
@@ -260,7 +261,8 @@ class FoodStore(context: Context, databaseName: String = "food.db") : SQLiteOpen
             if (saved && !draft.fromRecipe) {
                 val origin = draft.origin
                 val source = if (origin != null && draft.name == origin.name &&
-                    draft.energy == origin.energy && draft.macros == origin.macros) origin.source else "manual"
+                    draft.energy == origin.energy && draft.macros == origin.macros &&
+                    draft.brand == origin.brand && draft.barcode == origin.barcode && draft.weighted == origin.weighted) origin.source else "manual"
                 db.upsertCard(MyProduct(name = draft.name, brand = draft.brand, barcode = draft.barcode,
                     weighted = draft.weighted, energy = draft.energy, macros = draft.macros, source = source))
             }

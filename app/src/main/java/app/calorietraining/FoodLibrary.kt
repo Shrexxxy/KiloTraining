@@ -21,6 +21,13 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
     }
     val term = query.trim()
     val results = (online as? CatalogSearch.Results)?.takeIf { it.term == term }
+    val failed = (online as? CatalogSearch.Failed)?.takeIf { it.term == term }
+    val serverFoods = results?.serverFoods ?: failed?.serverFoods
+    val (serverMatches, catalogMatches) = remember(matches, serverFoods, results) {
+        val barcodes = matches.mapNotNull { it.barcode }.toMutableSet()
+        fun distinct(foods: List<FoodDraft>) = foods.filter { it.barcode?.let(barcodes::add) ?: true }
+        serverFoods?.let(::distinct) to results?.foods?.let(::distinct).orEmpty()
+    }
     val loading = (online as? CatalogSearch.Loading)?.term == term
     BackHandler(onBack = onClose)
     Scaffold(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) { insets ->
@@ -36,13 +43,17 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
                 if (matches.isNotEmpty()) item { Text("Мои продукты", style = MaterialTheme.typography.labelLarge) }
                 items(matches) { food -> ProductRow(food, onChoose) }
-                if ((online as? CatalogSearch.Failed)?.term == term) item {
+                if (serverMatches != null) {
+                    item { Text("Ваша база", style = MaterialTheme.typography.labelLarge) }
+                    items(serverMatches) { food -> ProductRow(food, onChoose) }
+                }
+                if (failed != null) item {
                     Text("Каталог недоступен. Попробуйте ещё раз или введите продукт вручную.")
                 }
                 if (results != null) {
                     item { Text("Open Food Facts · ODbL", style = MaterialTheme.typography.labelLarge) }
                     if (results.foods.isEmpty()) item { Text("В каталоге нет совпадений с калорийностью") }
-                    items(results.foods) { food -> ProductRow(food, onChoose) }
+                    items(catalogMatches) { food -> ProductRow(food, onChoose) }
                 }
             }
             TextButton(onClick = onClose) { Text("Вернуться к вводу") }

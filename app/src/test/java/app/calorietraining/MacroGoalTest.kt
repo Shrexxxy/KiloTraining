@@ -50,7 +50,7 @@ class MacroGoalTest {
             db.version = 11
         }
         FoodStore(context, "upgrade").use { store ->
-            assertEquals(14, store.readableDatabase.version)
+            assertEquals(15, store.readableDatabase.version)
             assertEquals(2200, store.goalsFor(today).kcal)
             assertEquals(MacroGoals(), store.goalsFor(today).macros)
         }

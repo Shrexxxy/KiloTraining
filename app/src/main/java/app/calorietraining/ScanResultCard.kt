@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 internal fun ScanResultCard(code: String, outcome: ScanOutcome, busy: Boolean, onEvent: (FoodEvent) -> Unit) {
     val message = when (outcome) {
         ScanOutcome.PHONE -> "Сохранено на телефоне"
+        ScanOutcome.SERVER -> "Найдено в вашей базе"
         ScanOutcome.CATALOG -> "Найдено в Open Food Facts"
         ScanOutcome.MISSING -> "Этого товара нет в Open Food Facts. Заполните название и калорийность с упаковки — после сохранения товар запомнится, и в следующий раз всё подставится само"
         ScanOutcome.NO_ENERGY -> "В каталоге есть товар, но без калорийности. Допишите её с упаковки"
@@ -35,7 +36,7 @@ internal fun ScanResultCard(code: String, outcome: ScanOutcome, busy: Boolean, o
                     TextButton(onClick = { onEvent(FoodEvent.Barcode(code)) }, enabled = !busy) {
                         Text("Повторить поиск")
                     }
-                ScanOutcome.PHONE, ScanOutcome.CATALOG -> Unit
+                ScanOutcome.PHONE, ScanOutcome.SERVER, ScanOutcome.CATALOG -> Unit
             }
         }
     }
