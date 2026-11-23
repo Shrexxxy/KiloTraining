@@ -52,7 +52,7 @@ class AppScreenshotTest {
             DiaryApp(ThemeMode.DARK, {})
         } }
         ui.onNodeWithText("Добавить еду").performScrollTo().performClick()
-        ui.waitUntil(10_000) { ui.onAllNodesWithText("Добавить · Завтрак").fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(10_000) { ui.onAllNodesWithText("Добавить · Завтрак").fetchSemanticsNodes().isNotEmpty() }
         openScreen()
         saveScreenshot(view, filename)
     }
@@ -87,9 +87,9 @@ class AppScreenshotTest {
             "Настройки" -> "Сервер продуктов"
             else -> "Завтрак"
         }
-        ui.waitUntil(10_000) { ui.onAllNodesWithText(ready, substring = true).fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(10_000) { ui.onAllNodesWithText(ready, substring = true).fetchSemanticsNodes().isNotEmpty() }
         if (tab == "Главная") {
-            ui.waitUntil(10_000) { ui.onAllNodesWithText("82,4 кг").fetchSemanticsNodes().isNotEmpty() }
+            ui.awaitUntil(10_000) { ui.onAllNodesWithText("82,4 кг").fetchSemanticsNodes().isNotEmpty() }
         }
         saveScreenshot(view, filename)
     }

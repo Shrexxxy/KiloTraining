@@ -87,7 +87,7 @@ class ProfileHistoryStyleTest {
             view = LocalView.current
             DiaryBackground { ProfileScreen(model, {}) }
         } }
-        ui.waitUntil(timeoutMillis = 10_000) { model.uiState.value.stats != null }
+        ui.awaitUntil(timeoutMillis = 10_000) { model.uiState.value.stats != null }
         ui.waitForIdle()
     }
 
@@ -104,7 +104,7 @@ class ProfileHistoryStyleTest {
             view = LocalView.current
             DiaryBackground { HistoryScreen(model, {}, {}) }
         } }
-        ui.waitUntil(timeoutMillis = 10_000) { !model.uiState.value.loading }
+        ui.awaitUntil(timeoutMillis = 10_000) { !model.uiState.value.loading }
         ui.waitForIdle()
     }
 

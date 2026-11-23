@@ -21,7 +21,7 @@ class RecipeFlowTest {
     @get:Rule(order = 1) val compose = createAndroidComposeRule<MainActivity>()
 
     private fun node(label: String) = compose.onNodeWithText(label)
-    private fun waitFor(label: String) = compose.waitUntil(10_000) {
+    private fun waitFor(label: String) = compose.awaitUntil(10_000) {
         runCatching { node(label).fetchSemanticsNode() }.isSuccess
     }
 

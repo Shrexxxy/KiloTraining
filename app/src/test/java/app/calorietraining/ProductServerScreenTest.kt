@@ -75,7 +75,7 @@ class ProductServerScreenTest {
         ui.onNode(hasSetTextAction() and hasText("Адрес")).performTextInput(address)
         ui.onNode(hasSetTextAction() and hasText("Ключ")).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password)).performTextInput(key)
         ui.onNodeWithText("Проверить связь").performClick()
-        ui.waitUntil(5_000) { ui.onAllNodesWithText("Связь есть").fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(5_000) { ui.onAllNodesWithText("Связь есть").fetchSemanticsNodes().isNotEmpty() }
         val preferences = context.getSharedPreferences("server", Context.MODE_PRIVATE)
         assertEquals(address, preferences.getString("address", null))
         assertEquals(key, preferences.getString("key", null))
@@ -102,7 +102,7 @@ class ProductServerScreenTest {
         ui.setContent { DiaryTheme(ThemeMode.DARK) { SettingsScreen(model, ThemeMode.DARK, {}, {}, {}) } }
         ui.onNodeWithText("Отправить сейчас").performScrollTo()
         ui.onNodeWithText("Отправить сейчас").performClick()
-        ui.waitUntil(5_000) { ui.onAllNodesWithText("Неверный ключ").fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(5_000) { ui.onAllNodesWithText("Неверный ключ").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithText("Ждут отправки: 1").assertExists()
     }
 }

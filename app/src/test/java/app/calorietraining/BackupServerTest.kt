@@ -201,13 +201,13 @@ class BackupServerScreenTest {
 
     private fun backupRow(): SemanticsNodeInteraction {
         val row = hasText("22.11.2026", substring = true) and hasClickAction()
-        ui.waitUntil(5_000) { ui.onAllNodes(row).fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(5_000) { ui.onAllNodes(row).fetchSemanticsNodes().isNotEmpty() }
         return ui.onNode(row)
     }
 
     private fun awaitText(text: String, substring: Boolean = false): SemanticsNodeInteraction {
         try {
-            ui.waitUntil(5_000) { ui.onAllNodesWithText(text, substring).fetchSemanticsNodes().isNotEmpty() }
+            ui.awaitUntil(5_000) { ui.onAllNodesWithText(text, substring).fetchSemanticsNodes().isNotEmpty() }
         } catch (error: ComposeTimeoutException) {
             throw AssertionError("Не найдено «$text».\n${ui.onRoot().printToString()}", error)
         }

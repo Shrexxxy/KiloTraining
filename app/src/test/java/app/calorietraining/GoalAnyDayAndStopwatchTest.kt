@@ -2,7 +2,6 @@ package app.calorietraining
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
@@ -19,7 +18,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowDialog
@@ -36,8 +34,7 @@ class GoalAnyDayAndStopwatchTest {
     private fun setGoalOnOpenDay() {
         val model = FoodViewModel(app)
         fun await() {
-            ui.waitUntil(10_000) {
-                shadowOf(Looper.getMainLooper()).idle()
+            ui.awaitUntil(10_000) {
                 !model.uiState.value.busy
             }
             assertNull(model.uiState.value.error)

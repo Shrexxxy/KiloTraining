@@ -52,7 +52,7 @@ class HomeScreenTest {
     private fun text(value: String) = ui.onNodeWithText(value)
     private fun tab(value: String) = ui.onNode(hasText(value) and isSelectable())
     private fun waitFor(matcher: SemanticsMatcher) {
-        ui.waitUntil(10_000) { ui.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(10_000) { ui.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test fun startsAtHomeWithFiveTabs() {
@@ -65,7 +65,7 @@ class HomeScreenTest {
 
     @Test fun nutritionSummaryOpensToday() {
         tab("Питание").performClick()
-        waitFor(hasText("Обед"))
+        waitFor(hasText("Изменить цель"))
         ui.onNodeWithContentDescription("Предыдущий день").performClick()
         waitFor(hasText(today.minusDays(1).caption()))
         ui.mealList().performScrollToNode(hasText("Вчерашняя запись"))
@@ -73,7 +73,7 @@ class HomeScreenTest {
         waitFor(hasText("осталось 1005 ккал"))
         ui.onNode(hasText("осталось 1005 ккал") and hasClickAction()).performClick()
         tab("Питание").assertIsSelected()
-        waitFor(hasText("Обед"))
+        waitFor(hasText("Изменить цель"))
         text("Вчерашняя запись").assertDoesNotExist()
     }
 

@@ -35,7 +35,7 @@ class UnifiedHeaderTest {
 
     private fun text(label: String) = ui.onNodeWithText(label)
     private fun await(label: String) {
-        ui.waitUntil(10_000) { ui.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(10_000) { ui.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty() }
     }
 
     private fun breakfast() {
@@ -44,6 +44,11 @@ class UnifiedHeaderTest {
     }
 
     private fun scanner() = ui.onNodeWithContentDescription("Сканировать штрихкод").performClick()
+
+    @Test fun opensBreakfastAfterLoading() {
+        breakfast()
+        text("Добавить · Завтрак").assertIsDisplayed()
+    }
 
     @Test fun scannerHeaderReturnsToMeal() {
         breakfast()
@@ -62,22 +67,27 @@ class UnifiedHeaderTest {
     }
 
     @Test fun editorHeaderDiscardsUnsavedEntry() {
-        breakfast()
+        lunch()
         text("Новый продукт").performClick()
         discardEntry { ui.headerBack() }
     }
 
     @Test fun systemBackDiscardsUnsavedEntry() {
-        breakfast()
+        lunch()
         text("Новый продукт").performClick()
         discardEntry { ui.runOnIdle { ui.activity.onBackPressedDispatcher.onBackPressed() } }
+    }
+
+    private fun lunch() {
+        ui.onNode(hasText("Питание") and isSelectable()).performClick()
+        await("Обед")
+        ui.addInMeal(Meal.LUNCH)
     }
 
     private fun discardEntry(back: () -> Unit) {
         text("Название").performTextInput("Черновик")
         back()
-        ui.mealList().assertExists()
-        text("Добавить · Завтрак").assertDoesNotExist()
+        text("Добавить · Обед").assertIsDisplayed()
         text("Новая запись").assertDoesNotExist()
         FoodStore(ui.activity.application).use { assertTrue(it.entries(LocalDate.now()).isEmpty()) }
     }

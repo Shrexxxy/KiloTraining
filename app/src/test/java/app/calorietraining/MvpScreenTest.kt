@@ -15,7 +15,7 @@ class MvpScreenTest {
     @get:Rule(order = 1) val ui = createAndroidComposeRule<MainActivity>()
     fun node(t: String) = ui.onNodeWithText(t)
     fun waitText(t: String) {
-        try { ui.waitUntil(10000) { ui.onAllNodesWithText(t).fetchSemanticsNodes().isNotEmpty() } }
+        try { ui.awaitUntil(10000) { ui.onAllNodesWithText(t).fetchSemanticsNodes().isNotEmpty() } }
         catch (e: ComposeTimeoutException) { throw AssertionError("Missing $t: " + ui.onRoot().printToString(),e) }
     }
 
@@ -48,7 +48,8 @@ class MvpScreenTest {
 
     @Test fun savesAndEditsSet() {
         node("Тренировки").performClick()
-        waitText("Начать тренировку")
+        val start = hasText("Начать тренировку") and isEnabled()
+        ui.awaitUntil(10_000) { ui.onAllNodes(start).fetchSemanticsNodes().isNotEmpty() }
         node("Начать тренировку").performClick()
         waitText("Добавить упражнение")
         node("Добавить упражнение").performClick()
