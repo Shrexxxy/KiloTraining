@@ -26,6 +26,7 @@ class RecipeFlowTest {
     }
 
     @Test fun barcodeIngredientBecomesLoggedPortion() {
+        node("Питание").performClick()
         FoodStore(RuntimeEnvironment.getApplication()).use { store ->
             store.cacheProduct("12345678", Product("Рис", "350", Macros("7","0","80")))
         }

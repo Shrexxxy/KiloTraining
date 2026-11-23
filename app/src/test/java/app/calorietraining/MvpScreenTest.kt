@@ -20,12 +20,14 @@ class MvpScreenTest {
     }
 
     @Test fun opensScanner() {
+        node("Питание").performClick()
         waitText("За этот день пока нет записей")
         node("Сканировать штрихкод").performClick()
         node("Открыть камеру").assertIsDisplayed()
         node("Цифры штрихкода").assertIsDisplayed()
     }
     @Test fun scanCallbackAddsCachedPortion() {
+        node("Питание").performClick()
         waitText("За этот день пока нет записей")
         FoodStore(ui.activity.application).use { it.cacheProduct("12345678",Product("Йогурт","120")) }
         node("Сканировать штрихкод").performClick()

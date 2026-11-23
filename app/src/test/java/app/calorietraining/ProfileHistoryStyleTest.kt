@@ -85,7 +85,7 @@ class ProfileHistoryStyleTest {
         val model = ProfileViewModel(app)
         ui.setContent { DiaryTheme(mode) {
             view = LocalView.current
-            DiaryBackground { ProfileScreen(model, mode, {}) }
+            DiaryBackground { ProfileScreen(model, {}) }
         } }
         ui.waitUntil(timeoutMillis = 10_000) { model.uiState.value.stats != null }
         ui.waitForIdle()
@@ -102,7 +102,7 @@ class ProfileHistoryStyleTest {
         val model = HistoryViewModel(app)
         ui.setContent { DiaryTheme(ThemeMode.DARK) {
             view = LocalView.current
-            DiaryBackground { HistoryScreen(model, {}, {}, {}) }
+            DiaryBackground { HistoryScreen(model, {}, {}) }
         } }
         ui.waitUntil(timeoutMillis = 10_000) { !model.uiState.value.loading }
         ui.waitForIdle()

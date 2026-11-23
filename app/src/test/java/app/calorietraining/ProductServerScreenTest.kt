@@ -49,7 +49,7 @@ class ProductServerScreenTest {
         ui.onNodeWithText("Чай повтор из каталога").assertDoesNotExist()
     }
 
-    @Test fun profilePersistsSettingsAndVerifiesConnection() {
+    @Test fun persistsSettingsAndVerifiesConnection() {
         val address = "http://192.168.1.10:5080"
         val key = "test-key"
         val model = ProfileViewModel(context, serverFactory = { configuredAddress, configuredKey ->
@@ -67,10 +67,10 @@ class ProductServerScreenTest {
         ui.setContent {
             DiaryTheme(ThemeMode.DARK) {
                 view = LocalView.current
-                ProfileScreen(model, ThemeMode.DARK, {})
+                SettingsScreen(model, ThemeMode.DARK, {}, {}, {})
             }
         }
-        ui.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Сервер продуктов"))
+        ui.onNodeWithText("Сервер продуктов").performScrollTo()
         ui.onNodeWithText("Сервер продуктов").assertExists()
         ui.onNode(hasSetTextAction() and hasText("Адрес")).performTextInput(address)
         ui.onNode(hasSetTextAction() and hasText("Ключ")).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password)).performTextInput(key)
@@ -88,7 +88,7 @@ class ProductServerScreenTest {
         }
     }
 
-    @Test fun profileDisplaysUnauthorizedStatusAfterSend() {
+    @Test fun settingsDisplayUnauthorizedStatusAfterSend() {
         val preferences = context.getSharedPreferences("server", Context.MODE_PRIVATE)
         preferences.edit().putString("address", "http://127.0.0.1:5080").putString("key", "test-key").commit()
         FoodStore(context).use { it.saveMyProduct(MyProduct(name = "Чай", energy = "20")) }
@@ -99,8 +99,8 @@ class ProductServerScreenTest {
                 }
             }
         })
-        ui.setContent { DiaryTheme(ThemeMode.DARK) { ProfileScreen(model, ThemeMode.DARK, {}) } }
-        ui.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Отправить сейчас"))
+        ui.setContent { DiaryTheme(ThemeMode.DARK) { SettingsScreen(model, ThemeMode.DARK, {}, {}, {}) } }
+        ui.onNodeWithText("Отправить сейчас").performScrollTo()
         ui.onNodeWithText("Отправить сейчас").performClick()
         ui.waitUntil(5_000) { ui.onAllNodesWithText("Неверный ключ").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithText("Ждут отправки: 1").assertExists()

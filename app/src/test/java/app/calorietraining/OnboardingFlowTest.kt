@@ -39,8 +39,8 @@ class OnboardingFlowTest {
         ui.onNode(hasText("2 760 ккал") or hasText("2\u00a0760 ккал") or hasText("2\u202f760 ккал")).assertIsDisplayed()
         capture("onboarding-result-dark.png")
         click("Сохранить цель")
-        ui.waitUntil(10_000) { ui.onAllNodes(hasText("Питание") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
-        ui.onNode(hasText("Питание") and isSelectable()).assertIsSelected()
+        ui.waitUntil(10_000) { ui.onAllNodes(hasText("Главная") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
+        ui.onNode(hasText("Главная") and isSelectable()).assertIsSelected()
         FoodStore(context).use { store ->
             assertEquals(goals, store.goalsFor(today))
             store.readableDatabase.rawQuery("SELECT weight, fat FROM measurement WHERE day=?",
@@ -59,14 +59,14 @@ class OnboardingFlowTest {
         ui.onNodeWithText("Ваша цель").assertDoesNotExist()
         ui.runOnIdle { instance.intValue++ }
         ui.onNodeWithText("Ваша цель").assertDoesNotExist()
-        ui.onNode(hasText("Питание") and isSelectable()).assertIsSelected()
+        ui.onNode(hasText("Главная") and isSelectable()).assertIsSelected()
     }
 
     @Test fun existingGoalSuppressesOnboardingWithoutProfile() {
         FoodStore(context).use { it.setGoals(today, goals) }
         launch()
         ui.onNodeWithText("Ваша цель").assertDoesNotExist()
-        ui.onNode(hasText("Питание") and isSelectable()).assertIsSelected()
+        ui.onNode(hasText("Главная") and isSelectable()).assertIsSelected()
     }
 
     @Test fun restoredGoalSuppressesOnboarding() {
@@ -81,7 +81,7 @@ class OnboardingFlowTest {
         }
         launch()
         ui.onNodeWithText("Ваша цель").assertDoesNotExist()
-        ui.onNode(hasText("Питание") and isSelectable()).assertIsSelected()
+        ui.onNode(hasText("Главная") and isSelectable()).assertIsSelected()
     }
 
     @Test fun manualGoalCanBeCancelledAndSavedWithProfile() {
@@ -94,7 +94,7 @@ class OnboardingFlowTest {
         click("Изменить вручную")
         field("Ккал в день").performTextReplacement("2500")
         click("Сохранить")
-        ui.waitUntil(10_000) { ui.onAllNodes(hasText("Питание") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil(10_000) { ui.onAllNodes(hasText("Главная") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
         FoodStore(context).use {
             assertEquals(DailyGoals(2500, MacroGoals(128, 72, 400)), it.goalsFor(today))
             val data = it.onboardingData(today)

@@ -62,7 +62,7 @@ class GlassWorkoutsTest {
             store.save(monday, FoodDraft(name = "Обед", weighted = false, energy = "900"))
         }
         ui.setContent {
-            DiaryTheme(ThemeMode.DARK) { DiaryBackground { HistoryScreen(model, {}, {}, {}) } }
+            DiaryTheme(ThemeMode.DARK) { DiaryBackground { HistoryScreen(model, {}, {}) } }
         }
         ui.waitUntil(10_000) { model.uiState.value.totals.containsKey(monday) }
         val dayRow = hasClickAction() and hasText("900 ккал")

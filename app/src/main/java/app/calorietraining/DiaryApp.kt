@@ -16,19 +16,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
-/** Показывает разделы дневника и передаёт выбор оформления в профиль. */
+/** Показывает разделы дневника и открывает настройки из профиля. */
 @Composable
 fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
-    var tab by rememberSaveable { mutableStateOf("Питание") }
+    var tab by rememberSaveable { mutableStateOf("Главная") }
     val training = tab == "Тренировки"
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as android.app.Application
     val backup: BackupViewModel = viewModel { BackupViewModel(app) }
     val backupState by backup.uiState.collectAsStateWithLifecycle()
+    var showingSettings by rememberSaveable { mutableStateOf(false) }
     var copying by rememberSaveable { mutableStateOf(false) }
     if (copying) {
         BackupScreen(backup) { copying = false }
@@ -53,7 +55,7 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
             onSaved = {
                 onboardingRevision++
                 questionnaire = false
-                tab = "Питание"
+                tab = "Главная"
             },
             onBack = { questionnaire = false },
             onSkip = {
@@ -65,9 +67,13 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     }
     val food: FoodViewModel = viewModel(key = "food-$revision") { FoodViewModel(app) }
     val foodState by food.uiState.collectAsStateWithLifecycle()
-    val workout: WorkoutViewModel? = if (training) viewModel(key = "workout-${backupState.revision}") { WorkoutViewModel(app) } else null
-    val workoutState = workout?.uiState?.collectAsStateWithLifecycle()?.value
-    val editing = if(training) workoutState?.draft != null else foodState.draft != null || foodState.scanning || foodState.recipes != null
+    val workout: WorkoutViewModel = viewModel(key = "workout-${backupState.revision}") { WorkoutViewModel(app) }
+    val workoutState by workout.uiState.collectAsStateWithLifecycle()
+    val editing = when (tab) {
+        "Тренировки" -> workoutState.draft != null
+        "Питание" -> foodState.draft != null || foodState.scanning || foodState.recipes != null
+        else -> false
+    }
     var fromHistory by rememberSaveable { mutableStateOf(false) }
     var requestedDay by rememberSaveable { mutableStateOf<String?>(null) }
     var requestedSession by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -85,27 +91,35 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
         tab = title
     }
     BackHandler(enabled = fromHistory && !editing && !training) { selectTab("История") }
-    LaunchedEffect(requestedDay, requestedSession, tab, foodState.busy, workoutState?.busy) {
+    LaunchedEffect(requestedDay, requestedSession, tab, foodState.busy, workoutState.busy) {
         val session = requestedSession
-        if (training && session != null && workout != null && workoutState?.busy == false) {
+        if (training && session != null && !workoutState.busy) {
             workout.event(WorkoutEvent.Open(session))
             requestedSession = null
             requestedDay = null
-        } else if (!training && !foodState.busy) {
+        } else if (tab == "Питание" && !foodState.busy) {
             val day = requestedDay?.let(LocalDate::parse) ?: return@LaunchedEffect
             food.onEvent(FoodEvent.Day(day))
             requestedDay = null
         }
     }
+    if (showingSettings) {
+        DiaryBackground {
+            val model: ProfileViewModel = viewModel(key = "profile-" + revision) { ProfileViewModel(app) }
+            SettingsScreen(model, mode, onThemeChange,
+                onBackup = { copying = true }, onBack = { showingSettings = false })
+        }
+        return
+    }
     DiaryBackground {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) {
                 if (tab == "История") historyHolder.SaveableStateProvider("history") {
-                    HistoryScreen(viewModel { HistoryViewModel(app) }, onBackup = { copying = true },
+                    HistoryScreen(viewModel { HistoryViewModel(app) },
                         onFoodDay = { openDiary("Питание", it) },
                         onWorkout = { openDiary("Тренировки", it.date, it.id) })
                 }
-                else if(workout != null && workoutState != null) {
+                else if (training) {
                     LaunchedEffect(workout) { workout.event(WorkoutEvent.Refresh) }
                     WorkoutContent(workoutState, { event ->
                         workout.event(event)
@@ -113,14 +127,24 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
                     })
                 }
                 else if (tab == "Профиль") ProfileScreen(
-                    viewModel(key = "profile-$revision") { ProfileViewModel(app) }, mode, onThemeChange,
+                    viewModel(key = "profile-$revision") { ProfileViewModel(app) }, { showingSettings = true },
                     onboardingData.profile, onboardingData.measurement,
                     onRecalculate = { measurement ->
                         questionnaireWeight = measurement
                         questionnaire = true
                     }
                 )
-                else FoodContent(foodState,food::onEvent)
+                else if (tab == "Главная") HomeScreen(app, workoutState,
+                    openNutrition = { day ->
+                        selectTab("Питание")
+                        requestedDay = day.toString()
+                    },
+                    openWorkout = { active ->
+                        selectTab("Тренировки")
+                        workout.event(if (active == null) WorkoutEvent.StartLive else WorkoutEvent.Open(active.id))
+                    },
+                )
+                else FoodContent(foodState, food::onEvent)
             }
             if (!editing) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -129,11 +153,14 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     tonalElevation = 0.dp,
                 ) {
-                    listOf("Питание" to R.drawable.ic_nav_food, "Тренировки" to R.drawable.ic_nav_workout,
+                    listOf("Главная" to R.drawable.ic_nav_home, "Питание" to R.drawable.ic_nav_food, "Тренировки" to R.drawable.ic_nav_workout,
                         "История" to R.drawable.ic_nav_history, "Профиль" to R.drawable.ic_nav_profile).forEach { (title, icon) ->
                         NavigationBarItem(selected = tab == title, onClick = { selectTab(title) },
                             icon = { Icon(painterResource(icon), contentDescription = null) },
-                            label = { Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) },
+                            label = {
+                                Text(title, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp,
+                                    letterSpacing = 0.sp, maxLines = 1, softWrap = false)
+                            },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                 selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
                     }
