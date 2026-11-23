@@ -97,6 +97,12 @@ namespace CalorieTraining.Server.Migrations
                         .HasColumnType("numeric(7,2)")
                         .HasColumnName("protein");
 
+                    b.Property<bool>("Ru")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("ru");
+
                     b.Property<string>("SearchKey")
                         .IsRequired()
                         .HasColumnType("text")

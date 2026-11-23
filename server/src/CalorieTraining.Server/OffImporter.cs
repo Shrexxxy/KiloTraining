@@ -22,14 +22,17 @@ internal static class OffImporter
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("Укажите строку подключения ConnectionStrings:Products.");
 
-        if (args.Length != 0 && (args.Length != 2 || args[0] is not ("--file" or "--url") ||
-                                 string.IsNullOrWhiteSpace(args[1]) || args[1].StartsWith("--", StringComparison.Ordinal)))
-            throw new ArgumentException("Использование: import-off [--file <путь> | --url <адрес>].");
+        var sourceArgs = args.Where(arg => arg != "--only-russia").ToArray();
+        var russiaFlags = args.Length - sourceArgs.Length;
+        if (russiaFlags > 1 || sourceArgs.Length != 0 &&
+            (sourceArgs.Length != 2 || sourceArgs[0] is not ("--file" or "--url") ||
+             string.IsNullOrWhiteSpace(sourceArgs[1]) || sourceArgs[1].StartsWith("--", StringComparison.Ordinal)))
+            throw new ArgumentException("Использование: import-off [--only-russia] [--file <путь> | --url <адрес>].");
 
-        var file = args is ["--file", var path] ? path : null;
-        var url = args is ["--url", var address] ? address : null;
+        var file = sourceArgs is ["--file", var path] ? path : null;
+        var url = sourceArgs is ["--url", var address] ? address : null;
         var stopwatch = Stopwatch.StartNew();
-        var result = await RunAsync(connectionString, file, url, CancellationToken.None);
+        var result = await RunAsync(connectionString, file, url, CancellationToken.None, onlyRussia: russiaFlags == 1);
         Console.WriteLine($"Прочитано: {result.Read}; подходит: {result.Eligible}; добавлено: {result.Added}; обновлено: {result.Updated}.");
         Console.WriteLine($"Пропущено (свои карточки): {result.Phone}; без изменений: {result.Unchanged}; повторы в пакете: {result.Duplicates}.");
         var reasons = string.Join(", ", result.Rejected.Select(pair => $"{pair.Key}: {pair.Value}"));
@@ -38,7 +41,7 @@ internal static class OffImporter
     }
 
     internal static async Task<OffImportResult> RunAsync(string connectionString, string? file, string? url,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool onlyRussia = false)
     {
         var address = url ?? DefaultUrl;
         using var http = new HttpClient();
@@ -71,7 +74,7 @@ internal static class OffImporter
             CREATE TEMP TABLE off_batch (
                 barcode text PRIMARY KEY, name text NOT NULL, brand text,
                 kcal numeric(7,2) NOT NULL, protein numeric(7,2), fat numeric(7,2), carbs numeric(7,2),
-                search_key text NOT NULL
+                search_key text NOT NULL, ru boolean NOT NULL
             )
             """, cancellationToken);
 
@@ -92,7 +95,7 @@ internal static class OffImporter
                 fields = null;
             }
 
-            var reason = Parse(fields, header.Length, positions, out var product);
+            var reason = Parse(fields, header.Length, positions, onlyRussia, out var product);
             if (reason is not null)
             {
                 rejected[reason] = rejected.GetValueOrDefault(reason) + 1;
@@ -127,13 +130,14 @@ internal static class OffImporter
         }
     }
 
-    private static string? Parse(string[]? fields, int width, int[] positions, out OffProduct? product)
+    private static string? Parse(string[]? fields, int width, int[] positions, bool onlyRussia, out OffProduct? product)
     {
         product = null;
         if (fields is null || fields.Length != width)
             return "формат";
 
-        if (!fields[positions[3]].Split(',').Contains("en:russia", StringComparer.Ordinal))
+        var taggedRussia = fields[positions[3]].Split(',').Contains("en:russia", StringComparer.Ordinal);
+        if (onlyRussia && !taggedRussia)
             return "страна";
 
         var barcode = fields[positions[0]];
@@ -152,9 +156,10 @@ internal static class OffImporter
             return "формат";
 
         long.TryParse(fields[positions[8]], NumberStyles.Integer, CultureInfo.InvariantCulture, out var modified);
+        var ru = taggedRussia || (barcode.Length == 13 && barcode[0] == '4' && barcode[1] == '6');
         product = new OffProduct(barcode, name, brand.Length == 0 ? null : brand, kcal,
             ParseNutrition(fields[positions[5]], 100), ParseNutrition(fields[positions[6]], 100),
-            ParseNutrition(fields[positions[7]], 100), SearchKey.Normalize(name), modified);
+            ParseNutrition(fields[positions[7]], 100), SearchKey.Normalize(name), ru, modified);
         return null;
     }
 
@@ -167,7 +172,7 @@ internal static class OffImporter
     {
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using (var writer = await connection.BeginBinaryImportAsync("""
-            COPY off_batch (barcode, name, brand, kcal, protein, fat, carbs, search_key)
+            COPY off_batch (barcode, name, brand, kcal, protein, fat, carbs, search_key, ru)
             FROM STDIN (FORMAT BINARY)
             """, cancellationToken))
         {
@@ -185,6 +190,7 @@ internal static class OffImporter
                 await WriteNutritionAsync(product.Fat);
                 await WriteNutritionAsync(product.Carbs);
                 await writer.WriteAsync(product.SearchKey, NpgsqlDbType.Text, cancellationToken);
+                await writer.WriteAsync(product.Ru, NpgsqlDbType.Boolean, cancellationToken);
             }
 
             await writer.CompleteAsync(cancellationToken);
@@ -196,9 +202,9 @@ internal static class OffImporter
 
         // Уникальный индекс штрихкода частичный, поэтому предикат нужен и при обработке конфликта.
         var added = await ExecuteAsync(connection, """
-            INSERT INTO products (id, barcode, name, brand, kcal, protein, fat, carbs, source, created_at, updated_at, search_key)
+            INSERT INTO products (id, barcode, name, brand, kcal, protein, fat, carbs, source, created_at, updated_at, search_key, ru)
             SELECT gen_random_uuid(), barcode, name, brand, kcal, protein, fat, carbs,
-                   'openfoodfacts', now(), now(), search_key
+                   'openfoodfacts', now(), now(), search_key, ru
             FROM off_batch ORDER BY barcode
             ON CONFLICT (barcode) WHERE barcode IS NOT NULL DO NOTHING
             """, cancellationToken);
@@ -206,11 +212,11 @@ internal static class OffImporter
         var updated = await ExecuteAsync(connection, """
             UPDATE products AS p
             SET name = b.name, brand = b.brand, kcal = b.kcal, protein = b.protein,
-                fat = b.fat, carbs = b.carbs, search_key = b.search_key, updated_at = now()
+                fat = b.fat, carbs = b.carbs, search_key = b.search_key, ru = b.ru, updated_at = now()
             FROM off_batch AS b
             WHERE p.barcode = b.barcode AND p.source = 'openfoodfacts'
-              AND (p.name, p.brand, p.kcal, p.protein, p.fat, p.carbs, p.search_key)
-                  IS DISTINCT FROM (b.name, b.brand, b.kcal, b.protein, b.fat, b.carbs, b.search_key)
+              AND (p.name, p.brand, p.kcal, p.protein, p.fat, p.carbs, p.search_key, p.ru)
+                  IS DISTINCT FROM (b.name, b.brand, b.kcal, b.protein, b.fat, b.carbs, b.search_key, b.ru)
             """, cancellationToken);
 
         await using var countPhone = new NpgsqlCommand("""
@@ -229,7 +235,7 @@ internal static class OffImporter
     }
 
     private sealed record OffProduct(string Barcode, string Name, string? Brand, decimal Kcal, decimal? Protein,
-        decimal? Fat, decimal? Carbs, string SearchKey, long Modified);
+        decimal? Fat, decimal? Carbs, string SearchKey, bool Ru, long Modified);
 }
 
 internal sealed record OffImportResult(long Read, long Eligible, long Added, long Updated, long Phone,
