@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,12 +15,8 @@ import java.math.RoundingMode
 internal fun RecipeContent(state: FoodUiState, event: (FoodEvent) -> Unit, modifier: Modifier = Modifier) {
     val recipe = state.recipe
     fun back() = event(if (recipe == null) FoodEvent.LeaveRecipes else FoodEvent.EditRecipe(null))
-    BackHandler { back() }
     Column(modifier.fillMaxSize().imePadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(if (recipe == null) "Мои рецепты" else "Рецепт", style = MaterialTheme.typography.headlineMedium)
-            TextButton(onClick = ::back) { Text(if (recipe == null) "Назад" else "Отмена") }
-        }
+        ScreenHeader(if (recipe == null) "Мои рецепты" else "Рецепт", onBack = ::back)
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (recipe == null) {
             RecipeList(state.recipes.orEmpty(), event, Modifier.weight(1f))

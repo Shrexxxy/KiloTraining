@@ -92,13 +92,13 @@ class HomeScreenTest {
     @Test fun addFoodOpensNextEmptyMeal() {
         text("Добавить еду").performClick()
         waitFor(hasText("Добавить · Обед"))
-        text("Ввести вручную").performClick()
+        text("Новый продукт").performClick()
         text("На 100 г").performClick()
         text("Название").performTextInput("Суп")
         text("Вес порции, г").performTextInput("300")
         text("Ккал на 100 г").performTextInput("50")
         text("Сохранить").performClick()
-        ui.waitUntil(10_000) { ui.onAllNodes(hasText("Ввести вручную")).fetchSemanticsNodes().isEmpty() }
+        waitFor(hasContentDescription("Выбрать дату, ${today.caption()}"))
         FoodStore(ui.activity).use { store ->
             assertEquals(Meal.LUNCH, store.entries(today).single { it.name == "Суп" }.meal)
         }
@@ -156,9 +156,9 @@ class HomeScreenTest {
         assertEquals(ThemeMode.LIGHT, ThemeSettings(ui.activity).mode)
         text("Резервная копия").performScrollTo().performClick()
         text("Сохранить копию").assertIsDisplayed()
-        text("Назад").performScrollTo().performClick()
+        ui.headerBack()
         text("Оформление").assertExists()
-        text("Назад").performScrollTo().performClick()
+        ui.headerBack()
         tab("Профиль").assertIsSelected()
     }
 

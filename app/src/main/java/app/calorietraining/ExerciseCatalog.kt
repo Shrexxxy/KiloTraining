@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -106,9 +105,8 @@ internal fun usesDumbbell(name: String): Boolean =
 internal fun ExercisePicker(onSelect: (ExercisePhoto) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
     val matches = remember(query) { searchExercises(query) }
-    BackHandler(onBack = onClose)
     Column(modifier.fillMaxSize().imePadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Каталог упражнений", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium)
+        ScreenHeader("Каталог упражнений", onBack = onClose)
         DiaryTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
             label = { Text("Название или группа мышц") })
         LazyColumn(Modifier.weight(1f)) {
@@ -125,7 +123,6 @@ internal fun ExercisePicker(onSelect: (ExercisePhoto) -> Unit, onClose: () -> Un
                 HorizontalDivider()
             }
         }
-        TextButton(onClick = onClose) { Text("Вернуться к вводу") }
     }
 }
 

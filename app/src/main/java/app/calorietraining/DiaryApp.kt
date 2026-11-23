@@ -190,23 +190,21 @@ fun ScannerScreen(state: FoodUiState, onEvent: (FoodEvent)->Unit) {
         if(code != null && validBarcode(code)) onEvent(FoodEvent.Barcode(code))
         else message = if(code == null) "Сканирование закрыто. Можно ввести цифры вручную." else "Нужен товарный штрихкод с упаковки."
     }
-    BackHandler { onEvent(FoodEvent.Close) }
     Scaffold(containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
         Column(Modifier.padding(padding).imePadding().fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement=Arrangement.spacedBy(14.dp)) {
-            Text("Штрихкод продукта",style=MaterialTheme.typography.headlineMedium)
-            Button(onClick={
+            ScreenHeader("Штрихкод продукта", onBack = { onEvent(FoodEvent.Close) })
+            Button(modifier = Modifier.fillMaxWidth(), onClick={
                 launcher.launch(ScanOptions().setDesiredBarcodeFormats(listOf("EAN_8","EAN_13","UPC_A","UPC_E","ITF"))
                     .setBeepEnabled(false).setOrientationLocked(false).setPrompt("Наведите камеру на штрихкод"))
             }) { Text("Открыть камеру") }
-            DiaryTextField(digits,{ digits=it },singleLine=true,label={Text("Цифры штрихкода")},
+            DiaryTextField(digits,{ digits=it },Modifier.fillMaxWidth(),singleLine=true,label={Text("Цифры штрихкода")},
                 keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number))
-            OutlinedButton(enabled=validBarcode(digits),onClick={ onEvent(FoodEvent.Barcode(digits)) }) { Text("Найти продукт") }
+            OutlinedButton(modifier = Modifier.fillMaxWidth(), enabled=validBarcode(digits),onClick={ onEvent(FoodEvent.Barcode(digits)) }) { Text("Найти продукт") }
             if(state.busy) Text("Ищем продукт…")
             if(message.isNotBlank()) Text(message)
             state.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
             Text("Каталог: Open Food Facts · ODbL",style=MaterialTheme.typography.bodySmall)
-            TextButton(onClick={onEvent(FoodEvent.Close)}) { Text("Назад") }
         }
     }
 }

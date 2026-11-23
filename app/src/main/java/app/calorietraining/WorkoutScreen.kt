@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,7 +18,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
-import androidx.compose.ui.res.painterResource
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.Duration
@@ -133,7 +131,6 @@ private fun workoutNow(state: WorkoutState, workout: Workout?, event: (WorkoutEv
 
 @Composable
 private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (WorkoutEvent) -> Unit) {
-    BackHandler { event(WorkoutEvent.BackToList) }
     var finishing by rememberSaveable { mutableStateOf(false) }
     val now = workoutNow(state, workout, event)
     WorkoutActions(state, workout, event)
@@ -257,15 +254,7 @@ private fun WorkoutActions(state: WorkoutState, workout: Workout, event: (Workou
         }) { Text("Сохранить") } },
         dismissButton = { TextButton(onClick = { renaming = false; savingTemplate = false }) { Text("Отмена") } }
     )
-    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-        IconButton(onClick = { event(WorkoutEvent.BackToList) }) {
-            Icon(painterResource(R.drawable.ic_chevron_left), "Назад")
-        }
-        Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(workout.dateTimeCaption(), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+    ScreenHeader(label, onBack = { event(WorkoutEvent.BackToList) }, subtitle = workout.dateTimeCaption()) {
         Box {
             TextButton(onClick = { menu = true }) { Text("Действия") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -330,7 +319,6 @@ private fun WorkoutTemplateMenu(state: WorkoutState, event: (WorkoutEvent) -> Un
 @Composable
 private fun SetEditor(state: WorkoutState, session: Long, draft: SetDraft, event: (WorkoutEvent) -> Unit) {
     val colors = MaterialTheme.colorScheme
-    BackHandler { event(WorkoutEvent.Close) }
     var confirmDelete by rememberSaveable(draft.id) { mutableStateOf(false) }
     if (confirmDelete) {
         AlertDialog(
@@ -359,11 +347,14 @@ private fun SetEditor(state: WorkoutState, session: Long, draft: SetDraft, event
             .filter { it.group == draft.group }.inExecutionOrder()
         val editing = draft.id != null
         val newExercise = !editing && group.isEmpty()
-        Text(when {
-            editing -> "Изменить подход"
-            newExercise -> "Новое упражнение"
-            else -> "Новый подход · ${draft.exercise}"
-        }, Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineLarge)
+        ScreenHeader(
+            title = when {
+                editing -> "Изменить подход"
+                newExercise -> "Новое упражнение"
+                else -> "Новый подход · ${draft.exercise}"
+            },
+            onBack = { event(WorkoutEvent.Close) },
+        )
         if (editing) {
             val status = when {
                 draft.planned -> "в плане"
@@ -425,7 +416,6 @@ private fun SetEditor(state: WorkoutState, session: Long, draft: SetDraft, event
                 else -> "Вернуть в план"
             })
         }
-        TextButton(onClick={event(WorkoutEvent.Close)}) { Text("Отмена") }
         if (draft.id != null) TextButton(onClick = { confirmDelete = true }) {
             Text("Удалить подход", color = colors.error)
         }

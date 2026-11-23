@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,10 +34,9 @@ internal fun MyProductsScreen(
             if (editing == null) onClose() else editing = null
         }
     }
-    BackHandler(onBack = close)
     Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
-            TextButton(onClick = close, enabled = !busy) { Text("Назад") }
+            ScreenHeader(if (editing == null) "Мои продукты" else "Продукт", onBack = close, backEnabled = !busy)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             val card = editing
             if (card != null) {
@@ -62,7 +60,6 @@ internal fun MyProductsScreen(
                     dismissButton = { TextButton(onClick = { confirming = false }) { Text("Отмена") } }
                 )
             } else {
-                Text("Мои продукты", style = MaterialTheme.typography.headlineMedium)
                 DiaryTextField(query, { query = it }, Modifier.fillMaxWidth().padding(top = 12.dp),
                     label = { Text("Поиск по продуктам") }, singleLine = true)
                 TextButton(onClick = { editing = MyProduct() }, enabled = !busy) { Text("Новый продукт") }
