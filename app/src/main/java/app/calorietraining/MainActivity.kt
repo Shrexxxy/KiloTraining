@@ -240,7 +240,7 @@ internal fun GoalDialog(
 
 @Composable
 private fun GoalField(label: String, value: String, change: (String) -> Unit) {
-    OutlinedTextField(value, change, label = { Text(label) }, singleLine = true,
+    DiaryTextField(value, change, label = { Text(label) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 }
 
@@ -314,7 +314,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                         }
                     }
                 }
-                OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, Modifier.fillMaxWidth().focusRequester(nameFocus),
+                DiaryTextField(draft.name, { edit(draft.copy(name = it)) }, Modifier.fillMaxWidth().focusRequester(nameFocus),
                     label = { Text("Название") }, singleLine = true)
                 if (scanCode == null && draft.barcode != null && state.hint.isNotBlank()) Text(state.hint, style = MaterialTheme.typography.bodySmall)
                 if (draft.barcode == null && state.recipe == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -324,7 +324,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                         onClick = { if (!draft.weighted) edit(draft.copy(weighted = true, energy = "", macros = Macros())) })
                 }
                 if (state.recipe == null) {
-                    OutlinedTextField(draft.mealTime, { edit(draft.copy(mealTime = it)) }, Modifier.fillMaxWidth(),
+                    DiaryTextField(draft.mealTime, { edit(draft.copy(mealTime = it)) }, Modifier.fillMaxWidth(),
                         label = { Text("Время еды") }, placeholder = { Text("ЧЧ:ММ") }, singleLine = true,
                         isError = !validMealTime(draft.mealTime), supportingText = { Text("Можно оставить пустым") })
                     var choosingMeal by rememberSaveable { mutableStateOf(false) }
@@ -365,7 +365,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
 
 @Composable
 internal fun AmountField(label: String, value: String, enabled: Boolean, change: (String) -> Unit) {
-    OutlinedTextField(value, change, modifier = Modifier.fillMaxWidth(), enabled = enabled,
+    DiaryTextField(value, change, modifier = Modifier.fillMaxWidth(), enabled = enabled,
         singleLine = true, label = { Text(label) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
 }

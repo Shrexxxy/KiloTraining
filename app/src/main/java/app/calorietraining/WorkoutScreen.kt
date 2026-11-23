@@ -196,7 +196,7 @@ private fun WorkoutActions(state: WorkoutState, workout: Workout, event: (Workou
         AlertDialog(onDismissRequest = { editingDuration = false },
             title = { Text("Длительность тренировки") },
             text = {
-                OutlinedTextField(input, { input = it }, singleLine = true, isError = !valid,
+                DiaryTextField(input, { input = it }, singleLine = true, isError = !valid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     label = { Text("Минуты") }, supportingText = {
                         Text(if (valid) "Можно оставить пустым" else "Введите от 1 до 1440 минут")
@@ -247,7 +247,7 @@ private fun WorkoutActions(state: WorkoutState, workout: Workout, event: (Workou
         onDismissRequest = { renaming = false; savingTemplate = false },
         title = { Text(if (savingTemplate) "Название шаблона" else "Название тренировки") },
         text = {
-            OutlinedTextField(title, { title = it }, singleLine = true,
+            DiaryTextField(title, { title = it }, singleLine = true,
                 label = { Text("Название") }, placeholder = { Text("Спина и бицепс") })
         },
         confirmButton = { TextButton(enabled = (!savingTemplate || title.isNotBlank()), onClick = {
@@ -383,7 +383,7 @@ private fun SetEditor(state: WorkoutState, session: Long, draft: SetDraft, event
             }
         } else {
             OutlinedButton(onClick = { choosing = true }) { Text("Выбрать из каталога") }
-            OutlinedTextField(draft.exercise, { edit(draft.copy(exercise = it)) },
+            DiaryTextField(draft.exercise, { edit(draft.copy(exercise = it)) },
                 label = { Text("Название упражнения") }, singleLine = true)
         }
         if (newExercise) catalogExercise?.let { ExerciseFrames(it) }
@@ -408,9 +408,9 @@ private fun SetEditor(state: WorkoutState, session: Long, draft: SetDraft, event
             FilterChip(selected = !draft.warmup, onClick = { edit(draft.copy(warmup = false)) }, label = { Text("Рабочий") })
             FilterChip(selected = draft.warmup, onClick = { edit(draft.copy(warmup = true)) }, label = { Text("Разминочный") })
         }
-        OutlinedTextField(draft.weight,{edit(draft.copy(weight=it))},label={Text(if (usesDumbbell(draft.exercise)) "Вес одной гантели, кг" else "Вес, кг")},singleLine=true,
+        DiaryTextField(draft.weight,{edit(draft.copy(weight=it))},label={Text(if (usesDumbbell(draft.exercise)) "Вес одной гантели, кг" else "Вес, кг")},singleLine=true,
             supportingText={Text("Оставьте пустым для своего веса")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
-        OutlinedTextField(draft.reps,{edit(draft.copy(reps=it))},label={Text("Повторы")},singleLine=true,
+        DiaryTextField(draft.reps,{edit(draft.copy(reps=it))},label={Text("Повторы")},singleLine=true,
             keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number))
         state.error?.let {Text(it,color=colors.error)}
         Button(enabled = draft.valid, onClick = {
@@ -464,9 +464,9 @@ private fun WorkoutDateTimeDialog(title: String, action: String, initial: LocalD
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { calendar = true }) { Text("Дата"); Text(" · ${date.caption()}") }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(hours, { hours = it }, Modifier.width(104.dp), label = { Text("Часы") },
+                    DiaryTextField(hours, { hours = it }, Modifier.width(104.dp), label = { Text("Часы") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                    OutlinedTextField(minutes, { minutes = it }, Modifier.width(104.dp), label = { Text("Минуты") },
+                    DiaryTextField(minutes, { minutes = it }, Modifier.width(104.dp), label = { Text("Минуты") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                 }
             }
@@ -495,7 +495,7 @@ private fun TemplateChangeDialog(templates: List<WorkoutTemplate>, source: Strin
                     TextButton(onClick = { selectedId = template.id; name = template.title }) { Text(template.title) }
                 }
             } else if (source == null) {
-                OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Название") })
+                DiaryTextField(name, { name = it }, singleLine = true, label = { Text("Название") })
             } else Text("Подходы из тренировки «$source» заменят текущие подходы шаблона.")
         },
         confirmButton = {

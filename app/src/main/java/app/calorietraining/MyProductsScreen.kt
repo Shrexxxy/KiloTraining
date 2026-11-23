@@ -63,7 +63,7 @@ internal fun MyProductsScreen(
                 )
             } else {
                 Text("Мои продукты", style = MaterialTheme.typography.headlineMedium)
-                OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(top = 12.dp),
+                DiaryTextField(query, { query = it }, Modifier.fillMaxWidth().padding(top = 12.dp),
                     label = { Text("Поиск по продуктам") }, singleLine = true)
                 TextButton(onClick = { editing = MyProduct() }, enabled = !busy) { Text("Новый продукт") }
                 if (products.isEmpty()) {
@@ -101,12 +101,12 @@ private fun ProductEditor(card: MyProduct, onChange: (MyProduct) -> Unit, onSave
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(if (card.id == null) "Новый продукт" else "Правка продукта", style = MaterialTheme.typography.headlineMedium)
-        OutlinedTextField(card.name, { onChange(card.copy(name = it)) }, Modifier.fillMaxWidth(),
+        DiaryTextField(card.name, { onChange(card.copy(name = it)) }, Modifier.fillMaxWidth(),
             label = { Text("Название") }, singleLine = true)
-        OutlinedTextField(card.brand, { onChange(card.copy(brand = it)) }, Modifier.fillMaxWidth(),
+        DiaryTextField(card.brand, { onChange(card.copy(brand = it)) }, Modifier.fillMaxWidth(),
             label = { Text("Бренд") }, singleLine = true)
         card.barcode?.let {
-            OutlinedTextField(it, {}, Modifier.fillMaxWidth(), label = { Text("Штрихкод") },
+            DiaryTextField(it, {}, Modifier.fillMaxWidth(), label = { Text("Штрихкод") },
                 readOnly = true, singleLine = true)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -127,7 +127,7 @@ private fun ProductEditor(card: MyProduct, onChange: (MyProduct) -> Unit, onSave
 
 @Composable
 private fun ProductNumber(label: String, value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true,
+    DiaryTextField(value, onChange, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
 }
 

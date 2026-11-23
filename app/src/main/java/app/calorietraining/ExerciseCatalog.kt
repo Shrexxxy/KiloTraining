@@ -109,7 +109,7 @@ internal fun ExercisePicker(onSelect: (ExercisePhoto) -> Unit, onClose: () -> Un
     BackHandler(onBack = onClose)
     Column(modifier.fillMaxSize().imePadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Каталог упражнений", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium)
-        OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
+        DiaryTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
             label = { Text("Название или группа мышц") })
         LazyColumn(Modifier.weight(1f)) {
             if (matches.isEmpty()) item { Text("Совпадений нет", Modifier.padding(vertical = 16.dp)) }

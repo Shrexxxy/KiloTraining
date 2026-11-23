@@ -161,7 +161,7 @@ fun ScannerScreen(state: FoodUiState, onEvent: (FoodEvent)->Unit) {
                 launcher.launch(ScanOptions().setDesiredBarcodeFormats(listOf("EAN_8","EAN_13","UPC_A","UPC_E","ITF"))
                     .setBeepEnabled(false).setOrientationLocked(false).setPrompt("Наведите камеру на штрихкод"))
             }) { Text("Открыть камеру") }
-            OutlinedTextField(digits,{ digits=it },singleLine=true,label={Text("Цифры штрихкода")},
+            DiaryTextField(digits,{ digits=it },singleLine=true,label={Text("Цифры штрихкода")},
                 keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number))
             OutlinedButton(enabled=validBarcode(digits),onClick={ onEvent(FoodEvent.Barcode(digits)) }) { Text("Найти продукт") }
             if(state.busy) Text("Ищем продукт…")

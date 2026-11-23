@@ -182,7 +182,7 @@ private fun OnboardingField(
     decimal: Boolean = false, hint: String? = null,
 ) {
     val invalid = value.isNotEmpty() && !valid
-    OutlinedTextField(value, change, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true,
+    DiaryTextField(value, change, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true,
         isError = invalid, supportingText = if (invalid || hint != null) ({ Text(if (invalid) error else hint.orEmpty()) }) else null,
         keyboardOptions = KeyboardOptions(keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number))
 }
