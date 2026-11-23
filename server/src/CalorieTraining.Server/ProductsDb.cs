@@ -23,6 +23,7 @@ internal sealed class ProductsDb(DbContextOptions<ProductsDb> options) : DbConte
         product.Property(p => p.Protein).HasPrecision(7, 2);
         product.Property(p => p.Fat).HasPrecision(7, 2);
         product.Property(p => p.Carbs).HasPrecision(7, 2);
+        product.Property(p => p.Ru).HasDefaultValue(false);
         product.HasIndex(p => p.Barcode).IsUnique().HasFilter("barcode IS NOT NULL");
         product.HasIndex(p => p.SearchKey, "ix_products_phone_without_barcode").IsUnique()
             .HasFilter("barcode IS NULL AND source = 'phone'");
@@ -67,6 +68,10 @@ internal sealed class Product
     /// <summary>Источник карточки.</summary>
     [Column("source")]
     public required string Source { get; init; }
+
+    /// <summary>Признак российского товара из Open Food Facts.</summary>
+    [Column("ru")]
+    public bool Ru { get; init; }
 
     /// <summary>Время создания в UTC.</summary>
     [Column("created_at")]

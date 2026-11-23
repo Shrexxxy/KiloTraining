@@ -164,6 +164,8 @@ public sealed class ProductsFixture : IAsyncLifetime
         await database.DisposeAsync();
     }
 
+    internal string ConnectionString => database.GetConnectionString();
+
     /// <summary>Создаёт клиент с указанным ключом.</summary>
     public HttpClient CreateClient(string? key = Key)
     {

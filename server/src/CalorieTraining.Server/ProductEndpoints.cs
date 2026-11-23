@@ -38,6 +38,7 @@ internal static class ProductEndpoints
         var matches = await db.Products.AsNoTracking()
             .Where(p => EF.Functions.Like(p.SearchKey, pattern, "\\"))
             .OrderByDescending(p => p.Source == "phone")
+            .ThenByDescending(p => p.Ru)
             .ThenByDescending(p => EF.Functions.TrigramsSimilarity(p.SearchKey, query))
             .ThenBy(p => p.Name)
             .ThenBy(p => p.Id)

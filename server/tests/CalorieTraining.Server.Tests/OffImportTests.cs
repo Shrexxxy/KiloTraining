@@ -50,7 +50,7 @@ public sealed class OffImportTests
             await using (var writer = new StreamWriter(archive))
                 await writer.WriteAsync(input);
 
-            var first = await OffImporter.RunAsync(connection, file, null, CancellationToken.None);
+            var first = await OffImporter.RunAsync(connection, file, null, CancellationToken.None, onlyRussia: true);
             first.Read.Should().Be(8);
             first.Eligible.Should().Be(4);
             first.Added.Should().Be(3);
@@ -74,7 +74,7 @@ public sealed class OffImportTests
             try
             {
                 await File.WriteAllTextAsync(plain, input.Replace("\t120\t", "\t125\t", StringComparison.Ordinal));
-                var second = await OffImporter.RunAsync(connection, plain, null, CancellationToken.None);
+                var second = await OffImporter.RunAsync(connection, plain, null, CancellationToken.None, onlyRussia: true);
                 second.Updated.Should().Be(1);
                 second.Added.Should().Be(0);
                 second.Unchanged.Should().Be(2);
