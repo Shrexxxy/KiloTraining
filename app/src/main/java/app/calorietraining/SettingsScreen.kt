@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -9,7 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -27,17 +25,12 @@ internal fun SettingsScreen(
     onBackup: () -> Unit,
     onBack: () -> Unit,
 ) {
-    BackHandler(onBack = onBack)
     Scaffold(containerColor = Color.Transparent) { padding ->
         Column(
             Modifier.padding(padding).imePadding().fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Настройки", Modifier.weight(1f), style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold)
-                TextButton(onClick = onBack) { Text("Назад") }
-            }
+            ScreenHeader("Настройки", onBack = onBack)
             ProfileBlock("Оформление") {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     ThemeMode.entries.forEachIndexed { index, option ->

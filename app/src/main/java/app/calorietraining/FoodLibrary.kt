@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,7 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
@@ -35,20 +33,14 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
         serverFoods?.let(::distinct) to results?.foods?.let(::distinct).orEmpty()
     }
     val loading = pending != null
-    BackHandler(onBack = onClose)
     Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
-            if (meal == null) {
-                Text("Поиск продуктов", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineMedium)
-                onManage?.let { TextButton(onClick = it) { Text("Мои продукты") } }
-            } else {
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onClose) { Icon(painterResource(R.drawable.ic_chevron_left), "Назад") }
-                    Text("Добавить · ${meal.label}", Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleLarge)
+            ScreenHeader(if (meal == null) "Поиск продуктов" else "Добавить · ${meal.label}", onBack = onClose) {
+                if (meal != null) {
                     IconButton(onClick = onScan) { Icon(painterResource(R.drawable.ic_barcode), "Сканировать штрихкод") }
                 }
             }
+            if (meal == null) onManage?.let { TextButton(onClick = it) { Text("Мои продукты") } }
             DiaryTextField(query, { query = it }, Modifier.fillMaxWidth(),
                 label = { Text("Название продукта или блюда") }, singleLine = true)
             if (meal != null && term.isEmpty()) {
@@ -75,10 +67,9 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
                     }
                 }
             }
-            if (meal == null) TextButton(onClick = onClose) { Text("Вернуться к вводу") }
-            else OutlinedButton(onClick = onManual, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            if (meal != null) OutlinedButton(onClick = onManual, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)) {
-                Text("Ввести вручную")
+                Text("Новый продукт")
             }
         }
     }

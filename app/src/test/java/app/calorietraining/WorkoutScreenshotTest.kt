@@ -28,6 +28,8 @@ class WorkoutScreenshotTest {
     @Test fun newSetDark() = capture(ThemeMode.DARK, "set-new-dark.png", screen = "new")
     @Test fun editSetDark() = capture(ThemeMode.DARK, "set-edit-dark.png", screen = "edit")
 
+    @Test fun editSetHeaderDark() = capture(ThemeMode.DARK, "header-workout-set-dark.png", screen = "edit")
+
     private fun capture(mode: ThemeMode, filename: String, screen: String = "detail") {
         val bench = "Жим штанги лёжа"
         val incline = "Жим гантелей на наклонной скамье"

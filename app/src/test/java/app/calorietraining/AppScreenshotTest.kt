@@ -32,6 +32,30 @@ class AppScreenshotTest {
     @Test fun homeLiveWorkout() = captureHome("home-live-workout-dark.png", live = true)
     @Test fun settings() = capture("Настройки", "settings-dark.png")
     @Test fun profileWithoutSettings() = capture("Профиль", "profile-no-settings-dark.png")
+    @Test fun settingsHeaderLight() = capture("Настройки", "header-settings-light.png", ThemeMode.LIGHT)
+    @Test fun scannerHeaderDark() = captureMeal("header-scanner-dark.png") {
+        ui.onNodeWithContentDescription("Сканировать штрихкод").performClick()
+        ui.onNodeWithText("Штрихкод продукта").assertIsDisplayed()
+    }
+    @Test fun foodEditorHeaderDark() = captureMeal("header-food-editor-dark.png") {
+        ui.onNodeWithText("Новый продукт").performClick()
+        ui.onNodeWithText("Новая запись").assertIsDisplayed()
+    }
+    @Test fun newMealProductDark() = captureMeal("meals-add-new-product-dark.png") {
+        ui.onNodeWithText("Новый продукт").assertIsDisplayed()
+    }
+
+    private fun captureMeal(filename: String, openScreen: () -> Unit) {
+        lateinit var view: View
+        ui.setContent { DiaryTheme(ThemeMode.DARK) {
+            view = LocalView.current
+            DiaryApp(ThemeMode.DARK, {})
+        } }
+        ui.onNodeWithText("Добавить еду").performScrollTo().performClick()
+        ui.waitUntil(10_000) { ui.onAllNodesWithText("Добавить · Завтрак").fetchSemanticsNodes().isNotEmpty() }
+        openScreen()
+        saveScreenshot(view, filename)
+    }
 
     private fun captureHome(filename: String, mode: ThemeMode = ThemeMode.DARK, live: Boolean = false) {
         val today = LocalDate.now()
@@ -67,6 +91,10 @@ class AppScreenshotTest {
         if (tab == "Главная") {
             ui.waitUntil(10_000) { ui.onAllNodesWithText("82,4 кг").fetchSemanticsNodes().isNotEmpty() }
         }
+        saveScreenshot(view, filename)
+    }
+
+    private fun saveScreenshot(view: View, filename: String) {
         // В Robolectric captureToImage ждёт обратный вызов перерисовки окна, который здесь не приходит.
         val bitmap = ui.runOnIdle {
             Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }

@@ -3,7 +3,6 @@ package app.calorietraining
 import android.app.Application
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -161,11 +160,10 @@ fun BackupScreen(model: BackupViewModel, onClose: () -> Unit) {
     fun close() {
         if (!state.busy) { model.discard(); onClose() }
     }
-    BackHandler { close() }
     Scaffold(containerColor = MaterialTheme.colorScheme.surface) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Резервная копия", style = MaterialTheme.typography.headlineMedium)
+            ScreenHeader("Резервная копия", onBack = ::close, backEnabled = !state.busy)
             val preview = state.preview
             if (preview == null) {
                 Text("Сохраните питание, продукты и тренировки в файл. Его можно перенести на другой телефон.")
@@ -182,7 +180,6 @@ fun BackupScreen(model: BackupViewModel, onClose: () -> Unit) {
             }
             if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.message?.let { Text(it) }
-            TextButton(enabled = !state.busy, onClick = { close() }) { Text("Назад") }
         }
     }
 }

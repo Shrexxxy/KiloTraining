@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
@@ -53,10 +52,9 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
     Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
         val body = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
         if (draft != null) {
-            BackHandler { event(ProfileEvent.Close) }
             var confirm by rememberSaveable(draft.day.toEpochDay()) { mutableStateOf(false) }
             Column(body.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Замер тела", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                ScreenHeader("Замер тела", onBack = { event(ProfileEvent.Close) })
                 DiaryDaySelector(draft.day, true, { event(ProfileEvent.Open(it)) })
                 DiaryTextField(draft.weight, { event(ProfileEvent.Edit(draft.copy(weight = it))) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
@@ -65,7 +63,6 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                 Text("Можно заполнить одно поле. На каждую дату сохраняется один замер.")
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(enabled = draft.valid && draft.day <= LocalDate.now(), onClick = { event(ProfileEvent.Save) }) { Text("Сохранить замер") }
-                TextButton(onClick = { event(ProfileEvent.Close) }) { Text("Отмена") }
                 if (state.stats?.measurements?.any { it.day == draft.day } == true) {
                     TextButton(onClick = { confirm = true }) { Text("Удалить замер") }
                 }

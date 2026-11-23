@@ -145,7 +145,7 @@ class FoodViewModel internal constructor(
             is FoodEvent.Barcode -> lookup(event.code)
             FoodEvent.Close -> {
                 val keepDraft = current.scanning && current.recipe != null
-                val keepMeal = current.scanning || current.draft != null
+                val keepMeal = current.scanning || current.recipe != null
                 if (!keepMeal) searchJob?.cancel()
                 state.value = current.copy(draft = current.draft.takeIf { keepDraft }, scanning = false,
                     addingMeal = current.addingMeal.takeIf { keepMeal },

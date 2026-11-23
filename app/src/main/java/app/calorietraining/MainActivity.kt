@@ -3,7 +3,6 @@ package app.calorietraining
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -107,8 +106,6 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
                 onManage = { onEvent(FoodEvent.ManageProducts) })
             return
         }
-        val back = if (state.confirmingDelete) FoodEvent.CancelDelete else FoodEvent.Close
-        BackHandler { onEvent(back) }
         FoodEditor(draft, state, onEvent, modifier)
         return
     }
@@ -260,12 +257,10 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
     }
     Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(if (state.recipe != null) "Ингредиент" else if (draft.id == null) "Новая запись" else "Изменить запись",
-                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                TextButton(onClick = { onEvent(FoodEvent.Close) }) { Text("Отмена") }
-            }
+            ScreenHeader(
+                title = if (state.recipe != null) "Ингредиент" else if (draft.id == null) "Новая запись" else "Изменить запись",
+                onBack = { onEvent(if (state.confirmingDelete) FoodEvent.CancelDelete else FoodEvent.Close) },
+            )
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (state.recipe == null) {

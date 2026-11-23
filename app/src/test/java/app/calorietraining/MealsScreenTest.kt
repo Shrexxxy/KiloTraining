@@ -51,14 +51,18 @@ class MealsScreenTest {
     }
     private fun seed(block: FoodStore.() -> Unit) {
         FoodStore(ui.activity.application).use(block)
-        waitFor(day.caption())
-        ui.onNodeWithContentDescription("Предыдущий день").performClick()
-        waitFor(day.minusDays(1).caption())
-        ui.onNodeWithContentDescription("Следующий день").performClick()
-        waitFor(day.caption())
+        waitFor("Задать дневную цель")
+        changeDay("Предыдущий день", day.minusDays(1))
+        changeDay("Следующий день", day)
+    }
+    private fun changeDay(label: String, destination: LocalDate) {
+        val enabledArrow = hasContentDescription(label) and isEnabled()
+        ui.waitUntil(10_000) { ui.onAllNodes(enabledArrow).fetchSemanticsNodes().isNotEmpty() }
+        ui.onNode(enabledArrow).performClick()
+        waitFor(destination.caption())
     }
     private fun add(meal: Meal) {
-        waitFor(Meal.BREAKFAST.label)
+        ui.waitUntil(10_000) { ui.onAllNodes(hasScrollToIndexAction()).fetchSemanticsNodes().isNotEmpty() }
         ui.addInMeal(meal)
         text("Добавить · ${meal.label}").assertIsDisplayed()
     }
@@ -77,7 +81,7 @@ class MealsScreenTest {
     @Test fun m1EmptyDayShowsFourMeals() {
         for (meal in meals) {
             add(meal)
-            ui.onNode(hasContentDescription("Назад") or hasText("Назад")).performClick()
+            ui.headerBack()
         }
         ui.mealList().performScrollToNode(hasText(Meal.SNACK.label))
         text("Без категории").assertDoesNotExist()
@@ -87,7 +91,7 @@ class MealsScreenTest {
 
     @Test fun m2ManualEntryInLunch() {
         add(Meal.LUNCH)
-        text("Ввести вручную").performClick()
+        text("Новый продукт").performClick()
         text("На 100 г").performClick()
         text("Название").performTextInput("Гречка")
         text("Вес порции, г").performTextInput("150")
@@ -169,7 +173,7 @@ class MealsScreenTest {
 
     @Test fun m8MealSelectorAboveName() {
         add(Meal.LUNCH)
-        text("Ввести вручную").performClick()
+        text("Новый продукт").performClick()
         assertTrue(text("Завтрак").fetchSemanticsNode().boundsInRoot.top <
             text("Название").fetchSemanticsNode().boundsInRoot.top)
     }

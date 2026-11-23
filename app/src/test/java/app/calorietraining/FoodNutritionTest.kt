@@ -53,7 +53,7 @@ class FoodNutritionTest {
         compose.onNodeWithText("Каталог недоступен", substring = true).assertExists()
         compose.runOnIdle { online.value = CatalogSearch.Results("чай", emptyList()) }
         compose.onNodeWithText("В каталоге нет совпадений с калорийностью").assertExists()
-        compose.onNodeWithText("Вернуться к вводу").performClick()
+        compose.headerBack()
         assertTrue(closed)
     }
 
