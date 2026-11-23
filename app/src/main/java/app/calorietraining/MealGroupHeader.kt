@@ -17,7 +17,7 @@ internal fun MealGroupHeader(source: LocalDate, meal: Meal, entries: List<FoodEn
     val total = entries.sumOf { it.calories }.display()
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(meal.label, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        TextButton(enabled = enabled, onClick = {
+        if (entries.isNotEmpty()) TextButton(enabled = enabled, onClick = {
             val today = LocalDate.now()
             targetDay = (if (source == today) today.plusDays(1) else today).toEpochDay()
         }) { Text("Повторить", style = MaterialTheme.typography.labelMedium) }

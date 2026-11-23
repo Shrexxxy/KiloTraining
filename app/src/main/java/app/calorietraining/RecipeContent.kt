@@ -24,22 +24,7 @@ internal fun RecipeContent(state: FoodUiState, event: (FoodEvent) -> Unit, modif
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (recipe == null) {
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (state.recipes.isNullOrEmpty()) item { Text("Добавьте первое домашнее блюдо") }
-                items(state.recipes.orEmpty()) { item ->
-                    OutlinedCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(item.name, style = MaterialTheme.typography.titleMedium)
-                            Text("Выход · ${item.cooked} г")
-                            Row {
-                                TextButton(onClick = { event(FoodEvent.LogRecipe(item)) }) { Text("Записать порцию") }
-                                TextButton(onClick = { event(FoodEvent.EditRecipe(item)) }) { Text("Изменить") }
-                            }
-                        }
-                    }
-                }
-            }
-            Button(onClick = { event(FoodEvent.EditRecipe(Recipe())) }) { Text("Создать рецепт") }
+            RecipeList(state.recipes.orEmpty(), event, Modifier.weight(1f))
         } else {
             fun edit(value: Recipe) = event(FoodEvent.EditRecipe(value))
             val food = recipe.food()
@@ -67,6 +52,28 @@ internal fun RecipeContent(state: FoodUiState, event: (FoodEvent) -> Unit, modif
             }
             Button(enabled = food != null, onClick = { event(FoodEvent.SaveRecipe) }) { Text("Сохранить рецепт") }
         }
+    }
+}
+
+@Composable
+internal fun RecipeList(recipes: List<Recipe>, event: (FoodEvent) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (recipes.isEmpty()) item { Text("Добавьте первое домашнее блюдо") }
+            items(recipes) { item ->
+                GlassCard(LocalDiaryAccents.current.protein, Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(item.name, style = MaterialTheme.typography.titleMedium)
+                        Text("Выход · ${item.cooked} г")
+                        Row {
+                            TextButton(onClick = { event(FoodEvent.LogRecipe(item)) }) { Text("Записать порцию") }
+                            TextButton(onClick = { event(FoodEvent.EditRecipe(item)) }) { Text("Изменить") }
+                        }
+                    }
+                }
+            }
+        }
+        Button(onClick = { event(FoodEvent.EditRecipe(Recipe())) }) { Text("Создать рецепт") }
     }
 }
 

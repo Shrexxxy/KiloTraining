@@ -8,13 +8,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, onClose: () -> Unit,
-    modifier: Modifier = Modifier, search: (String) -> Unit, online: CatalogSearch, onManage: (() -> Unit)? = null) {
+    modifier: Modifier = Modifier, search: (String) -> Unit, online: CatalogSearch, onManage: (() -> Unit)? = null,
+    meal: Meal? = null, onScan: () -> Unit = {}, onManual: () -> Unit = {},
+    whenEmpty: @Composable (Modifier) -> Unit = {}) {
     var query by rememberSaveable { mutableStateOf("") }
     val matches = remember(foods, query) {
         val words = query.searchableName().split(Regex("""\s+"""))
@@ -34,35 +38,98 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
     BackHandler(onBack = onClose)
     Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
-            Text("Поиск продуктов", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineMedium)
-            onManage?.let { TextButton(onClick = it) { Text("Мои продукты") } }
+            if (meal == null) {
+                Text("Поиск продуктов", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineMedium)
+                onManage?.let { TextButton(onClick = it) { Text("Мои продукты") } }
+            } else {
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) { Icon(painterResource(R.drawable.ic_chevron_left), "Назад") }
+                    Text("Добавить · ${meal.label}", Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleLarge)
+                    IconButton(onClick = onScan) { Icon(painterResource(R.drawable.ic_barcode), "Сканировать штрихкод") }
+                }
+            }
             DiaryTextField(query, { query = it }, Modifier.fillMaxWidth(),
                 label = { Text("Название продукта или блюда") }, singleLine = true)
-            TextButton(onClick = { if (!loading) search(term) }, enabled = term.length >= 2) {
-                Text("Найти в интернете")
+            if (meal != null && term.isEmpty()) {
+                whenEmpty(Modifier.weight(1f))
+            } else {
+                TextButton(onClick = { if (!loading) search(term) }, enabled = term.length >= 2) {
+                    Text("Найти в интернете")
+                }
+                DelayedProgress(loading)
+                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
+                    if (matches.isNotEmpty()) item { Text("Мои продукты", style = MaterialTheme.typography.labelLarge) }
+                    items(matches) { food -> ProductRow(food, onChoose) }
+                    if (serverMatches != null) {
+                        item { Text("Ваша база", style = MaterialTheme.typography.labelLarge) }
+                        items(serverMatches) { food -> ProductRow(food, onChoose) }
+                    }
+                    if (failed != null) item {
+                        Text("Каталог недоступен. Попробуйте ещё раз или введите продукт вручную.")
+                    }
+                    if (results != null) {
+                        item { Text("Open Food Facts · ODbL", style = MaterialTheme.typography.labelLarge) }
+                        if (results.foods.isEmpty()) item { Text("В каталоге нет совпадений с калорийностью") }
+                        items(catalogMatches) { food -> ProductRow(food, onChoose) }
+                    }
+                }
             }
-            DelayedProgress(loading)
-            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
-                if (matches.isNotEmpty()) item { Text("Мои продукты", style = MaterialTheme.typography.labelLarge) }
-                items(matches) { food -> ProductRow(food, onChoose) }
-                if (serverMatches != null) {
-                    item { Text("Ваша база", style = MaterialTheme.typography.labelLarge) }
-                    items(serverMatches) { food -> ProductRow(food, onChoose) }
-                }
-                if (failed != null) item {
-                    Text("Каталог недоступен. Попробуйте ещё раз или введите продукт вручную.")
-                }
-                if (results != null) {
-                    item { Text("Open Food Facts · ODbL", style = MaterialTheme.typography.labelLarge) }
-                    if (results.foods.isEmpty()) item { Text("В каталоге нет совпадений с калорийностью") }
-                    items(catalogMatches) { food -> ProductRow(food, onChoose) }
-                }
+            if (meal == null) TextButton(onClick = onClose) { Text("Вернуться к вводу") }
+            else OutlinedButton(onClick = onManual, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)) {
+                Text("Ввести вручную")
             }
-            TextButton(onClick = onClose) { Text("Вернуться к вводу") }
         }
     }
 }
 
+
+@Composable
+internal fun AddMealFood(meal: Meal, state: FoodUiState, event: (FoodEvent) -> Unit, modifier: Modifier) {
+    var products by rememberSaveable { mutableStateOf(false) }
+    val active = if (state.recipes != null) 2 else if (products) 1 else 0
+    val cards = remember(state.myProducts) { state.myProducts.map(MyProduct::toDraft) }
+    val diary = remember(state.frequent, state.recent) {
+        (state.frequent + state.recent).distinctBy { foodSuggestionKey(it.name, it.weighted) }
+    }
+    fun choose(food: FoodDraft) = event(FoodEvent.Edit(food.copy(meal = meal)))
+    FoodLibrary(cards, ::choose, { event(FoodEvent.Close) }, modifier,
+        search = { event(FoodEvent.FindFood(it)) }, online = state.online, meal = meal,
+        onScan = { event(FoodEvent.Scan) }, onManual = { choose(FoodDraft()) }) { content ->
+        Column(content.fillMaxWidth()) {
+            SecondaryTabRow(selectedTabIndex = active, containerColor = Color.Transparent) {
+                listOf("Из дневника", "Мои продукты", "Рецепты").forEachIndexed { index, label ->
+                    Tab(selected = index == active, onClick = {
+                        products = index == 1
+                        if (index == 2 && state.recipes == null) event(FoodEvent.Recipes)
+                        if (index != 2 && state.recipes != null) event(FoodEvent.LeaveRecipes)
+                    }) {
+                        Text(label, Modifier.padding(vertical = 14.dp),
+                            style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            when (active) {
+                2 -> RecipeList(state.recipes.orEmpty(), event, Modifier.weight(1f))
+                else -> {
+                    if (active == 1) TextButton(onClick = { event(FoodEvent.ManageProducts) }) {
+                        Text("Управлять продуктами")
+                    }
+                    val foods = if (active == 1) cards else diary
+                    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
+                        if (foods.isEmpty() && !state.busy) item {
+                            Text(if (active == 1) "Пока нет сохранённых продуктов" else "Пока нет продуктов из дневника",
+                                Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        items(foods) { ProductRow(it, ::choose) }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun ProductRow(food: FoodDraft, onChoose: (FoodDraft) -> Unit, modifier: Modifier = Modifier) {

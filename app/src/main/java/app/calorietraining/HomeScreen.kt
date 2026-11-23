@@ -41,6 +41,7 @@ internal fun HomeScreen(
     app: Application,
     workout: WorkoutState,
     openNutrition: (LocalDate) -> Unit,
+    addFood: (LocalDate) -> Unit,
     openWorkout: (Workout?) -> Unit,
 ) {
     val today = LocalDate.now()
@@ -75,7 +76,7 @@ internal fun HomeScreen(
             Text(today.caption(), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         nutrition?.let { TodayCard(it) { openNutrition(today) } }
-        Button(onClick = { openNutrition(today) }, modifier = Modifier.fillMaxWidth()) { Text("Добавить еду") }
+        Button(onClick = { addFood(today) }, modifier = Modifier.fillMaxWidth()) { Text("Добавить еду") }
         weights?.let { recent ->
             WeightCard(today, recent) { record ->
                 val updated = withContext(Dispatchers.IO) {

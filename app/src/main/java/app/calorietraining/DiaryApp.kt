@@ -71,12 +71,14 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     val workoutState by workout.uiState.collectAsStateWithLifecycle()
     val editing = when (tab) {
         "Тренировки" -> workoutState.draft != null
-        "Питание" -> foodState.draft != null || foodState.scanning || foodState.recipes != null
+        "Питание" -> foodState.draft != null || foodState.scanning || foodState.recipes != null || foodState.addingMeal != null
         else -> false
     }
     var fromHistory by rememberSaveable { mutableStateOf(false) }
     var requestedDay by rememberSaveable { mutableStateOf<String?>(null) }
     var requestedSession by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Питание пропускает события во время загрузки, поэтому запрос ждёт, пока оно освободится.
+    var requestedAddFood by rememberSaveable { mutableStateOf<String?>(null) }
     val historyHolder = rememberSaveableStateHolder()
     fun selectTab(title: String) {
         fromHistory = false
@@ -91,13 +93,18 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
         tab = title
     }
     BackHandler(enabled = fromHistory && !editing && !training) { selectTab("История") }
-    LaunchedEffect(requestedDay, requestedSession, tab, foodState.busy, workoutState.busy) {
+    LaunchedEffect(requestedDay, requestedSession, requestedAddFood, tab, foodState.busy, workoutState.busy) {
         val session = requestedSession
         if (training && session != null && !workoutState.busy) {
             workout.event(WorkoutEvent.Open(session))
             requestedSession = null
             requestedDay = null
         } else if (tab == "Питание" && !foodState.busy) {
+            requestedAddFood?.let { day ->
+                food.onEvent(FoodEvent.AddNextMeal(LocalDate.parse(day)))
+                requestedAddFood = null
+                return@LaunchedEffect
+            }
             val day = requestedDay?.let(LocalDate::parse) ?: return@LaunchedEffect
             food.onEvent(FoodEvent.Day(day))
             requestedDay = null
@@ -138,6 +145,10 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
                     openNutrition = { day ->
                         selectTab("Питание")
                         requestedDay = day.toString()
+                    },
+                    addFood = { day ->
+                        selectTab("Питание")
+                        requestedAddFood = day.toString()
                     },
                     openWorkout = { active ->
                         selectTab("Тренировки")

@@ -1,6 +1,9 @@
 package app.calorietraining
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -27,7 +30,7 @@ class FoodScreenTest {
 
     private fun expectTotal(value: String) {
         composeTestRule.waitUntil(10_000) {
-            composeTestRule.onAllNodesWithText("Вручную").fetchSemanticsNodes().isNotEmpty() &&
+            composeTestRule.onAllNodes(hasScrollToIndexAction()).fetchSemanticsNodes().isNotEmpty() &&
                 composeTestRule.onAllNodesWithText(value).fetchSemanticsNodes().isNotEmpty()
         }
         text(value).assertIsDisplayed()
@@ -35,14 +38,16 @@ class FoodScreenTest {
 
     @Test fun manualMealsSurviveReopeningAndBelongToSelectedDate() {
         text("Питание").performClick()
-        expectTotal("За этот день пока нет записей")
-        text("Вручную").performClick()
+        expectTotal("Завтрак")
+        composeTestRule.addInMeal(Meal.BREAKFAST)
+        text("Ввести вручную").performClick()
         text("Сохранить").assertIsNotEnabled()
-        text("Название").performTextInput("Завтрак")
+        text("Название").performTextInput("Бутерброд")
         text("Ккал на порцию").performTextInput("320")
         text("Сохранить").performClick()
         expectTotal("320")
-        text("Вручную").performClick()
+        composeTestRule.addInMeal(Meal.BREAKFAST)
+        text("Ввести вручную").performClick()
         text("На 100 г").performClick()
         text("Название").performTextInput("Творог")
         text("Вес порции, г").performTextInput("150")
@@ -53,15 +58,18 @@ class FoodScreenTest {
         expectTotal("620")
 
         composeTestRule.onNodeWithContentDescription("Следующий день").performClick()
-        expectTotal("За этот день пока нет записей")
-        text("Вручную").performClick()
-        text("Название").performTextInput("Перекус")
+        expectTotal(java.time.LocalDate.now().plusDays(1).caption())
+        text("Бутерброд").assertDoesNotExist()
+        text("Творог").assertDoesNotExist()
+        composeTestRule.addInMeal(Meal.BREAKFAST)
+        text("Ввести вручную").performClick()
+        text("Название").performTextInput("Яблоко")
         text("Ккал на порцию").performTextInput("90")
         text("Сохранить").performClick()
         expectTotal("90")
         composeTestRule.onNodeWithContentDescription("Предыдущий день").performClick()
         expectTotal("620")
-        text("Завтрак").performClick()
+        text("Бутерброд").performClick()
         text("Ккал на порцию").performTextReplacement("250")
         text("Сохранить").performClick()
         expectTotal("550")

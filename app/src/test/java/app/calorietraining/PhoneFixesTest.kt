@@ -30,8 +30,8 @@ class PhoneFixesTest {
         val busy = mutableStateOf(true)
         ui.mainClock.autoAdvance = false
         ui.setContent { FoodContent(FoodUiState(busy = busy.value), {}) }
-        ui.onNodeWithText("Вручную").assertIsEnabled()
-        ui.onNodeWithText("Сканировать штрихкод").assertIsEnabled()
+        ui.onAllNodes(addMealButton)[0].assertIsEnabled()
+        ui.onAllNodes(addMealButton)[1].assertIsEnabled()
         ui.onNodeWithTag("loading").assertDoesNotExist()
         ui.mainClock.advanceTimeBy(400)
         ui.onNodeWithTag("loading").assertExists()

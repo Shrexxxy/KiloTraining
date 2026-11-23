@@ -174,8 +174,8 @@ class MyProductsTest {
                 view = LocalView.current
                 FoodContent(state.value, { event ->
                     when (event) {
-                        FoodEvent.BrowseFoods -> state.value = state.value.copy(
-                            draft = FoodDraft(), library = cards.map { it.toDraft() }, myProducts = cards
+                        is FoodEvent.AddInMeal -> state.value = state.value.copy(
+                            addingMeal = event.meal, myProducts = cards
                         )
                         is FoodEvent.Edit -> selected = event.value
                         is FoodEvent.FindFood -> error("Локальный поиск не обращается к сети")
@@ -184,7 +184,8 @@ class MyProductsTest {
                 })
             }
         }
-        ui.onNodeWithContentDescription("Найти продукт").performClick()
+        ui.addInMeal(Meal.BREAKFAST)
+        ui.onNodeWithText("Мои продукты").performClick()
         ui.onNodeWithText(cheese.name).assertIsDisplayed()
         screenshot(view, "food-search-dark.png")
         ui.onNode(hasSetTextAction()).performTextInput("сыр")

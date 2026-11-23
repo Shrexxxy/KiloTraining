@@ -61,7 +61,7 @@ class AppScreenshotTest {
             "Главная" -> if (live) "Идёт тренировка" else "Последняя тренировка"
             "Профиль" -> "Сравнение периодов"
             "Настройки" -> "Сервер продуктов"
-            else -> "За этот день пока нет записей"
+            else -> "Завтрак"
         }
         ui.waitUntil(10_000) { ui.onAllNodesWithText(ready, substring = true).fetchSemanticsNodes().isNotEmpty() }
         if (tab == "Главная") {

@@ -30,7 +30,8 @@ class RecipeFlowTest {
         FoodStore(RuntimeEnvironment.getApplication()).use { store ->
             store.cacheProduct("12345678", Product("Рис", "350", Macros("7","0","80")))
         }
-        waitFor("За этот день пока нет записей")
+        waitFor("Завтрак")
+        compose.addInMeal(Meal.BREAKFAST)
         node("Рецепты").performClick()
         waitFor("Создать рецепт")
         node("Создать рецепт").performClick()

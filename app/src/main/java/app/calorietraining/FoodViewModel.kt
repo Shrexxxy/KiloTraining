@@ -25,6 +25,8 @@ data class FoodUiState(
     val rows: List<FoodEntry> = emptyList(),
     val recent: List<FoodDraft> = emptyList(),
     val library: List<FoodDraft>? = null,
+    val addingMeal: Meal? = null,
+    val frequent: List<FoodDraft> = emptyList(),
     val myProducts: List<MyProduct> = emptyList(),
     val managingProducts: Boolean = false,
     val online: CatalogSearch = CatalogSearch.Idle,
@@ -46,6 +48,8 @@ sealed interface FoodEvent {
     data class Day(val value: LocalDate) : FoodEvent
     data class Edit(val value: FoodDraft) : FoodEvent
     data class FindFood(val term: String) : FoodEvent
+    data class AddInMeal(val meal: Meal) : FoodEvent
+    data class AddNextMeal(val day: LocalDate) : FoodEvent
     data object Recipes : FoodEvent
     data object LeaveRecipes : FoodEvent
     data class EditRecipe(val value: Recipe?) : FoodEvent
@@ -97,11 +101,13 @@ class FoodViewModel internal constructor(
         val current = state.value
         if (current.busy) return
         when (event) {
+            is FoodEvent.AddInMeal -> openMeal(event.meal)
+            is FoodEvent.AddNextMeal -> openMeal(null, event.day)
             FoodEvent.Recipes -> refresh(current.day, showRecipes = true)
             FoodEvent.LeaveRecipes -> state.value = current.copy(recipes = null, recipe = null, error = null)
             is FoodEvent.EditRecipe -> state.value = current.copy(recipe = event.value, error = null)
             is FoodEvent.LogRecipe -> event.value.food()?.let {
-                state.value = current.copy(recipes = null, recipe = null, draft = it.copy(mealTime = defaultMealTime(current.day)))
+                state.value = current.copy(recipes = null, recipe = null, draft = it.copy(meal = current.addingMeal ?: Meal.UNSPECIFIED, mealTime = defaultMealTime(current.day)))
             }
             is FoodEvent.Ingredient -> {
                 val item = event.index?.let { current.recipe?.ingredients?.getOrNull(it) } ?: FoodDraft(weighted = true)
@@ -137,7 +143,15 @@ class FoodViewModel internal constructor(
             }
             FoodEvent.Scan -> state.value = current.copy(scanning = true, error = null)
             is FoodEvent.Barcode -> lookup(event.code)
-            FoodEvent.Close -> state.value = current.copy(draft = if (current.scanning && current.recipe != null) current.draft else null, scanning = false, hint = "", scanOutcome = current.scanOutcome.takeIf { current.scanning && current.recipe != null }, confirmingDelete = false, error = null)
+            FoodEvent.Close -> {
+                val keepDraft = current.scanning && current.recipe != null
+                val keepMeal = current.scanning || current.draft != null
+                if (!keepMeal) searchJob?.cancel()
+                state.value = current.copy(draft = current.draft.takeIf { keepDraft }, scanning = false,
+                    addingMeal = current.addingMeal.takeIf { keepMeal },
+                    recipes = current.recipes.takeUnless { current.addingMeal != null && !keepMeal }, hint = "",
+                    scanOutcome = current.scanOutcome.takeIf { keepDraft }, confirmingDelete = false, error = null)
+            }
             FoodEvent.Save -> current.draft?.takeIf { it.calories != null }?.let { draft ->
                 val recipe = current.recipe
                 if (recipe == null) refresh(current.day, sync = !draft.fromRecipe) { save(current.day, draft) }
@@ -156,6 +170,29 @@ class FoodViewModel internal constructor(
         }
     }
 
+    /** Открывает добавление в приём пищи; без приёма выбирает первый незаполненный в указанном дне. */
+    private fun openMeal(meal: Meal?, day: LocalDate = state.value.day) {
+        val current = state.value
+        state.value = current.copy(busy = true, error = null)
+        viewModelScope.launch {
+            try {
+                val snapshot = withContext(io) {
+                    FoodStore(getApplication()).use { store ->
+                        val base = if (day == current.day && meal != null) current else current.copy(day = day,
+                            rows = store.entries(day), goals = store.goalsFor(day), loaded = true,
+                            draft = null, recipes = null, recipe = null)
+                        base.copy(addingMeal = meal ?: nextMealToFill(base.rows.map { it.meal }),
+                            frequent = store.frequentFoods(day), recent = store.foodSuggestions(day, 12),
+                            myProducts = store.myProducts(), online = CatalogSearch.Idle, error = null)
+                    }
+                }
+                state.value = snapshot
+            } catch (e: SQLException) {
+                state.value = state.value.copy(busy = false, error = "Не удалось загрузить продукты")
+            }
+        }
+    }
+
     private fun changeProducts(sync: Boolean = false, change: FoodStore.() -> Unit) {
         val current = state.value
         state.value = current.copy(busy = true, error = null)
@@ -167,7 +204,7 @@ class FoodViewModel internal constructor(
                         store.myProducts()
                     }
                 }
-                state.value = current.copy(busy = false, myProducts = products, library = products.map { it.toDraft() })
+                state.value = current.copy(busy = false, myProducts = products, library = current.library?.let { products.map(MyProduct::toDraft) })
                 ProductServerSettings.queueChanged()
                 if (sync) syncProducts()
             } catch (e: SQLException) {
@@ -179,13 +216,13 @@ class FoodViewModel internal constructor(
     private var searchJob: kotlinx.coroutines.Job? = null
 
     private fun findFood(term: String) {
-        if (term.length < 2 || state.value.library == null) return
+        if (term.length < 2 || (state.value.library == null && state.value.addingMeal == null)) return
         searchJob?.cancel()
         state.value = state.value.copy(online = CatalogSearch.Loading(term))
         var published = state.value.online
         searchJob = viewModelScope.launch {
             fun publish(result: CatalogSearch) {
-                if (state.value.library != null && state.value.online === published) {
+                if (state.value.online === published && (state.value.library != null || state.value.addingMeal != null)) {
                     state.value = state.value.copy(online = result)
                     published = state.value.online
                 }
@@ -235,7 +272,8 @@ class FoodViewModel internal constructor(
                     energy = retry.energy.ifBlank { found.energy },
                     macros = if (retry.macros == Macros()) found.macros else retry.macros,
                     brand = found.brand, origin = found.origin
-                ) ?: found.copy(mealTime = defaultMealTime(current.day))
+                ) ?: found.copy(meal = current.draft?.meal ?: current.addingMeal.takeIf { current.recipe == null } ?: Meal.UNSPECIFIED,
+                    mealTime = defaultMealTime(current.day))
                 state.value = current.copy(draft = draft, hint = product.hint, scanOutcome = product.outcome,
                     busy = false, scanning = false, error = null)
             } catch (e: SQLException) {
@@ -245,13 +283,19 @@ class FoodViewModel internal constructor(
     }
 
     private fun refresh(day: LocalDate, showRecipes: Boolean = false, sync: Boolean = false, change: (FoodStore.() -> Unit)? = null) {
-        state.value = state.value.copy(busy = true, error = null, confirmingDelete = false)
+        val current = state.value
+        state.value = current.copy(busy = true, error = null, confirmingDelete = false)
         viewModelScope.launch {
             try {
                 val snapshot = withContext(io) {
                     FoodStore(getApplication()).use { store ->
-                        fun snapshot() = FoodUiState(day = day, rows = store.entries(day), recent = store.foodSuggestions(day, 12),
-                            goals = store.goalsFor(day), loaded = true, recipes = if (showRecipes) store.recipes() else null)
+                        fun snapshot() = FoodUiState(day = day, rows = store.entries(day),
+                            goals = store.goalsFor(day), loaded = true,
+                            recipes = if (showRecipes) store.recipes() else null,
+                            addingMeal = current.addingMeal.takeIf { showRecipes },
+                            myProducts = current.myProducts.takeIf { showRecipes }.orEmpty(),
+                            frequent = current.frequent.takeIf { showRecipes }.orEmpty(),
+                            recent = current.recent.takeIf { showRecipes }.orEmpty())
                         if (change == null) return@use snapshot()
                         val db = store.writableDatabase
                         db.beginTransaction()
@@ -272,3 +316,7 @@ class FoodViewModel internal constructor(
         }
     }
 }
+
+/** Первый пустой из завтрака, обеда и ужина; если все заполнены — перекус. */
+internal fun nextMealToFill(filled: Collection<Meal>): Meal =
+    listOf(Meal.BREAKFAST, Meal.LUNCH, Meal.DINNER).firstOrNull { it !in filled } ?: Meal.SNACK

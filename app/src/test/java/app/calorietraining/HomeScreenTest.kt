@@ -34,6 +34,10 @@ class HomeScreenTest {
                         store.setGoals(today, DailyGoals(kcal = 2120))
                     }
                     "nutritionWithoutGoal" -> store.save(today, FoodDraft(name = "Обед", energy = "500"))
+                    "addFoodOpensNextEmptyMeal" -> {
+                        store.save(today, FoodDraft(name = "Каша", energy = "300", meal = Meal.BREAKFAST))
+                        store.save(today.minusDays(1), FoodDraft(name = "Вчерашний обед", energy = "600", meal = Meal.LUNCH))
+                    }
                     "showsAndRecordsWeight" -> {
                         store.saveMeasurement(Measurement(today.minusDays(2), "82"))
                         store.saveMeasurement(Measurement(today.minusDays(1), "82.4"))
@@ -63,7 +67,8 @@ class HomeScreenTest {
         tab("Питание").performClick()
         waitFor(hasText("Обед"))
         ui.onNodeWithContentDescription("Предыдущий день").performClick()
-        waitFor(hasText("Вчерашняя запись"))
+        waitFor(hasText(today.minusDays(1).caption()))
+        ui.mealList().performScrollToNode(hasText("Вчерашняя запись"))
         tab("Главная").performClick()
         waitFor(hasText("осталось 1005 ккал"))
         ui.onNode(hasText("осталось 1005 ккал") and hasClickAction()).performClick()
@@ -81,7 +86,22 @@ class HomeScreenTest {
 
     @Test fun addFoodOpensNutrition() {
         text("Добавить еду").performClick()
-        tab("Питание").assertIsSelected()
+        waitFor(hasText("Добавить · Завтрак"))
+    }
+
+    @Test fun addFoodOpensNextEmptyMeal() {
+        text("Добавить еду").performClick()
+        waitFor(hasText("Добавить · Обед"))
+        text("Ввести вручную").performClick()
+        text("На 100 г").performClick()
+        text("Название").performTextInput("Суп")
+        text("Вес порции, г").performTextInput("300")
+        text("Ккал на 100 г").performTextInput("50")
+        text("Сохранить").performClick()
+        ui.waitUntil(10_000) { ui.onAllNodes(hasText("Ввести вручную")).fetchSemanticsNodes().isEmpty() }
+        FoodStore(ui.activity).use { store ->
+            assertEquals(Meal.LUNCH, store.entries(today).single { it.name == "Суп" }.meal)
+        }
     }
 
     @Test fun showsAndRecordsWeight() {
