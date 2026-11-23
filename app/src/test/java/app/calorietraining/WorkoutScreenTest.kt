@@ -1,5 +1,6 @@
 package app.calorietraining
 
+import android.os.Looper
 import android.os.SystemClock
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.collectAsState
@@ -11,6 +12,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
 
@@ -82,7 +84,10 @@ class WorkoutScreenTest {
         }
         val model = WorkoutViewModel(app)
         ui.setContent { MaterialTheme { WorkoutContent(model.uiState.collectAsState().value, model::event) } }
-        ui.waitUntil(10_000) { model.uiState.value.list.isNotEmpty() }
+        ui.waitUntil(10_000) {
+            shadowOf(Looper.getMainLooper()).idle()
+            model.uiState.value.list.isNotEmpty()
+        }
         ui.runOnIdle { model.event(WorkoutEvent.Open(model.uiState.value.list.single().id)) }
         reveal(hasContentDescription("Подход 2: 62,5 кг × 6, в плане")).performClick()
         ui.onNodeWithText("Отметить выполненным").performScrollTo().performClick()
