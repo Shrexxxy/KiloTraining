@@ -99,9 +99,11 @@ class PhoneFixesTest {
         assertEquals(listOf("Калории","Углеводы","Белки","Жиры"), description.split(", ").map { it.substringBefore(' ') })
     }
 
-    @Test fun profileOffersAuto() {
-        val model = ProfileViewModel(app)
-        ui.setContent { ProfileScreen(model, ThemeMode.SYSTEM, {}) }
+    @Test fun settingsOfferAuto() {
+        OnboardingSettings(app).skipped = true
+        ui.setContent { DiaryTheme(ThemeMode.SYSTEM) { DiaryApp(ThemeMode.SYSTEM, {}) } }
+        ui.onNodeWithText("Профиль").performClick()
+        ui.onNodeWithContentDescription("Настройки").performClick()
         ui.onNodeWithText("Авто").assertIsDisplayed()
         ui.onNodeWithText("Как в системе").assertDoesNotExist()
     }

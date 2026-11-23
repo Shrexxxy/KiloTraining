@@ -13,6 +13,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import java.time.LocalDate
+import java.time.LocalDateTime
+import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -24,17 +27,46 @@ class AppScreenshotTest {
     @Test fun food() = capture("Питание", "app-food-dark.png")
     @Test fun profile() = capture("Профиль", "app-profile-dark.png")
 
-    private fun capture(tab: String, filename: String) {
+    @Test fun homeDark() = captureHome("home-dark.png")
+    @Test fun homeLight() = captureHome("home-light.png", ThemeMode.LIGHT)
+    @Test fun homeLiveWorkout() = captureHome("home-live-workout-dark.png", live = true)
+    @Test fun settings() = capture("Настройки", "settings-dark.png")
+    @Test fun profileWithoutSettings() = capture("Профиль", "profile-no-settings-dark.png")
+
+    private fun captureHome(filename: String, mode: ThemeMode = ThemeMode.DARK, live: Boolean = false) {
+        val today = LocalDate.now()
+        FoodStore(RuntimeEnvironment.getApplication()).use { store ->
+            store.setGoals(today, DailyGoals(2120, MacroGoals(120, 70, 250)))
+            store.save(today, FoodDraft(name = "Обед", energy = "1115", macros = Macros("65", "40", "124")))
+            store.saveMeasurement(Measurement(today.minusDays(2), "82.8"))
+            store.saveMeasurement(Measurement(today.minusDays(1), "82.4"))
+            if (live) store.newWorkout(LocalDateTime.now().minusMinutes(12), live = true)
+            else store.newWorkout(today.minusDays(2))
+        }
+        capture("Главная", filename, mode, live)
+    }
+
+    private fun capture(tab: String, filename: String, mode: ThemeMode = ThemeMode.DARK, live: Boolean = false) {
         lateinit var view: View
-        ui.setContent { DiaryTheme(ThemeMode.DARK) {
+        ui.setContent { DiaryTheme(mode) {
             view = LocalView.current
-            DiaryApp(ThemeMode.DARK, {})
+            DiaryApp(mode, {})
         } }
-        val ready = if (tab == "Профиль") {
-            ui.onNodeWithText(tab).performClick()
-            "Сравнение периодов"
-        } else "За этот день пока нет записей"
-        ui.waitUntil(10_000) { ui.onAllNodesWithText(ready).fetchSemanticsNodes().isNotEmpty() }
+        if (tab != "Главная") {
+            val destination = if (tab == "Настройки") "Профиль" else tab
+            ui.onNode(hasText(destination) and isSelectable()).performClick()
+        }
+        if (tab == "Настройки") ui.onNodeWithContentDescription("Настройки").performClick()
+        val ready = when (tab) {
+            "Главная" -> if (live) "Идёт тренировка" else "Последняя тренировка"
+            "Профиль" -> "Сравнение периодов"
+            "Настройки" -> "Сервер продуктов"
+            else -> "За этот день пока нет записей"
+        }
+        ui.waitUntil(10_000) { ui.onAllNodesWithText(ready, substring = true).fetchSemanticsNodes().isNotEmpty() }
+        if (tab == "Главная") {
+            ui.waitUntil(10_000) { ui.onAllNodesWithText("82,4 кг").fetchSemanticsNodes().isNotEmpty() }
+        }
         // В Robolectric captureToImage ждёт обратный вызов перерисовки окна, который здесь не приходит.
         val bitmap = ui.runOnIdle {
             Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }

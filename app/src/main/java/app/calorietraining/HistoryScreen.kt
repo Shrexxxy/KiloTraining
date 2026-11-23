@@ -23,16 +23,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
 
 @Composable
-fun HistoryScreen(model: HistoryViewModel, onBackup: () -> Unit,
+fun HistoryScreen(model: HistoryViewModel,
     onFoodDay: (LocalDate) -> Unit, onWorkout: (SessionHistory) -> Unit) {
     val state by model.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(model) { model.load() }
-    HistoryContent(state, model::load, onBackup = onBackup, onFoodDay = onFoodDay, onWorkout = onWorkout)
+    HistoryContent(state, model::load, onFoodDay = onFoodDay, onWorkout = onWorkout)
 }
 
 @Composable
 private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Unit, modifier: Modifier = Modifier,
-    onBackup: () -> Unit = {}, onFoodDay: (LocalDate) -> Unit = {}, onWorkout: (SessionHistory) -> Unit = {}) {
+    onFoodDay: (LocalDate) -> Unit = {}, onWorkout: (SessionHistory) -> Unit = {}) {
     var showTraining by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
@@ -41,7 +41,6 @@ private fun HistoryContent(state: HistoryState, load: (LocalDate, String?) -> Un
                 horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("История", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.ExtraBold)
-                TextButton(onClick = onBackup) { Text("Резервная копия") }
             }
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(selected = !showTraining, onClick = { showTraining = false },

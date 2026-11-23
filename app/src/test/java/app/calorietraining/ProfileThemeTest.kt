@@ -2,6 +2,7 @@ package app.calorietraining
 
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
@@ -19,8 +20,9 @@ class ProfileThemeTest {
     @get:Rule(order = 0) internal val skipOnboarding = SkipOnboardingRule()
     @get:Rule(order = 1) val ui = createAndroidComposeRule<MainActivity>()
 
-    @Test fun selectsAndPersistsThemeFromProfile() {
+    @Test fun selectsAndPersistsThemeFromSettings() {
         ui.onNodeWithText("Профиль").performClick()
+        ui.onNodeWithContentDescription("Настройки").performClick()
         ui.onNodeWithText("Тёмная").performClick().assertIsSelected()
         assertEquals(ThemeMode.DARK, ThemeSettings(ui.activity).mode)
         ui.onNodeWithText("Авто").performClick().assertIsSelected()

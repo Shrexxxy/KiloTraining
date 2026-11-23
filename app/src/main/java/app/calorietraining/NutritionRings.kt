@@ -43,9 +43,20 @@ fun ringState(total: BigDecimal?, goal: Int?): RingState? {
         excess?.setScale(0, RoundingMode.HALF_UP)?.min(Int.MAX_VALUE.toBigDecimal())?.toInt(), true)
 }
 
-private fun BigDecimal.ringNumber(grouped: Boolean = true): String {
+internal fun BigDecimal.ringNumber(grouped: Boolean = true): String {
     val digits = setScale(0, RoundingMode.HALF_UP).toPlainString()
     return if (grouped) digits.reversed().chunked(3).joinToString("\u00a0").reversed() else digits
+}
+
+internal fun calorieGoalStatus(calories: BigDecimal, goal: Int, today: Boolean, grouped: Boolean = true): String {
+    val remaining = goal.toBigDecimal() - calories
+    val amount = remaining.abs().ringNumber(grouped)
+    return when {
+        remaining.signum() == 0 -> "цель выполнена"
+        remaining.signum() < 0 -> "сверх $amount ккал"
+        today -> "осталось $amount ккал"
+        else -> "недобор $amount ккал"
+    }
 }
 
 private data class Metric(val name: String, val total: BigDecimal?, val goal: Int?, val unit: String, val color: Color) {
@@ -88,14 +99,7 @@ internal fun NutritionRings(
                             }
                         }
                         if (metric.unit == "ккал" && metric.goal != null) {
-                            val remaining = metric.goal.toBigDecimal() - calories
-                            val amount = remaining.abs().ringNumber()
-                            val status = when {
-                                remaining.signum() == 0 -> "цель выполнена"
-                                remaining.signum() < 0 -> "сверх $amount ккал"
-                                today -> "осталось $amount ккал"
-                                else -> "недобор $amount ккал"
-                            }
+                            val status = calorieGoalStatus(calories, metric.goal, today)
                             Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

@@ -34,6 +34,7 @@ class FoodScreenTest {
     }
 
     @Test fun manualMealsSurviveReopeningAndBelongToSelectedDate() {
+        text("Питание").performClick()
         expectTotal("За этот день пока нет записей")
         text("Вручную").performClick()
         text("Сохранить").assertIsNotEnabled()
