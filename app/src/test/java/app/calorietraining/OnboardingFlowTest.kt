@@ -136,6 +136,20 @@ class OnboardingFlowTest {
         ui.onNodeWithText("120–230", substring = true).assertIsDisplayed()
     }
 
+    @Test fun heightOf300ShowsErrorAndBothStepsUseTaggedFields() {
+        launch()
+        enterHeight("300")
+        ui.onNodeWithText("120–230", substring = true).assertIsDisplayed()
+        ui.onNodeWithText("Далее").assertIsNotEnabled()
+        val missingTag = hasSetTextAction() and !hasTestTag("diary-field")
+        val untaggedHeightFields = ui.onAllNodes(missingTag, useUnmergedTree = true).fetchSemanticsNodes().size
+        field("Рост, см").performTextReplacement("180")
+        click("Далее")
+        field("Вес, кг").assertExists()
+        ui.onAllNodes(missingTag, useUnmergedTree = true).assertCountEquals(0)
+        assertEquals(0, untaggedHeightFields)
+    }
+
     @Test fun rendersResultInLightTheme() {
         launch(ThemeMode.LIGHT)
         completeQuestionnaire()

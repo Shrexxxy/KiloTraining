@@ -29,9 +29,21 @@ class NutritionRingsTest {
         val partial = ringState(1536.toBigDecimal(), 2200)!!
         assertEquals(0.698f, partial.fraction, 0.001f)
         assertNull(partial.over)
-        assertEquals(RingState(1f, 300, true), ringState(2500.toBigDecimal(), 2200))
+        val over = ringState(2500.toBigDecimal(), 2200)!!
+        assertEquals(1.136f, over.fraction, 0.001f)
+        assertEquals(300, over.over)
+        assertTrue(over.known)
         assertEquals(RingState(0f, null, false), ringState(null, 140))
         assertNull(ringState(1536.toBigDecimal(), null))
+    }
+
+    @Test fun fractionsExtendThroughTwoTurnsIncludingZeroGoals() {
+        assertEquals(1.097f, ringState(79.toBigDecimal(), 72)!!.fraction, 0.001f)
+        assertEquals(7, ringState(79.toBigDecimal(), 72)!!.over)
+        assertEquals(RingState(1.5f, 50, true), ringState(150.toBigDecimal(), 100))
+        assertEquals(RingState(2f, 150, true), ringState(250.toBigDecimal(), 100))
+        assertEquals(RingState(1f, null, true), ringState(0.toBigDecimal(), 0))
+        assertEquals(RingState(2f, 5, true), ringState(5.toBigDecimal(), 0))
     }
 
     @Test fun todayShowsTotalsTargetsAndRemainingCalories() {

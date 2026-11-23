@@ -36,7 +36,7 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
             Text("Поиск продуктов", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.headlineMedium)
             onManage?.let { TextButton(onClick = it) { Text("Мои продукты") } }
-            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(),
+            DiaryTextField(query, { query = it }, Modifier.fillMaxWidth(),
                 label = { Text("Название продукта или блюда") }, singleLine = true)
             TextButton(onClick = { if (!loading) search(term) }, enabled = term.length >= 2) {
                 Text("Найти в интернете")

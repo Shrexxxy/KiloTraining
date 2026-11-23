@@ -44,7 +44,7 @@ internal fun RecipeContent(state: FoodUiState, event: (FoodEvent) -> Unit, modif
             fun edit(value: Recipe) = event(FoodEvent.EditRecipe(value))
             val food = recipe.food()
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { OutlinedTextField(recipe.name, { edit(recipe.copy(name = it)) }, Modifier.fillMaxWidth(),
+                item { DiaryTextField(recipe.name, { edit(recipe.copy(name = it)) }, Modifier.fillMaxWidth(),
                     singleLine = true, label = { Text("Название блюда") }) }
                 item { AmountField("Вес готового блюда без посуды, г", recipe.cooked, true) { edit(recipe.copy(cooked = it)) } }
                 itemsIndexed(recipe.ingredients) { index, ingredient ->

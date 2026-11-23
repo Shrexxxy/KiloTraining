@@ -65,9 +65,9 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
             Column(body.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Замер тела", Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
                 DiaryDaySelector(draft.day, true, { event(ProfileEvent.Open(it)) })
-                OutlinedTextField(draft.weight, { event(ProfileEvent.Edit(draft.copy(weight = it))) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                DiaryTextField(draft.weight, { event(ProfileEvent.Edit(draft.copy(weight = it))) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                OutlinedTextField(draft.fat, { event(ProfileEvent.Edit(draft.copy(fat = it))) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                DiaryTextField(draft.fat, { event(ProfileEvent.Edit(draft.copy(fat = it))) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Жир, %") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 Text("Можно заполнить одно поле. На каждую дату сохраняется один замер.")
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -206,11 +206,11 @@ private fun ProductServerBlock(model: ProfileViewModel) {
     val state by model.productServerState.collectAsStateWithLifecycle()
     val configured = state.address.isNotBlank()
     ProfileBlock("Сервер продуктов") {
-        OutlinedTextField(state.address, model::changeServerAddress, Modifier.fillMaxWidth(),
+        DiaryTextField(state.address, model::changeServerAddress, Modifier.fillMaxWidth(),
             enabled = !state.busy, label = { Text("Адрес") },
             placeholder = { Text("http://192.168.1.10:5080") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
-        OutlinedTextField(state.key, model::changeServerKey, Modifier.fillMaxWidth(),
+        DiaryTextField(state.key, model::changeServerKey, Modifier.fillMaxWidth(),
             enabled = !state.busy, label = { Text("Ключ") }, singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))

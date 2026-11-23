@@ -17,12 +17,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -68,12 +75,9 @@ internal fun GlassCard(
     val white = if (dark) colors.onSurface else colors.surfaceContainer
     val edge = accent.copy(alpha = .40f).compositeOver(white.copy(alpha = if (dark) .10f else .90f))
     val glow = accent.copy(alpha = .40f)
-    val frame = modifier
-        .shadow(3.dp, shape, clip = false)
-        .shadow(7.dp, shape, clip = false, ambientColor = glow, spotColor = glow)
-        .testTag("glass-card")
-    val fill = Brush.linearGradient(listOf(accent.copy(alpha = .16f).compositeOver(glassStart), glassEnd))
-    val reflection = Brush.linearGradient(
+    val frame = Modifier.testTag("glass-card")
+    val fill = lerp(accent.copy(alpha = .16f).compositeOver(glassStart), glassEnd, .5f)
+    val reflection = Brush.verticalGradient(
         0f to white.copy(alpha = if (dark) .09f else .60f),
         .40f to Color.Transparent,
     )
@@ -84,11 +88,23 @@ internal fun GlassCard(
             content()
         }
     }
-    if (onClick == null) {
-        Surface(frame, shape = shape, color = Color.Transparent, contentColor = colors.onSurface, content = inside)
-    } else {
-        Surface(onClick, frame, enabled = enabled, shape = shape, color = Color.Transparent,
-            contentColor = colors.onSurface, content = inside)
+    Box(modifier, propagateMinConstraints = true) {
+        Box(Modifier.matchParentSize()
+            .drawWithCache {
+                val outline = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
+                onDrawWithContent {
+                    // Полупрозрачная заливка иначе пропускает тень внутри контура.
+                    clipPath(outline, ClipOp.Difference) { this@onDrawWithContent.drawContent() }
+                }
+            }
+            .dropShadow(shape, Shadow(3.dp, Color.Black.copy(alpha = .24f), offset = DpOffset(0.dp, 2.dp)))
+            .dropShadow(shape, Shadow(7.dp, glow, offset = DpOffset(0.dp, 2.dp))))
+        if (onClick == null) {
+            Surface(frame, shape = shape, color = Color.Transparent, contentColor = colors.onSurface, content = inside)
+        } else {
+            Surface(onClick, frame, enabled = enabled, shape = shape, color = Color.Transparent,
+                contentColor = colors.onSurface, content = inside)
+        }
     }
 }
 
