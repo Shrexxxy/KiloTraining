@@ -20,15 +20,17 @@ class MvpScreenTest {
     }
 
     @Test fun opensScanner() {
-        waitText("За этот день пока нет записей")
-        node("Сканировать штрихкод").performClick()
+        waitText("Завтрак")
+        ui.addInMeal(Meal.BREAKFAST)
+        ui.onNodeWithContentDescription("Сканировать штрихкод").performClick()
         node("Открыть камеру").assertIsDisplayed()
         node("Цифры штрихкода").assertIsDisplayed()
     }
     @Test fun scanCallbackAddsCachedPortion() {
-        waitText("За этот день пока нет записей")
+        waitText("Завтрак")
         FoodStore(ui.activity.application).use { it.cacheProduct("12345678",Product("Йогурт","120")) }
-        node("Сканировать штрихкод").performClick()
+        ui.addInMeal(Meal.BREAKFAST)
+        ui.onNodeWithContentDescription("Сканировать штрихкод").performClick()
         node("Открыть камеру").performClick()
         val started = org.robolectric.Shadows.shadowOf(ui.activity).nextStartedActivityForResult
         org.junit.Assert.assertTrue(started.intent.component!!.className.contains("CaptureActivity"))

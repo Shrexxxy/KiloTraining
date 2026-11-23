@@ -67,7 +67,7 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     val foodState by food.uiState.collectAsStateWithLifecycle()
     val workout: WorkoutViewModel? = if (training) viewModel(key = "workout-${backupState.revision}") { WorkoutViewModel(app) } else null
     val workoutState = workout?.uiState?.collectAsStateWithLifecycle()?.value
-    val editing = if(training) workoutState?.draft != null else foodState.draft != null || foodState.scanning || foodState.recipes != null
+    val editing = if(training) workoutState?.draft != null else foodState.draft != null || foodState.scanning || foodState.recipes != null || foodState.addingMeal != null
     var fromHistory by rememberSaveable { mutableStateOf(false) }
     var requestedDay by rememberSaveable { mutableStateOf<String?>(null) }
     var requestedSession by rememberSaveable { mutableStateOf<Long?>(null) }

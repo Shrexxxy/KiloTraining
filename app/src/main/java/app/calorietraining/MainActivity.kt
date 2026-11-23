@@ -7,6 +7,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -87,13 +91,13 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
         ScannerScreen(state, onEvent)
         return
     }
+    if (state.managingProducts) {
+        MyProductsScreen(state.myProducts, { onEvent(FoodEvent.SaveProduct(it)) },
+            { onEvent(FoodEvent.DeleteProduct(it)) }, { onEvent(FoodEvent.LeaveProducts) },
+            modifier = modifier, error = state.error, busy = state.busy)
+        return
+    }
     state.draft?.let { draft ->
-        if (state.managingProducts) {
-            MyProductsScreen(state.myProducts, { onEvent(FoodEvent.SaveProduct(it)) },
-                { onEvent(FoodEvent.DeleteProduct(it)) }, { onEvent(FoodEvent.LeaveProducts) },
-                modifier = modifier, error = state.error, busy = state.busy)
-            return
-        }
         state.library?.let { foods ->
             val barcode = draft.barcode.takeIf { state.scanOutcome != null }
             FoodLibrary(if (state.recipe == null && barcode == null) foods else foods.filter { it.weighted },
@@ -106,6 +110,11 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
         val back = if (state.confirmingDelete) FoodEvent.CancelDelete else FoodEvent.Close
         BackHandler { onEvent(back) }
         FoodEditor(draft, state, onEvent, modifier)
+        return
+    }
+    val meal = state.addingMeal
+    if (meal != null && state.recipe == null) {
+        AddMealFood(meal, state, onEvent, modifier)
         return
     }
     if (state.recipes != null) {
@@ -134,37 +143,19 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
                         }
                     }
                 }
-                if (state.loaded && state.rows.isEmpty()) item {
-                    Text("За этот день пока нет записей", Modifier.padding(vertical = 24.dp),
-                        style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
-                }
-                state.rows.groupBy { it.meal }.toSortedMap().forEach { (meal, entries) ->
-                    item(key = meal.name) { MealCard(state.day, meal, entries, total, onEvent) }
+                val byMeal = state.rows.groupBy { it.meal }
+                Meal.entries.forEach { meal ->
+                    val entries = byMeal[meal].orEmpty()
+                    if (meal != Meal.UNSPECIFIED || entries.isNotEmpty()) {
+                        item(key = meal.name) { MealCard(state.day, meal, entries, total, onEvent) }
+                    }
                 }
                 if (state.error != null && state.draft == null) item {
                     Text(state.error, color = colors.error)
                     TextButton(onClick = { onEvent(FoodEvent.Day(state.day)) }) { Text("Повторить") }
                 }
             }
-            Button(onClick = { onEvent(FoodEvent.Scan) },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(54.dp)) {
-                Icon(painterResource(R.drawable.ic_barcode), contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Сканировать штрихкод")
-            }
-            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(
-                    Triple("Найти", "Найти продукт", FoodEvent.BrowseFoods),
-                    Triple("Рецепты", "Мои рецепты", FoodEvent.Recipes),
-                    Triple("Вручную", "Ввести вручную", FoodEvent.Edit(FoodDraft()))
-                ).forEach { (label, description, event) ->
-                    GlassTonalButton(onClick = { onEvent(event) },
-                        modifier = Modifier.weight(1f).semantics { contentDescription = description },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
-                        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-                    }
-                }
-            }
+
         }
     }
 
@@ -197,6 +188,9 @@ private fun MealCard(day: LocalDate, meal: Meal, entries: List<FoodEntry>, total
                     Text("${row.calories.display()} ккал", Modifier.padding(start = 8.dp),
                         color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                 }
+            }
+            if (meal != Meal.UNSPECIFIED) {
+                TextButton(onClick = { onEvent(FoodEvent.AddInMeal(meal)) }) { Text("+ Добавить") }
             }
         }
     }
@@ -274,6 +268,26 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (state.recipe == null) {
+                    Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Meal.entries.filter { it != Meal.UNSPECIFIED }.forEach { meal ->
+                            val accent = glassAccent(meal)
+                            val selected = draft.meal == meal
+                            val colors = MaterialTheme.colorScheme
+                            Surface(Modifier.weight(1f), shape = MaterialTheme.shapes.small,
+                                color = if (selected) accent.copy(alpha = .24f) else Color.Transparent,
+                                border = BorderStroke(1.dp, if (selected) accent else colors.outlineVariant)) {
+                                Box(Modifier.selectable(selected = selected, role = Role.RadioButton,
+                                    onClick = { edit(draft.copy(meal = meal)) })
+                                    .heightIn(min = 48.dp).padding(horizontal = 4.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center) {
+                                    Text(meal.label, style = MaterialTheme.typography.labelMedium,
+                                        color = if (selected) colors.onSurface else colors.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
                 if (scanCode != null && state.scanOutcome != null) {
                     ScanResultCard(scanCode, state.scanOutcome, state.busy, onEvent)
                 }
@@ -291,29 +305,12 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                         }
                     }
                 }
-                if (draft.id == null && draft.barcode == null) {
+                if (draft.id == null && draft.barcode == null && (state.recipe != null || state.addingMeal == null)) {
                     TextButton(onClick = { onEvent(FoodEvent.BrowseFoods) }) {
                         Text("Найти продукт")
                     }
                 }
                 if (state.recipe != null) TextButton(onClick = { onEvent(FoodEvent.Scan) }) { Text("Сканировать штрихкод") }
-                if (state.recipe == null && draft.id == null && draft.barcode == null && state.recent.isNotEmpty()) {
-                    var expanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(onClick = { expanded = true }) { Text("Недавние продукты") }
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            state.recent.forEach { food ->
-                                DropdownMenuItem(text = {
-                                    Column {
-                                        Text(food.name)
-                                        Text("${food.energy} ккал " + if (food.weighted) "на 100 г" else "за порцию",
-                                            style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }, onClick = { expanded = false; edit(food.copy(meal = draft.meal, mealTime = draft.mealTime)) })
-                            }
-                        }
-                    }
-                }
                 DiaryTextField(draft.name, { edit(draft.copy(name = it)) }, Modifier.fillMaxWidth().focusRequester(nameFocus),
                     label = { Text("Название") }, singleLine = true)
                 if (scanCode == null && draft.barcode != null && state.hint.isNotBlank()) Text(state.hint, style = MaterialTheme.typography.bodySmall)
@@ -327,20 +324,6 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                     DiaryTextField(draft.mealTime, { edit(draft.copy(mealTime = it)) }, Modifier.fillMaxWidth(),
                         label = { Text("Время еды") }, placeholder = { Text("ЧЧ:ММ") }, singleLine = true,
                         isError = !validMealTime(draft.mealTime), supportingText = { Text("Можно оставить пустым") })
-                    var choosingMeal by rememberSaveable { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(onClick = { choosingMeal = true }) {
-                            Text("Приём пищи · ${draft.meal.label}")
-                        }
-                        DropdownMenu(expanded = choosingMeal, onDismissRequest = { choosingMeal = false }) {
-                            Meal.entries.forEach { meal ->
-                                DropdownMenuItem(text = { Text(meal.label) }, onClick = {
-                                    choosingMeal = false
-                                    edit(draft.copy(meal = meal))
-                                })
-                            }
-                        }
-                    }
                 }
                 if (draft.weighted) AmountField(if (state.recipe == null) "Вес порции, г" else "Вес ингредиента, г", draft.grams, true) { edit(draft.copy(grams = it)) }
                 AmountField(if (draft.weighted) "Ккал на 100 г" else "Ккал на порцию", draft.energy, true) {

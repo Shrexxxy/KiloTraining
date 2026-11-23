@@ -89,7 +89,7 @@ class GlassPolishTest {
         screenshot("food-rings-over-dark")
         ui.onNodeWithText("сверх 300 ккал").assertIsDisplayed()
         ui.onNodeWithText("+7 г").assertIsDisplayed()
-        ui.onAllNodesWithText("+", substring = true).assertCountEquals(1)
+        ui.onAllNodes(hasText("+", substring = true) and !hasClickAction()).assertCountEquals(1)
         ui.onNode(hasTestTag("nutrition-rings") and hasContentDescription("сверх 7 г", substring = true))
             .assertIsDisplayed()
     }

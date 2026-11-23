@@ -28,7 +28,7 @@ class GlassThemeTest {
         ui.setContent { DiaryTheme(ThemeMode.DARK) {
             FoodContent(FoodUiState(rows = rows, loaded = true), {})
         } }
-        ui.onAllNodesWithTag("glass-card").assertCountEquals(3)
+        ui.onAllNodesWithTag("glass-card").assertCountEquals(5)
     }
 
     @Test fun appBackground() {

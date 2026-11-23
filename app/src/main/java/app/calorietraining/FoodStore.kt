@@ -15,6 +15,8 @@ internal fun String.amount(): BigDecimal? =
 
 fun BigDecimal.display(): String = stripTrailingZeros().toPlainString().replace('.', ',')
 
+internal fun foodSuggestionKey(name: String, weighted: Boolean) = name.trim().lowercase() to weighted
+
 enum class Meal(val label: String) {
     BREAKFAST("Завтрак"), LUNCH("Обед"), DINNER("Ужин"), SNACK("Перекус"), UNSPECIFIED("Без категории")
 }
@@ -243,12 +245,28 @@ class FoodStore(context: Context, databaseName: String = "food.db",
             while (size < limit && rows.moveToNext()) {
                 val name = rows.getString(0)
                 val weighted = rows.getString(2).isNotEmpty()
-                if (seen.add(name.trim().lowercase() to weighted)) {
+                if (seen.add(foodSuggestionKey(name, weighted))) {
                     add(FoodDraft(name = name, weighted = weighted, energy = rows.getString(1),
                         macros = Macros(rows.getString(3),rows.getString(4),rows.getString(5))))
                 }
             }
         }
+    }
+
+    fun frequentFoods(day: LocalDate, limit: Int = 5): List<FoodDraft> = readableDatabase.query(
+        "food", arrayOf("name", "energy", "grams", "protein", "fat", "carbs"),
+        "day BETWEEN ? AND ?", arrayOf(day.minusDays(59).toString(), day.toString()),
+        null, null, "day DESC, id DESC"
+    ).use { rows ->
+        val foods = linkedMapOf<Pair<String, Boolean>, MutableList<FoodDraft>>()
+        while (rows.moveToNext()) {
+            val name = rows.getString(0)
+            val weighted = rows.getString(2).isNotEmpty()
+            val matches = foods.getOrPut(foodSuggestionKey(name, weighted)) { mutableListOf() }
+            matches.add(FoodDraft(name = name, weighted = weighted, energy = rows.getString(1),
+                macros = Macros(rows.getString(3), rows.getString(4), rows.getString(5))))
+        }
+        foods.values.filter { it.size > 1 }.sortedByDescending { it.size }.take(limit).map { it.first() }
     }
 
     fun save(day: LocalDate, draft: FoodDraft) {
