@@ -28,11 +28,51 @@ public sealed class StartupTests
 
         var health = await client.GetFromJsonAsync<JsonElement>("/health");
         health.GetProperty("databaseAvailable").GetBoolean().Should().BeTrue();
+        if (!migrate)
+            health.GetProperty("productCount").ValueKind.Should().Be(JsonValueKind.Null);
 
         await using var connection = new NpgsqlConnection(database.GetConnectionString());
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand("SELECT to_regclass('public.products') IS NOT NULL", connection);
         (await command.ExecuteScalarAsync()).Should().Be(migrate);
+    }
+
+    /// <summary>Проверяет выбор точного счёта или оценки после изменения числа карточек.</summary>
+    [Theory]
+    [InlineData(20_000, 20_000)]
+    [InlineData(100, 105)]
+    public async Task HealthUsesEstimateOnlyForLargeTables(int analyzedCount, long expectedCount)
+    {
+        await using var database = new PostgreSqlBuilder("postgres:17.7").Build();
+        await database.StartAsync();
+        using var factory = CreateFactory(database.GetConnectionString(), true);
+        using var client = factory.CreateClient();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ProductsDb>();
+
+        await InsertProducts(db, 1, analyzedCount);
+        await db.Database.ExecuteSqlRawAsync("ANALYZE products");
+        await InsertProducts(db, analyzedCount + 1, analyzedCount + 5);
+
+        var health = await client.GetFromJsonAsync<JsonElement>("/health");
+        health.GetProperty("productCount").GetInt64().Should().Be(expectedCount);
+    }
+
+    /// <summary>Проверяет ответ без доступной PostgreSQL.</summary>
+    [Fact]
+    public async Task HealthRespondsWhenDatabaseIsUnavailable()
+    {
+        await using var database = new PostgreSqlBuilder("postgres:17.7").Build();
+        await database.StartAsync();
+        using var factory = CreateFactory(database.GetConnectionString(), false);
+        using var client = factory.CreateClient();
+        await database.StopAsync();
+
+        using var response = await client.GetAsync("/health");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var health = await response.Content.ReadFromJsonAsync<JsonElement>();
+        health.GetProperty("databaseAvailable").GetBoolean().Should().BeFalse();
+        health.GetProperty("productCount").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     /// <summary>Проверяет счётчик до и после появления двух карточек.</summary>
@@ -72,6 +112,13 @@ public sealed class StartupTests
         using var response = await client.GetAsync("/products/search?q=хлеб");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    private static Task<int> InsertProducts(ProductsDb db, int first, int last) =>
+        db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO products (id, name, kcal, source, created_at, updated_at, search_key)
+            SELECT gen_random_uuid(), 'Товар ' || n, 100, 'phone', now(), now(), 'товар ' || n
+            FROM generate_series({first}, {last}) AS n
+            """);
 
     private static WebApplicationFactory<Program> CreateFactory(string? connectionString, bool migrate) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
