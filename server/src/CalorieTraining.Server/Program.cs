@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using CalorieTraining.Server;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 if (args is ["import-off", .. var importArgs])
 {
@@ -27,6 +28,11 @@ builder.Services.AddDbContext<ProductsDb>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Products")));
 
 var app = builder.Build();
+if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    await scope.ServiceProvider.GetRequiredService<ProductsDb>().Database.MigrateAsync();
+}
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.Use(async (context, next) =>
@@ -47,7 +53,23 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", async (ProductsDb db, CancellationToken cancellationToken) =>
-    Results.Ok(new { status = "ok", databaseAvailable = await db.Database.CanConnectAsync(cancellationToken) }))
+{
+    var databaseAvailable = await db.Database.CanConnectAsync(cancellationToken);
+    long? productCount = null;
+    if (databaseAvailable)
+    {
+        try
+        {
+            productCount = await db.Products.LongCountAsync(cancellationToken);
+        }
+        catch (PostgresException error) when (error.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            // При отключённых миграциях PostgreSQL может отвечать до создания схемы.
+        }
+    }
+
+    return Results.Ok(new { status = "ok", databaseAvailable, productCount });
+})
     .WithMetadata(new PublicHealth());
 
 var products = app.MapGroup("/products");
