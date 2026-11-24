@@ -41,13 +41,19 @@ class NoArrowsTest {
         screen.captureScreen("home-weight-dark.png").recycle()
     }
 
+    @Test fun weightLossLightScreenshot() {
+        homeWithWeight("82.8", "82.4", ThemeMode.LIGHT).captureScreen("home-weight-light.png").recycle()
+    }
+
     @Test fun profileShowsGoalWithTargetIcon() {
         seedDiary()
         val screen = launch()
         openTab("Профиль")
         waitForText("Похудеть")
         ui.onNodeWithText("Похудеть").assertIsDisplayed()
-        ui.onNodeWithContentDescription("Цель").assertIsDisplayed()
+        ui.onNodeWithTag("goal-icon", useUnmergedTree = true).assertIsDisplayed()
+        ui.onAllNodesWithContentDescription("Цель", useUnmergedTree = true).assertCountEquals(0)
+        ui.onNodeWithText("ЦЕЛЬ").assertIsDisplayed()
         ui.onAllNodesWithText("↓", substring = true, useUnmergedTree = true).assertCountEquals(0)
         screen.captureScreen("profile-goal-dark.png").recycle()
     }
@@ -92,12 +98,12 @@ class NoArrowsTest {
         check(violations.isEmpty()) { violations.joinToString("\n") }
     }
 
-    private fun homeWithWeight(previous: String, latest: String): ScreenCapture {
+    private fun homeWithWeight(previous: String, latest: String, mode: ThemeMode = ThemeMode.DARK): ScreenCapture {
         FoodStore(RuntimeEnvironment.getApplication()).use { store ->
             store.saveMeasurement(Measurement(today.minusDays(2), previous))
             store.saveMeasurement(Measurement(today.minusDays(1), latest))
         }
-        val screen = launch()
+        val screen = launch(mode)
         val label = "${latest.replace('.', ',')} кг"
         waitForText(label)
         ui.onNodeWithText(label).performScrollTo().assertIsDisplayed()
@@ -120,8 +126,8 @@ class NoArrowsTest {
         }
     }
 
-    private fun launch() = ui.setScreenshotContent(ThemeMode.DARK) {
-        DiaryApp(ThemeMode.DARK, {})
+    private fun launch(mode: ThemeMode = ThemeMode.DARK) = ui.setScreenshotContent(mode) {
+        DiaryApp(mode, {})
     }
 
     private fun openTab(label: String) {

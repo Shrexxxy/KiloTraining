@@ -98,7 +98,9 @@ internal fun AddMealFood(meal: Meal, state: FoodUiState, event: (FoodEvent) -> U
         search = { event(FoodEvent.FindFood(it)) }, online = state.online, meal = meal,
         onScan = { event(FoodEvent.Scan) }, onManual = { choose(FoodDraft()) }) { content ->
         Column(content.fillMaxWidth()) {
-            SecondaryTabRow(selectedTabIndex = active, containerColor = Color.Transparent) {
+            SecondaryScrollableTabRow(
+                selectedTabIndex = active, containerColor = Color.Transparent, edgePadding = 0.dp, minTabWidth = 48.dp,
+            ) {
                 listOf("Из дневника", "Мои продукты", "Рецепты", "Заведения").forEachIndexed { index, label ->
                     Tab(selected = index == active, onClick = {
                         products = index == 1
@@ -107,8 +109,9 @@ internal fun AddMealFood(meal: Meal, state: FoodUiState, event: (FoodEvent) -> U
                         if (index == 2 && state.recipes == null) event(FoodEvent.Recipes)
                         if (index != 2 && state.recipes != null) event(FoodEvent.LeaveRecipes)
                     }) {
-                        Text(label, Modifier.padding(vertical = 10.dp),
-                            style = MaterialTheme.typography.labelMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Text(label, Modifier.padding(horizontal = 4.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.labelMedium, maxLines = 1,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
                 }
             }
