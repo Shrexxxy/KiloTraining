@@ -31,10 +31,7 @@ internal fun MyProduct.canShareWithOff(): Boolean {
 
 internal fun MyProduct.hasOffCalorieWarning(): Boolean {
     val kcal = requireNotNull(energy.amount())
-    val macroKcal = requireNotNull(macros.protein.amount()) * 4.toBigDecimal() +
-        requireNotNull(macros.fat.amount()) * 9.toBigDecimal() +
-        requireNotNull(macros.carbs.amount()) * 4.toBigDecimal()
-    return (macroKcal - kcal).abs() > maxOf(10.toBigDecimal(), kcal.movePointLeft(1))
+    return energyMismatch(kcal, requireNotNull(macroEnergy(macros)))
 }
 
 internal class OffSubmitModel(private val app: Context) : ViewModel() {

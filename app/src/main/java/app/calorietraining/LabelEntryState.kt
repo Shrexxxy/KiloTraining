@@ -36,8 +36,7 @@ internal data class LabelEntryState(
         } ?: false)
     val valid get() = values[0] != null && !impossibleMass &&
         entries.drop(1).all { it.isBlank() || it.labelAmount() != null }
-    private val manualEstimate get() = values.drop(1).takeIf { it.all { value -> value != null } }
-        ?.zip(coefficients)?.sumOf { (value, coefficient) -> requireNotNull(value) * coefficient }
+    private val manualEstimate get() = macroEnergy(values.drop(1))
     fun estimate(analysis: LabelAnalysis?): BigDecimal? = matchingEstimate(analysis)?.kcal ?: manualEstimate
 
     fun warning(analysis: LabelAnalysis?): Boolean = estimate(analysis)?.let { expected ->
@@ -45,7 +44,7 @@ internal data class LabelEntryState(
         val scale = factor ?: return false
         val energyStep = BigDecimal("0.5").scaleByPowerOfTen(-requireNotNull(energy.labelAmount()).scale())
         val roundedEnergy = if (inKj) energyStep.divide(KJ_PER_KCAL, MathContext.DECIMAL128) else energyStep
-        val manualRounding = entries.drop(1).mapNotNull(String::labelAmount).zip(coefficients).sumOf { (value, coefficient) ->
+        val manualRounding = entries.drop(1).mapNotNull(String::labelAmount).zip(macroCoefficients).sumOf { (value, coefficient) ->
             BigDecimal("0.5").scaleByPowerOfTen(-value.scale()) * coefficient
         }
         val rounding = matchingEstimate(analysis)?.rounding ?: (manualRounding * scale)
@@ -96,7 +95,6 @@ internal data class LabelEntryState(
     }
 
     companion object {
-        private val coefficients = listOf(BigDecimal(4), BigDecimal(9), BigDecimal(4))
         val Saver = listSaver<LabelEntryState, String>(
             save = { listOf(it.perPortion.toString(), it.grams, it.inKj.toString()) + it.entries +
                 it.notes.map { note -> note?.name.orEmpty() } },

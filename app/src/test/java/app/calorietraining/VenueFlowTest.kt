@@ -103,6 +103,39 @@ class VenueFlowTest {
         }
     }
 
+    @Test fun labelEntryKeepsCameraPhotoAndItsHash() {
+        openNutrition()
+        ui.addInMeal(Meal.LUNCH)
+        node("Новый продукт").performClick()
+        waitFor("Новая запись")
+        enter("Название", "Йогурт")
+        enter("Заведение", "Chicken Dener")
+        takePhoto()
+        node("На 100 г").performScrollTo().performClick()
+        enter("Вес порции, г", "75")
+        node("Ввести с этикетки").performScrollTo().performClick()
+        waitFor("С этикетки")
+        node("На порцию").performClick()
+        enter("Масса порции, г", "25")
+        enter("Энергия, ккал", "50")
+        enter("Белки, г", "2")
+        enter("Жиры, г", "2")
+        enter("Углеводы, г", "6")
+        node("Применить").performClick()
+        waitFor("Новая запись")
+        ui.onNodeWithContentDescription("Убрать фото").assertExists()
+        saveEditor()
+        FoodStore(context).use { store ->
+            val entry = store.entries(day).single()
+            assertEquals("200", entry.energy)
+            assertEquals(Macros("8", "8", "24"), entry.macros)
+            assertEquals("75", entry.grams)
+            val photo = photoFile(requireNotNull(entry.photoPath))
+            assertTrue(photo.isFile)
+            assertEquals(photo.photoHash(), entry.photoHash)
+        }
+    }
+
     @Test fun cameraPhotoIsPreviewedAndResizedWhenSaved() {
         openNutrition()
         saveDish("Шаурма", withPhoto = true)

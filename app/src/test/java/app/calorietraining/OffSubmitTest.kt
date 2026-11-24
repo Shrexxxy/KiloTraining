@@ -1,11 +1,13 @@
 package app.calorietraining
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.time.LocalDate
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import org.junit.Assert.*
@@ -76,6 +78,66 @@ class OffSubmitTest {
             assertEquals(saved, it.myProductByBarcode(code))
             assertEquals(0, it.pendingSyncCount())
         }
+    }
+
+    @Test fun portionFromLabelReachesDialogWithFormValues() = fixture {
+        enterLabelAndOpenDialog(kcal = "50", warning = false)
+        for (value in listOf("200 ккал", "Белки: 8 г", "Жиры: 8 г", "Углеводы: 24 г")) {
+            ui.onNode(hasAnyAncestor(isDialog()) and hasText(value, substring = true)).assertExists()
+        }
+        ui.onNodeWithText("Калорийность расходится", substring = true).assertDoesNotExist()
+    }
+
+    @Test fun mismatchedLabelWarnsInBothPlaces() = fixture {
+        enterLabelAndOpenDialog(kcal = "90", warning = true)
+        ui.onNode(hasAnyAncestor(isDialog()) and hasText("360 ккал", substring = true)).assertExists()
+        ui.onNodeWithText("Калорийность расходится", substring = true).assertExists()
+    }
+
+    private fun enterLabelAndOpenDialog(kcal: String, warning: Boolean) {
+        val state = mutableStateOf(FoodUiState(draft = FoodDraft(name = "Сырок", barcode = code, weighted = true,
+            grams = "40"), scanOutcome = ScanOutcome.MISSING))
+        val saved = mutableStateOf<List<MyProduct>?>(null)
+        ui.setScreenshotContent {
+            val products = saved.value
+            if (products != null) MyProductsScreen(products, {}, {}, {})
+            else FoodContent(state.value, { event ->
+                when (event) {
+                    is FoodEvent.Edit -> state.value = state.value.copy(draft = event.value)
+                    FoodEvent.Save -> saved.value = FoodStore(context).use {
+                        it.save(LocalDate.now(), requireNotNull(state.value.draft))
+                        it.myProducts()
+                    }
+                    else -> Unit
+                }
+            })
+        }
+        ui.onNodeWithText("Ввести с этикетки").performScrollTo().performClick()
+        ui.onNodeWithText("На порцию").performClick()
+        for ((label, value) in listOf("Масса порции, г" to "25", "Энергия, ккал" to kcal,
+            "Белки, г" to "2", "Жиры, г" to "2", "Углеводы, г" to "6")) {
+            ui.onNode(hasText(label) and hasSetTextAction()).performScrollTo().performTextReplacement(value)
+        }
+        val mismatch = ui.onNodeWithText("Калории не сходятся с БЖУ", substring = true)
+        if (warning) mismatch.assertExists() else mismatch.assertDoesNotExist()
+        ui.onNodeWithText(if (warning) "Всё равно применить" else "Применить").performClick()
+        val draft = requireNotNull(state.value.draft)
+        ui.onNodeWithText("Сохранить").performClick()
+        openCard("Сырок")
+        awaitAction()
+        val product = requireNotNull(saved.value).single()
+        assertEquals(draft.energy, product.energy)
+        assertEquals(draft.macros, product.macros)
+        openDialog()
+    }
+
+    @Test fun calorieWarningUsesCommonEnergyCheck() {
+        for (energy in listOf("149", "150", "165", "181", "182", "183", "184")) {
+            val product = card.copy(energy = energy, macros = Macros("10", "5", "20"))
+            assertEquals(energy, energyMismatch(energy.toBigDecimal(), requireNotNull(macroEnergy(product.macros))),
+                product.hasOffCalorieWarning())
+        }
+        assertNull(macroEnergy(Macros("10", "", "20")))
     }
 
     @Test fun failedPutStopsSubmission() = fixture { server ->

@@ -308,9 +308,19 @@ private fun readNumber(token: String?, correct: Boolean): Reading? {
     return Reading(value.toBigDecimal(), corrections > 0)
 }
 
+internal val macroCoefficients = macros.map { BigDecimal(it.kcal) }
+
+/** Калорийность по БЖУ в порядке «белки, жиры, углеводы»; без любого значения неизвестна. */
+internal fun macroEnergy(values: List<BigDecimal?>): BigDecimal? =
+    values.filterNotNull().takeIf { it.size == macroCoefficients.size }
+        ?.zip(macroCoefficients)?.sumOf { (value, coefficient) -> value * coefficient }
+
+internal fun macroEnergy(macros: Macros): BigDecimal? =
+    macroEnergy(listOf(macros.protein, macros.fat, macros.carbs).map(String::amount))
+
 internal fun energyMismatch(
     kcal: BigDecimal,
     estimate: BigDecimal,
-    rounding: BigDecimal,
+    rounding: BigDecimal = BigDecimal.ZERO,
     floor: BigDecimal = BigDecimal.TEN,
 ): Boolean = (kcal - estimate).abs() > maxOf(floor, kcal.movePointLeft(1), rounding)

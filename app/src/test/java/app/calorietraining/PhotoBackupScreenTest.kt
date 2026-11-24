@@ -81,6 +81,40 @@ class PhotoBackupScreenTest {
         ui.awaitUntil(5_000) { ui.onNodeWithContentDescription("Фото блюда").isDisplayed() }
     }
 
+    @Test fun restoresPhotosVenueAndMusclesOnCleanPhone() = Fixture().use { server ->
+        val photo = localPhoto(5)
+        val logo = localPhoto(6)
+        val photoBytes = photo.readBytes()
+        val logoBytes = logo.readBytes()
+        val muscles = ExerciseTechnique(listOf(Muscle.Chest), listOf(Muscle.Triceps), emptyList())
+        FoodStore(app).use { store ->
+            store.save(day, FoodDraft(name = "Суп", energy = "100", venueName = "Кафе", photoPath = photo.path))
+            store.setVenueLogo(store.venues().single().id, logo.path)
+            store.saveCustomMuscles("Мой жим", muscles.primary, muscles.secondary)
+        }
+        show()
+        upload()
+        awaitText("Копия сохранена на сервере")
+        assertTrue(app.deleteDatabase("food.db"))
+        assertTrue(app.photosDirectory.deleteRecursively())
+        FoodStore(app).use {
+            assertTrue(it.entries(day).isEmpty())
+            assertTrue(it.customMuscles().isEmpty())
+        }
+        restore()
+        ui.awaitUntil(5_000) { foodPath() != null && logoPath() != null }
+        assertArrayEquals(photoBytes, File(requireNotNull(foodPath())).readBytes())
+        assertArrayEquals(logoBytes, File(requireNotNull(logoPath())).readBytes())
+        FoodStore(app).use { store ->
+            val entry = store.entries(day).single()
+            assertEquals("Суп", entry.name)
+            assertEquals("Кафе", entry.venueName)
+            assertEquals(hash(photoBytes), entry.photoHash)
+            assertEquals(mapOf("мой жим" to muscles), store.customMuscles())
+        }
+        assertEquals(2, server.gets.get())
+    }
+
     @Test fun retriesAfterOfflineAndRejectsWrongBytes() = Fixture().use { server ->
         val food = jpeg(4)
         server.backup = backup(food)
