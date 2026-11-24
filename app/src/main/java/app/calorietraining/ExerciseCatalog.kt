@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -16,7 +17,9 @@ import androidx.compose.ui.unit.dp
 
 internal data class ExercisePhoto(
     val name: String, val muscle: String, val keywords: String, val first: Int, val second: Int, val dumbbell: Boolean = false
-)
+) {
+    val technique: ExerciseTechnique get() = exerciseTechniques.getValue(first)
+}
 
 internal val exerciseCatalog = listOf(
     ExercisePhoto("Тяга вертикального блока", "Спина", "верхний блок спина", R.drawable.ex_widegrip_lat_pulldown_0, R.drawable.ex_widegrip_lat_pulldown_1),
@@ -104,21 +107,32 @@ internal fun usesDumbbell(name: String): Boolean =
 @Composable
 internal fun ExercisePicker(onSelect: (ExercisePhoto) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
+    var details by rememberSaveable { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
+    details?.let(::photoForExercise)?.let { exercise ->
+        ExerciseMusclesScreen(exercise, onBack = { details = null }, modifier = modifier)
+        return
+    }
     val matches = remember(query) { searchExercises(query) }
     Column(modifier.fillMaxSize().imePadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ScreenHeader("Каталог упражнений", onBack = onClose)
         DiaryTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
             label = { Text("Название или группа мышц") })
-        LazyColumn(Modifier.weight(1f)) {
+        LazyColumn(Modifier.weight(1f), state = listState) {
             if (matches.isEmpty()) item { Text("Совпадений нет", Modifier.padding(vertical = 16.dp)) }
             items(matches, key = { it.name }) { item ->
-                Row(Modifier.fillMaxWidth().clickable { onSelect(item) }.padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Image(painterResource(item.second), null, Modifier.size(84.dp, 66.dp), contentScale = ContentScale.Fit)
-                    Column(Modifier.padding(start = 12.dp)) {
-                        Text(item.name, style = MaterialTheme.typography.titleMedium)
-                        Text(item.muscle, style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.weight(1f).clickable { onSelect(item) }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Image(painterResource(item.second), null, Modifier.size(84.dp, 66.dp), contentScale = ContentScale.Fit)
+                        Column(Modifier.padding(horizontal = 12.dp)) {
+                            Text(item.name, style = MaterialTheme.typography.titleMedium)
+                            Text(item.muscle, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
+                    ExerciseMusclesButton { details = item.name }
                 }
                 HorizontalDivider()
             }

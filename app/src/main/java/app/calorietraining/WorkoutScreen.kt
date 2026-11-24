@@ -131,8 +131,14 @@ private fun workoutNow(state: WorkoutState, workout: Workout?, event: (WorkoutEv
 
 @Composable
 private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (WorkoutEvent) -> Unit) {
-    var finishing by rememberSaveable { mutableStateOf(false) }
+    var exerciseDetails by rememberSaveable { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
     val now = workoutNow(state, workout, event)
+    exerciseDetails?.let(::photoForExercise)?.let { exercise ->
+        ExerciseMusclesScreen(exercise, onBack = { exerciseDetails = null })
+        return
+    }
+    var finishing by rememberSaveable { mutableStateOf(false) }
     WorkoutActions(state, workout, event)
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     if (finishing) AlertDialog(onDismissRequest = { finishing = false },
@@ -145,7 +151,7 @@ private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (Workou
             .sortedByDescending { sets -> sets.minOf { it.id ?: 0L } }
             .map { it.inExecutionOrder() }
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (workout.active) {
             workout.lastDoneAt?.let { done ->
@@ -172,7 +178,7 @@ private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (Workou
             }
         }
         items(exercises, key = { it.first().group }) { sets ->
-            ExerciseCard(sets, rests) { event(WorkoutEvent.Edit(workout.id, it)) }
+            ExerciseCard(sets, rests, onMuscles = { exerciseDetails = it.name }) { event(WorkoutEvent.Edit(workout.id, it)) }
         }
     }
 }
