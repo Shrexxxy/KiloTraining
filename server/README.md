@@ -1,51 +1,40 @@
 # Сервер продуктов и копий дневника
 
-Для запуска нужны .NET SDK 10, Docker с Compose и PowerShell 7. Команды выполняются из папки `server`.
+Для запуска нужны Docker Desktop и PowerShell 7. Выполняйте команды из папки `server`.
 
-## PostgreSQL
+## Запуск и обновление
+
+При первой настройке скопируйте шаблон, если `.env` ещё нет.
 
 ```powershell
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Откройте `.env` и замените заглушку в `POSTGRES_PASSWORD` случайным шестнадцатеричным паролем. Используйте тот же пароль при последующих запусках с существующим томом. PostgreSQL задаёт пароль пользователя при первой инициализации тома.
+Заполните `POSTGRES_PASSWORD` и `API_KEY` в `.env`. Для нового тома используйте случайный шестнадцатеричный пароль. Для существующего тома сохраните установленный ранее пароль PostgreSQL. В `API_KEY` можно использовать уже настроенный ключ приложения или новый случайный шестнадцатеричный ключ.
 
 ```powershell
-docker compose up -d --wait
-```
-
-PostgreSQL доступен на компьютере по адресу `127.0.0.1:5433`. Данные сохраняются в именованном томе `products_data`.
-
-## Миграции и API
-
-В текущем сеансе PowerShell задайте строку подключения и сгенерируйте ключ для телефона. Передайте ключ на телефон по доверенному каналу.
-
-```powershell
-$dbPassword = (Get-Content .env | Where-Object { $_ -match '^POSTGRES_PASSWORD=' }) -replace '^POSTGRES_PASSWORD=', ''
-$env:ConnectionStrings__Products = "Host=127.0.0.1;Port=5433;Database=products;Username=products;Password=$dbPassword"
-$env:Api__Key = [Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-```
-
-Установите `dotnet-ef` командой `dotnet tool install --global dotnet-ef --version 10.0.15`. Если у вас уже установлена более ранняя версия, используйте `dotnet tool update --global dotnet-ef --version 10.0.15`.
-
-```powershell
-dotnet ef database update --project src/CalorieTraining.Server
-dotnet run --project src/CalorieTraining.Server
-```
-
-Ключ можно также сохранить в user-secrets проекта под именем `Api:Key`. Для их загрузки запустите сервер с `DOTNET_ENVIRONMENT=Development`. Переменная `Api__Key` имеет приоритет.
-
-По умолчанию API слушает HTTP на всех интерфейсах на порту `5080`. Порт можно изменить, задав `ASPNETCORE_URLS` или передав `-- --urls http://0.0.0.0:5081` при запуске. Проверка с этого компьютера в другом окне PowerShell:
-
-```powershell
+docker compose up -d --build
+docker compose ps
 Invoke-RestMethod http://127.0.0.1:5080/health
 ```
 
-Ожидаемый ответ — `{"status":"ok","databaseAvailable":true}`. Для запросов к карточкам передайте `X-Api-Key` с настроенным ключом.
+API применяет миграции при старте. Эти же команды подходят после обновления кода или `.env`. PostgreSQL публикуется только на `127.0.0.1:5433`, а данные хранятся в томе `server_products_data` при стандартном имени проекта Compose `server`. Для запросов к карточкам и копиям используйте настроенный ключ в заголовке `X-Api-Key`.
 
-## Доступ с телефона
+Ответ `/health` включает `status: ok`, `databaseAvailable` и `productCount`. Счётчик равен `null`, если PostgreSQL недоступен или таблица товаров ещё не создана.
 
-Выполните `ipconfig` и найдите IPv4-адрес активного Wi-Fi или Ethernet-адаптера. Подключите телефон к той же сети и откройте `http://<IPv4 компьютера>:5080/health`. Если брандмауэр Windows блокирует запрос, разрешите входящие подключения к порту API для профиля «Частная сеть». Используйте HTTP API в доверенной локальной сети.
+В Docker Desktop откройте Settings → General и включите **Start Docker Desktop when you sign in to your computer**. Оба контейнера поднимаются вместе с Docker Desktop благодаря политике `unless-stopped`. После явной остановки контейнеров снова выполните `docker compose up -d`.
+
+## Доступ с телефона по Wi‑Fi
+
+Подключите телефон к той же доверенной локальной сети. На компьютере выполните `ipconfig` и найдите IPv4-адрес активного Wi‑Fi или Ethernet-адаптера. В приложении откройте «Настройки» → «Сервер продуктов». В поле «Адрес» укажите `http://<IPv4 компьютера>:5080`, в поле «Ключ» — значение `API_KEY` из `.env`. Нажмите «Проверить связь».
+
+Для домашней сети выберите в Windows профиль «Частная сеть». Если брандмауэр блокирует запросы, добавьте правило из PowerShell, запущенного от имени администратора.
+
+```powershell
+New-NetFirewallRule -DisplayName 'KiloTraining API' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5080 -Profile Private -RemoteAddress LocalSubnet
+```
+
+Для проверки откройте `http://<IPv4 компьютера>:5080/health` на компьютере и на телефоне. Используйте HTTP API в доверенной локальной сети.
 
 ## Резервные копии дневника
 
@@ -65,16 +54,30 @@ Invoke-RestMethod http://127.0.0.1:5080/health
 
 ## Импорт Open Food Facts
 
-Поднимите PostgreSQL, задайте `ConnectionStrings__Products` и примените миграции, как описано выше. Запускать API для импорта не требуется.
+Запустите контейнеры и выполните скрипт из PowerShell 7.
 
 ```powershell
-dotnet run --project src/CalorieTraining.Server -- import-off
-dotnet run --project src/CalorieTraining.Server -- import-off --file data/products.csv.gz
-dotnet run --project src/CalorieTraining.Server -- import-off --only-russia --file data/products.csv.gz
-dotnet run --project src/CalorieTraining.Server -- import-off --url https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz
+pwsh -NoProfile -File .\scripts\update-off.ps1
+pwsh -NoProfile -File .\scripts\update-off.ps1 -File .\data\products.csv.gz
 ```
 
-Команда без параметров читает официальную выгрузку по сети. Для повторного использования можно вручную сохранить архив и передать путь через `--file`. Поддерживаются архивы `.csv.gz` и распакованные `.csv` с разделителем-табуляцией. Скачивание и разбор идут потоком.
+Обычный запуск скачивает официальную выгрузку во временный файл в контейнере API. `-File` передаёт локальную выгрузку. Поддерживаются архивы `.csv.gz` и распакованные `.csv` с разделителем-табуляцией. Итоговые счётчики и время работы сохраняются в `server/logs/`. При ошибке скрипт возвращает ненулевой код.
+
+Для еженедельного обновления зарегистрируйте задание в Планировщике Windows от своего имени. Пример ниже запускает импорт по воскресеньям в 03:00 по местному времени. На момент запуска пользователь должен быть в системе, а Docker Desktop и API должны работать.
+
+```powershell
+$script = (Resolve-Path .\scripts\update-off.ps1).Path
+$action = New-ScheduledTaskAction -Execute (Get-Command pwsh).Source `
+    -Argument ('-NoProfile -NonInteractive -File "{0}"' -f $script)
+$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At '03:00'
+Register-ScheduledTask -TaskName 'KiloTraining Open Food Facts' -Action $action -Trigger $trigger
+```
+
+Для ручного импорта только товаров с тегом `en:russia` выполните:
+
+```powershell
+docker compose exec -T api dotnet /app/CalorieTraining.Server.dll import-off --only-russia
+```
 
 По умолчанию импорт обрабатывает товары всех стран. Опция `--only-russia` оставляет только товары с тегом `en:russia`. Признак `ru` выставляется по этому тегу или по префиксу 460–469 у 13-значного штрихкода. В поиске по названию сначала идут карточки телефона, затем товары с `ru`, затем остальные. При повторном запуске импорт обновляет изменившиеся карточки Open Food Facts и сохраняет карточки телефона. В конце команда выводит количество обработанных строк, добавления, обновления, пропуски, причины отбраковки и время.
 

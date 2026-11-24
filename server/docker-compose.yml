@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:17.7
+    restart: unless-stopped
     environment:
       POSTGRES_DB: products
       POSTGRES_USER: products
@@ -14,6 +15,19 @@ services:
       interval: 2s
       timeout: 5s
       retries: 15
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      Api__Key: ${API_KEY:-}
+      ConnectionStrings__Products: "Host=db;Port=5432;Database=products;Username=products;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}"
+      Database__MigrateOnStartup: "true"
+    ports:
+      - "5080:5080"
 
 volumes:
   products_data:

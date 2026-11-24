@@ -1,0 +1,6 @@
+**
+!src/
+!src/CalorieTraining.Server/
+!src/CalorieTraining.Server/**
+**/bin/
+**/obj/

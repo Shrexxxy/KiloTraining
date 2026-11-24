@@ -51,11 +51,21 @@ internal static class OffImporter
         await using var input = file is null
             ? await response!.EnsureSuccessStatusCode().Content.ReadAsStreamAsync(cancellationToken)
             : File.OpenRead(file);
+        await using var download = url is null ? null : new FileStream(
+            Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()),
+            FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        if (download is not null)
+        {
+            await input.CopyToAsync(download, cancellationToken);
+            download.Position = 0;
+        }
+
         var sourcePath = file ?? new Uri(address).AbsolutePath;
         await using var gzip = sourcePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
-            ? new GZipStream(input, CompressionMode.Decompress, leaveOpen: true)
+            ? new GZipStream(download ?? input, CompressionMode.Decompress, leaveOpen: true)
             : null;
-        using var parser = new TextFieldParser(gzip ?? input, System.Text.Encoding.UTF8, true, true)
+        using var parser = new TextFieldParser(gzip ?? download ?? input, System.Text.Encoding.UTF8, true, true)
         {
             Delimiters = ["\t"],
             HasFieldsEnclosedInQuotes = true,
