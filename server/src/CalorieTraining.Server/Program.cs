@@ -60,7 +60,15 @@ app.MapGet("/health", async (ProductsDb db, CancellationToken cancellationToken)
     {
         try
         {
-            productCount = await db.Products.LongCountAsync(cancellationToken);
+            var estimate = await db.Database.SqlQueryRaw<float?>("""
+                SELECT reltuples AS "Value"
+                FROM pg_catalog.pg_class
+                WHERE oid = pg_catalog.to_regclass('products')
+                """).SingleOrDefaultAsync(cancellationToken);
+            if (estimate is { } tuples)
+                productCount = tuples < 10_000
+                    ? await db.Products.LongCountAsync(cancellationToken)
+                    : (long)tuples;
         }
         catch (PostgresException error) when (error.SqlState == PostgresErrorCodes.UndefinedTable)
         {

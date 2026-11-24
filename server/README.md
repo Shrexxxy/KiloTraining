@@ -20,7 +20,7 @@ Invoke-RestMethod http://127.0.0.1:5080/health
 
 API применяет миграции при старте. Эти же команды подходят после обновления кода или `.env`. PostgreSQL публикуется только на `127.0.0.1:5433`, а данные хранятся в томе `server_products_data` при стандартном имени проекта Compose `server`. Для запросов к карточкам и копиям используйте настроенный ключ в заголовке `X-Api-Key`.
 
-Ответ `/health` включает `status: ok`, `databaseAvailable` и `productCount`. Счётчик равен `null`, если PostgreSQL недоступен или таблица товаров ещё не создана.
+Ответ `/health` включает `status: ok`, `databaseAvailable` и `productCount`. Если PostgreSQL оценивает размер таблицы в 10 000 товаров или больше, `productCount` приблизительный. При меньшей оценке или отсутствии статистики сервер считает товары точно. Счётчик равен `null`, если PostgreSQL недоступен или таблица товаров ещё не создана.
 
 В Docker Desktop откройте Settings → General и включите **Start Docker Desktop when you sign in to your computer**. Оба контейнера поднимаются вместе с Docker Desktop благодаря политике `unless-stopped`. После явной остановки контейнеров снова выполните `docker compose up -d`.
 
