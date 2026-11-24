@@ -1,11 +1,6 @@
 package app.calorietraining
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
-import androidx.compose.ui.platform.LocalView
-import java.io.File
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -63,12 +58,8 @@ class ProductServerScreenTest {
                 }
             }
         })
-        lateinit var view: View
-        ui.setContent {
-            DiaryTheme(ThemeMode.DARK) {
-                view = LocalView.current
-                SettingsScreen(model, ThemeMode.DARK, {}, {}, {})
-            }
+        val screen = ui.setScreenshotContent(ThemeMode.DARK) {
+            SettingsScreen(model, ThemeMode.DARK, {}, {}, {})
         }
         ui.onNodeWithText("Сервер продуктов").performScrollTo()
         ui.onNodeWithText("Сервер продуктов").assertExists()
@@ -79,13 +70,7 @@ class ProductServerScreenTest {
         val preferences = context.getSharedPreferences("server", Context.MODE_PRIVATE)
         assertEquals(address, preferences.getString("address", null))
         assertEquals(key, preferences.getString("key", null))
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-        }
-        val directory = File("build/screenshots").apply { mkdirs() }
-        File(directory, "server-settings-dark.png").outputStream().use {
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
+        screen.captureScreen("server-settings-dark.png")
     }
 
     @Test fun settingsDisplayUnauthorizedStatusAfterSend() {

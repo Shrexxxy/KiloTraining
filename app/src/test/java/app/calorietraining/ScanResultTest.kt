@@ -1,13 +1,8 @@
 package app.calorietraining
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
-import java.io.File
 import java.io.IOException
 import java.time.LocalDate
 import org.junit.Assert.*
@@ -65,12 +60,8 @@ class ScanResultTest {
     @Test fun missingProductShowsBarcodeAndSearchInBothThemes() {
         val theme = mutableStateOf(ThemeMode.LIGHT)
         val state = mutableStateOf(FoodUiState())
-        lateinit var view: View
-        ui.setContent {
-            DiaryTheme(theme.value) {
-                view = LocalView.current
-                FoodContent(state.value, {})
-            }
+        val screen = ui.setScreenshotContent({ theme.value }) {
+            FoodContent(state.value, {})
         }
         ui.runOnIdle { state.value = scanState(ScanOutcome.MISSING) }
         for ((mode, suffix) in listOf(ThemeMode.LIGHT to "light", ThemeMode.DARK to "dark")) {
@@ -79,13 +70,7 @@ class ScanResultTest {
             ui.onNodeWithText("Этого товара нет в Open Food Facts. Заполните название и калорийность с упаковки — после сохранения товар запомнится, и в следующий раз всё подставится само").assertIsDisplayed()
             ui.onNodeWithText("Найти по названию").assertHasClickAction()
             ui.onNode(hasText("Название") and hasSetTextAction()).assertIsFocused()
-            val bitmap = ui.runOnIdle {
-                Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-            }
-            val dir = File("build/screenshots").apply { mkdirs() }
-            File(dir, "scan-missing-$suffix.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
+            screen.captureScreen("scan-missing-$suffix.png")
         }
     }
 

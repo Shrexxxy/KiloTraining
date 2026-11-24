@@ -160,7 +160,7 @@ fun BackupScreen(model: BackupViewModel, onClose: () -> Unit) {
     fun close() {
         if (!state.busy) { model.discard(); onClose() }
     }
-    Scaffold(containerColor = MaterialTheme.colorScheme.surface) { padding ->
+    Scaffold(containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             ScreenHeader("Резервная копия", onBack = ::close, backEnabled = !state.busy)

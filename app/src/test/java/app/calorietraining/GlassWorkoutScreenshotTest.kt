@@ -1,10 +1,6 @@
 package app.calorietraining
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import org.junit.Rule
@@ -13,7 +9,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.io.File
 import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
@@ -69,18 +64,6 @@ class GlassWorkoutScreenshotTest {
         capture(mode, filename) { WorkoutContent(screen, {}) }
 
     private fun capture(mode: ThemeMode, filename: String, content: @Composable () -> Unit) {
-        lateinit var view: View
-        ui.setContent {
-            DiaryTheme(mode) {
-                view = LocalView.current
-                DiaryBackground { content() }
-            }
-        }
-        // В Robolectric captureToImage ждёт перерисовку окна, которая здесь не вызывается.
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-        }
-        val dir = File("build/screenshots/glass-workouts").apply { mkdirs() }
-        File(dir, filename).outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+        ui.setScreenshotContent(mode, content).captureScreen(filename)
     }
 }

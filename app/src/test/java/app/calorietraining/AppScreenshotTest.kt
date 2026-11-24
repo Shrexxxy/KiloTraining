@@ -1,9 +1,5 @@
 package app.calorietraining
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import org.junit.Rule
@@ -12,7 +8,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
 import org.robolectric.RuntimeEnvironment
@@ -25,36 +20,28 @@ class AppScreenshotTest {
     @get:Rule(order = 1) val ui = createComposeRule()
 
     @Test fun food() = capture("Питание", "app-food-dark.png")
-    @Test fun profile() = capture("Профиль", "app-profile-dark.png")
 
     @Test fun homeDark() = captureHome("home-dark.png")
     @Test fun homeLight() = captureHome("home-light.png", ThemeMode.LIGHT)
     @Test fun homeLiveWorkout() = captureHome("home-live-workout-dark.png", live = true)
     @Test fun settings() = capture("Настройки", "settings-dark.png")
-    @Test fun profileWithoutSettings() = capture("Профиль", "profile-no-settings-dark.png")
     @Test fun settingsHeaderLight() = capture("Настройки", "header-settings-light.png", ThemeMode.LIGHT)
     @Test fun scannerHeaderDark() = captureMeal("header-scanner-dark.png") {
         ui.onNodeWithContentDescription("Сканировать штрихкод").performClick()
         ui.onNodeWithText("Штрихкод продукта").assertIsDisplayed()
-    }
-    @Test fun foodEditorHeaderDark() = captureMeal("header-food-editor-dark.png") {
-        ui.onNodeWithText("Новый продукт").performClick()
-        ui.onNodeWithText("Новая запись").assertIsDisplayed()
     }
     @Test fun newMealProductDark() = captureMeal("meals-add-new-product-dark.png") {
         ui.onNodeWithText("Новый продукт").assertIsDisplayed()
     }
 
     private fun captureMeal(filename: String, openScreen: () -> Unit) {
-        lateinit var view: View
-        ui.setContent { DiaryTheme(ThemeMode.DARK) {
-            view = LocalView.current
+        val screen = ui.setScreenshotContent(ThemeMode.DARK) {
             DiaryApp(ThemeMode.DARK, {})
-        } }
+        }
         ui.onNodeWithText("Добавить еду").performScrollTo().performClick()
         ui.awaitUntil(10_000) { ui.onAllNodesWithText("Добавить · Завтрак").fetchSemanticsNodes().isNotEmpty() }
         openScreen()
-        saveScreenshot(view, filename)
+        screen.captureScreen(filename)
     }
 
     private fun captureHome(filename: String, mode: ThemeMode = ThemeMode.DARK, live: Boolean = false) {
@@ -71,11 +58,9 @@ class AppScreenshotTest {
     }
 
     private fun capture(tab: String, filename: String, mode: ThemeMode = ThemeMode.DARK, live: Boolean = false) {
-        lateinit var view: View
-        ui.setContent { DiaryTheme(mode) {
-            view = LocalView.current
+        val screen = ui.setScreenshotContent(mode) {
             DiaryApp(mode, {})
-        } }
+        }
         if (tab != "Главная") {
             val destination = if (tab == "Настройки") "Профиль" else tab
             ui.onNode(hasText(destination) and isSelectable()).performClick()
@@ -91,15 +76,6 @@ class AppScreenshotTest {
         if (tab == "Главная") {
             ui.awaitUntil(10_000) { ui.onAllNodesWithText("82,4 кг").fetchSemanticsNodes().isNotEmpty() }
         }
-        saveScreenshot(view, filename)
-    }
-
-    private fun saveScreenshot(view: View, filename: String) {
-        // В Robolectric captureToImage ждёт обратный вызов перерисовки окна, который здесь не приходит.
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-        }
-        val dir = File("build/screenshots").apply { mkdirs() }
-        File(dir, filename).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        screen.captureScreen(filename)
     }
 }

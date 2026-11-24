@@ -1,8 +1,5 @@
 package app.calorietraining
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,11 +9,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
-import java.io.File
 import java.time.LocalDate
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -33,18 +28,20 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [35], qualifiers = "ru-rRU-w360dp-h800dp")
 class GlassPolishTest {
     @get:Rule val ui = createComposeRule()
-    private lateinit var view: View
+    private lateinit var screen: ScreenCapture
 
     @Test fun glassCardHasEvenBrightness() {
-        show(background = false) {
-            Box(Modifier.fillMaxSize().background(Color(0xFF202124)), contentAlignment = Alignment.Center) {
-                GlassCard(LocalDiaryAccents.current.kcal, Modifier.size(280.dp, 120.dp)) {}
+        show() {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(280.dp, 120.dp).background(Color(0xFF202124))) {
+                    GlassCard(LocalDiaryAccents.current.kcal, Modifier.fillMaxSize()) {}
+                }
             }
         }
         val bounds = ui.onNodeWithTag("glass-card").fetchSemanticsNode().boundsInRoot
-        val bitmap = screenshot("glass-card-dark")
+        val bitmap = screen.captureScreen("glass-card-dark.png")
         val y = bounds.center.y.roundToInt()
-        val inset = (7 * view.resources.displayMetrics.density).roundToInt()
+        val inset = (bounds.width * 7 / 280).roundToInt()
         val center = Color(bitmap.getPixel(bounds.center.x.roundToInt(), y)).luminance()
         val edge = Color(bitmap.getPixel(bounds.right.roundToInt() - inset, y)).luminance()
         assertTrue("Яркость в центре: $center, у рамки: $edge", abs(center - edge) <= center * .03f)
@@ -53,11 +50,13 @@ class GlassPolishTest {
     @Test fun newFoodFieldsAreTagged() {
         foodEditor(ThemeMode.DARK)
         assertDiaryFields()
+        screen.captureScreen("food-editor-dark.png")
     }
 
-    @Test fun foodEditorDark() = foodEditor(ThemeMode.DARK)
-
-    @Test fun foodEditorLight() = foodEditor(ThemeMode.LIGHT)
+    @Test fun foodEditorLight() {
+        foodEditor(ThemeMode.LIGHT)
+        screen.captureScreen("food-editor-light.png")
+    }
 
     @Test fun goalDialogFieldsAreTagged() {
         show { GoalDialog(LocalDate.now(), DailyGoals(), {}) { _, _ -> } }
@@ -69,7 +68,6 @@ class GlassPolishTest {
         val workout = Workout(1, emptyList(), "Силовая", null, day = LocalDate.now())
         show { WorkoutContent(WorkoutState(list = listOf(workout), opened = 1, session = 1, draft = draft), {}) }
         ui.onNodeWithText("Повторы").assertExists()
-        screenshot("workout-set-dark")
         assertDiaryFields()
     }
 
@@ -86,7 +84,7 @@ class GlassPolishTest {
             meal = Meal.LUNCH, macros = Macros(protein = "98", fat = "79", carbs = "320"))
         val goals = DailyGoals(2200, MacroGoals(protein = 140, fat = 72, carbs = 350))
         show { FoodContent(FoodUiState(rows = listOf(entry), goals = goals, loaded = true), {}) }
-        screenshot("food-rings-over-dark")
+        screen.captureScreen("food-rings-over-dark.png")
         ui.onNodeWithText("сверх 300 ккал").assertIsDisplayed()
         ui.onNodeWithText("+7 г").assertIsDisplayed()
         ui.onAllNodes(hasText("+", substring = true) and !hasClickAction()).assertCountEquals(1)
@@ -99,7 +97,6 @@ class GlassPolishTest {
             FoodContent(FoodUiState(draft = FoodDraft(weighted = true), loaded = true), {})
         }
         ui.onNodeWithText("Ккал на 100 г").performScrollTo().assertIsDisplayed()
-        screenshot(if (mode == ThemeMode.DARK) "food-editor-dark" else "food-editor-light")
     }
 
     private fun assertDiaryFields() {
@@ -107,23 +104,7 @@ class GlassPolishTest {
         ui.onAllNodes(hasSetTextAction() and !hasTestTag("diary-field"), useUnmergedTree = true).assertCountEquals(0)
     }
 
-    private fun show(mode: ThemeMode = ThemeMode.DARK, background: Boolean = true, content: @Composable () -> Unit) {
-        ui.setContent {
-            DiaryTheme(mode) {
-                view = LocalView.current
-                if (background) DiaryBackground { content() } else content()
-            }
-        }
-    }
-
-    private fun screenshot(name: String): Bitmap {
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-        }
-        val directory = File("build/screenshots").apply { mkdirs() }
-        File(directory, "$name.png").outputStream().use {
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-        return bitmap
+    private fun show(mode: ThemeMode = ThemeMode.DARK, content: @Composable () -> Unit) {
+        screen = ui.setScreenshotContent(mode, content)
     }
 }

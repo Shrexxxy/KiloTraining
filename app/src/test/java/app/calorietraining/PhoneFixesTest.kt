@@ -87,7 +87,6 @@ class PhoneFixesTest {
 
     private fun awaitHistory(history: HistoryViewModel) {
         ui.awaitUntil(10_000) {
-            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
             !history.uiState.value.loading
         }
         assertFalse(history.uiState.value.error)

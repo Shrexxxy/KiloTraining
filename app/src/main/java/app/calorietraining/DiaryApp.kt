@@ -33,7 +33,7 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     var showingSettings by rememberSaveable { mutableStateOf(false) }
     var copying by rememberSaveable { mutableStateOf(false) }
     if (copying) {
-        BackupScreen(backup) { copying = false }
+        DiaryBackground { BackupScreen(backup) { copying = false } }
         return
     }
     val settings = remember(app) { OnboardingSettings(app) }
