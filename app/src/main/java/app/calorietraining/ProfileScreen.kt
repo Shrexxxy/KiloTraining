@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -224,7 +225,8 @@ private fun MyDataBlock(profile: UserProfile?, measurement: Measurement?, savedB
             Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 if (profile != null) {
-                    Icon(painterResource(R.drawable.ic_goal), contentDescription = "Цель", tint = color)
+                    Icon(painterResource(R.drawable.ic_goal), contentDescription = null,
+                        modifier = Modifier.testTag("goal-icon"), tint = color)
                 }
                 ProfileValue("ЦЕЛЬ", goal, MaterialTheme.colorScheme.onSurface)
             }

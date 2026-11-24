@@ -36,7 +36,9 @@ class WorkoutFlowTest {
     }
 
     private fun reveal(text: String): SemanticsNodeInteraction {
-        ui.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(text))
+        val list = hasScrollToIndexAction()
+        ui.awaitUntil(5_000) { ui.onAllNodes(list).fetchSemanticsNodes().isNotEmpty() }
+        ui.onNode(list).performScrollToNode(hasText(text))
         return ui.onNodeWithText(text)
     }
 
