@@ -167,6 +167,7 @@ fun BackupScreen(model: BackupViewModel, onClose: () -> Unit) {
             val preview = state.preview
             if (preview == null) {
                 Text("Сохраните питание, продукты и тренировки в файл. Его можно перенести на другой телефон.")
+                Text("Фото блюд и логотипы в копию не входят", style = MaterialTheme.typography.bodyMedium)
                 Button(enabled = !state.busy, onClick = { create.launch("diary-${LocalDate.now()}.json") }) { Text("Сохранить копию") }
                 OutlinedButton(enabled = !state.busy, onClick = { open.launch(arrayOf("*/*")) }) { Text("Восстановить из файла") }
                 if (state.serverConfigured) {

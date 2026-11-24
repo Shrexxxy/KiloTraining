@@ -21,10 +21,11 @@ class OnboardingStorageTest {
         context.openOrCreateDatabase("onboarding-v16", 0, null).use { db ->
             db.execSQL("CREATE TABLE goal(start_day TEXT PRIMARY KEY, kcal INTEGER, protein INTEGER, fat INTEGER, carbs INTEGER)")
             db.execSQL("INSERT INTO goal VALUES (?,2760,128,72,400)", arrayOf(day.toString()))
+            db.createLegacyFoodTable()
             db.version = 16
         }
         FoodStore(context, "onboarding-v16").use { store ->
-            assertEquals(17, store.readableDatabase.version)
+            assertEquals(18, store.readableDatabase.version)
             assertEquals(goals, store.goalsFor(day))
             store.readableDatabase.rawQuery("SELECT * FROM user_profile", null).use {
                 assertFalse(it.moveToFirst())
@@ -40,7 +41,7 @@ class OnboardingStorageTest {
             store.setGoals(day, goals)
             store.backup()
         }
-        assertEquals("calorietraining/15", backup.getString("format"))
+        assertEquals("calorietraining/16", backup.getString("format"))
         FoodStore(context, "destination").use { store ->
             store.readBackup(backup.toString().reader())
             assertEquals(goals, store.goalsFor(day))

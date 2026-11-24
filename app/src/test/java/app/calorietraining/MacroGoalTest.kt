@@ -49,10 +49,11 @@ class MacroGoalTest {
             db.execSQL("INSERT INTO daily_goal VALUES(1, 2200)")
             db.execSQL("CREATE TABLE workout(id INTEGER PRIMARY KEY, day TEXT, title TEXT, minutes INTEGER)")
             db.execSQL("CREATE TABLE lifting(id INTEGER PRIMARY KEY, session INTEGER, exercise_group TEXT, exercise TEXT, weight TEXT, reps INTEGER, planned INTEGER, warmup INTEGER)")
+            db.createLegacyFoodTable()
             db.version = 11
         }
         FoodStore(context, "upgrade").use { store ->
-            assertEquals(17, store.readableDatabase.version)
+            assertEquals(18, store.readableDatabase.version)
             assertEquals(2200, store.goalsFor(today).kcal)
             assertEquals(MacroGoals(), store.goalsFor(today).macros)
         }
@@ -64,7 +65,7 @@ class MacroGoalTest {
             StringWriter().also(store::exportDiary).toString()
         }
         val json = JSONObject(backup)
-        assertEquals("calorietraining/15", json.getString("format"))
+        assertEquals("calorietraining/16", json.getString("format"))
         val row = json.getJSONArray("goal").getJSONObject(0)
         assertEquals("140", row.get("protein"))
         assertEquals("0", row.get("carbs"))

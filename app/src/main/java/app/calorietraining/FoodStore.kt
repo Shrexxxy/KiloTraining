@@ -62,7 +62,9 @@ data class FoodDraft(
     val macros: Macros = Macros(),
     val brand: String = "",
     val origin: ProductOrigin? = null,
-    val fromRecipe: Boolean = false
+    val fromRecipe: Boolean = false,
+    val venueName: String = "",
+    val photoPath: String? = null
 ) {
     val portionMacros get() = macros.forPortion(if (weighted) grams.amount()?.movePointLeft(2) else BigDecimal.ONE)
     val calories: BigDecimal?
@@ -85,9 +87,12 @@ data class FoodEntry(
     val calories: BigDecimal,
     val meal: Meal = Meal.UNSPECIFIED,
     val mealTime: String = "",
-    val macros: Macros = Macros()
+    val macros: Macros = Macros(),
+    val venueName: String = "",
+    val photoPath: String? = null
 ) {
-    fun edit() = FoodDraft(id, name, grams.isNotEmpty(), energy, grams, meal = meal, mealTime = mealTime, macros = macros)
+    fun edit() = FoodDraft(id, name, grams.isNotEmpty(), energy, grams, meal = meal, mealTime = mealTime,
+        macros = macros, venueName = venueName, photoPath = photoPath)
 }
 
 /** Дневные цели по калориям и макронутриентам. */
@@ -106,9 +111,10 @@ internal fun SQLiteDatabase.importLegacyGoals(kcal: Int, protein: Int, fat: Int,
         arrayOf<Any>(firstDay ?: LocalDate.now().toString(), kcal, protein, fat, carbs))
 }
 
-class FoodStore(context: Context, databaseName: String = "food.db",
+class FoodStore(internal val context: Context, databaseName: String = "food.db",
     internal val clock: java.time.Clock = java.time.Clock.systemDefaultZone(),
-) : SQLiteOpenHelper(context, databaseName, null, 17) {
+) : SQLiteOpenHelper(context, databaseName, null, 18) {
+    internal val unusedPhotos = mutableSetOf<String>()
     private fun createLegacyCalorieTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
     }
@@ -178,6 +184,7 @@ class FoodStore(context: Context, databaseName: String = "food.db",
         createMyProductsOnOpen(db)
         addWorkoutTimes(db)
         createUserProfileAndZeroCarbs(db)
+        db.createVenues()
     }
 
     private fun createUserProfileAndZeroCarbs(db: SQLiteDatabase) {
@@ -221,17 +228,19 @@ class FoodStore(context: Context, databaseName: String = "food.db",
         if (oldVersion == 14) db.execSQL("ALTER TABLE my_product ADD COLUMN pending_sync INTEGER NOT NULL DEFAULT 1")
         if (oldVersion < 16) addWorkoutTimes(db)
         if (oldVersion < 17) createUserProfileAndZeroCarbs(db)
+        if (oldVersion < 18) db.createVenues()
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(
-        "SELECT id, name, energy, grams, calories, meal, meal_time,protein,fat,carbs FROM food WHERE day = ? ORDER BY id",
+        """SELECT f.id, f.name, energy, grams, calories, meal, meal_time, protein, fat, carbs, v.name, photo_path
+           FROM food f LEFT JOIN venue v ON f.venue_id = v.id WHERE day = ? ORDER BY f.id""",
         arrayOf(day.toString())
     ).use { rows ->
         buildList {
             while (rows.moveToNext()) {
                 add(FoodEntry(rows.getLong(0), rows.getString(1), rows.getString(2),
                     rows.getString(3), rows.getString(4).toBigDecimal(), Meal.valueOf(rows.getString(5)), rows.getString(6),
-                    Macros(rows.getString(7),rows.getString(8),rows.getString(9))))
+                    Macros(rows.getString(7),rows.getString(8),rows.getString(9)), rows.getString(10).orEmpty(), rows.getString(11)))
             }
         }
     }
@@ -284,10 +293,20 @@ class FoodStore(context: Context, databaseName: String = "food.db",
         }
         val db = writableDatabase
         db.atomic {
+            val oldPhoto = draft.id?.let { id ->
+                db.rawQuery("SELECT photo_path FROM food WHERE id = ? AND day = ?", arrayOf(id.toString(), day.toString()))
+                    .use { rows ->
+                        if (!rows.moveToFirst()) return@atomic
+                        rows.getString(0)
+                    }
+            }
+            values.put("venue_id", db.findOrCreateVenue(draft.venueName, clock.millis()))
+            values.put("photo_path", draft.photoPath)
             val saved = if (draft.id == null) {
                 db.insertOrThrow("food", null, values)
                 true
             } else db.update("food", values, "id = ? AND day = ?", arrayOf(draft.id.toString(), day.toString())) > 0
+            if (saved && oldPhoto != null && oldPhoto != draft.photoPath) unusedPhotos.add(oldPhoto)
             if (saved && !draft.fromRecipe) {
                 val origin = draft.origin
                 val source = if (origin != null && draft.name == origin.name &&
@@ -297,18 +316,24 @@ class FoodStore(context: Context, databaseName: String = "food.db",
                     weighted = draft.weighted, energy = draft.energy, macros = draft.macros, source = source))
             }
         }
+        cleanUnusedPhotos()
     }
 
     fun copyMeal(source: LocalDate, destination: LocalDate, meal: Meal) {
         writableDatabase.execSQL(
-            """INSERT INTO food(day, name, energy, grams, calories, meal, protein, fat, carbs)
-               SELECT ?, name, energy, grams, calories, meal, protein, fat, carbs FROM food
+            """INSERT INTO food(day, name, energy, grams, calories, meal, protein, fat, carbs, venue_id, photo_path)
+               SELECT ?, name, energy, grams, calories, meal, protein, fat, carbs, venue_id, photo_path FROM food
                WHERE day = ? AND meal = ? ORDER BY id""",
             arrayOf(destination.toString(), source.toString(), meal.name)
         )
     }
 
     fun delete(day: LocalDate, id: Long) {
-        writableDatabase.delete("food", "id = ? AND day = ?", arrayOf(id.toString(), day.toString()))
+        val db = writableDatabase
+        db.atomic {
+            db.entryPhoto(day, id)?.let(unusedPhotos::add)
+            db.delete("food", "id = ? AND day = ?", arrayOf(id.toString(), day.toString()))
+        }
+        cleanUnusedPhotos()
     }
 }
