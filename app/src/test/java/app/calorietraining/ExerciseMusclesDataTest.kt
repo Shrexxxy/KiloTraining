@@ -5,10 +5,11 @@ import org.junit.Test
 
 class ExerciseMusclesDataTest {
     @Test fun allCatalogExercisesHaveMusclesAndShortInstructions() {
-        assertEquals(57, exerciseCatalog.size)
+        assertEquals(80, exerciseCatalog.size)
         exerciseCatalog.forEach { exercise ->
             assertTrue(exercise.name, exercise.technique.primary.isNotEmpty())
-            assertTrue(exercise.name, exercise.technique.steps.size in 3..5)
+            assertTrue(exercise.name, exercise.technique.steps.size in 3..4)
+            assertTrue(exercise.name, exercise.technique.primary.intersect(exercise.technique.secondary.toSet()).isEmpty())
             assertTrue(exercise.name, exercise.technique.steps.none(String::isBlank))
         }
     }
