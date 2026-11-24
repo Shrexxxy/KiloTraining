@@ -158,6 +158,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                         }
                     }
                 } }
+                state.weeklyMuscles?.let { load -> item { WeeklyMusclesBlock(load) } }
                 item { ProfileBlock("Жим штанги лёжа", LocalDiaryAccents.current.workout) {
                     if (series.bench.isEmpty()) Text("Добавь рабочий подход жима лёжа.")
                     else {
@@ -178,6 +179,33 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                 }
                 item { ProfileBlock("Когда я обычно ем", LocalDiaryAccents.current.kcal) { MealHours(profile.hours) } }
             }
+        }
+    }
+}
+
+@Composable
+private fun WeeklyMusclesBlock(load: MuscleLoad) {
+    val accent = LocalDiaryAccents.current.workout
+    ProfileBlock("Мышцы за неделю", accent) {
+        if (load.scores.isNotEmpty()) {
+            val ranked = load.scores.entries.sortedWith(
+                compareByDescending<Map.Entry<Muscle, java.math.BigDecimal>> { it.value }.thenBy { it.key },
+            )
+            val maxScore = ranked.first().value.toFloat()
+            val description = ranked.joinToString { (muscle, score) -> "${muscle.label} ${score.display()}" }
+            MuscleDiagram("Нагрузка мышц за 7 дней: $description") { muscle ->
+                val score = load.scores[muscle]
+                if (score == null) Color.Transparent else accent.copy(alpha = 0.25f + 0.75f * (score.toFloat() / maxScore))
+            }
+            for ((muscle, score) in ranked.take(5)) {
+                Text("${muscle.label.replaceFirstChar { it.uppercaseChar() }} — ${score.display()}")
+            }
+            ChartLabel("Подходы: основная мышца 1, дополнительная 0,5")
+        } else if (load.unknownSets == 0) {
+            Text("За 7 дней нет рабочих подходов")
+        }
+        if (load.unknownSets > 0) {
+            Text("Подходов без данных о мышцах: ${load.unknownSets}")
         }
     }
 }

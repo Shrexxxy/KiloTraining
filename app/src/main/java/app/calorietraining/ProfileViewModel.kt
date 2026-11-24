@@ -13,8 +13,8 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 
-data class ProfileState(val days: Int = 30, val stats: ProfileStats? = null, val draft: Measurement? = null,
-    val busy: Boolean = false, val error: String? = null)
+internal data class ProfileState(val days: Int = 30, val stats: ProfileStats? = null, val draft: Measurement? = null,
+    val busy: Boolean = false, val error: String? = null, val weeklyMuscles: MuscleLoad? = null)
 
 sealed interface ProfileEvent {
     data class Period(val days: Int) : ProfileEvent
@@ -107,7 +107,7 @@ class ProfileViewModel internal constructor(
         if (this == ServerFailure.UNAUTHORIZED) "Неверный ключ" else "Сервер не отвечает"
 
     private val state = MutableStateFlow(ProfileState())
-    val uiState = state.asStateFlow()
+    internal val uiState = state.asStateFlow()
 
     fun event(event: ProfileEvent) {
         val s = state.value
@@ -130,18 +130,25 @@ class ProfileViewModel internal constructor(
         state.value = state.value.copy(busy = true, error = null)
         viewModelScope.launch {
             try {
-                val stats = withContext(Dispatchers.IO) {
+                state.value = withContext(Dispatchers.IO) {
                     FoodStore(getApplication()).use { store ->
-                        if (change == null) return@use store.profileStats(days)
+                        fun readProfile(): ProfileState {
+                            val stats = store.profileStats(days)
+                            val today = stats.end
+                            val workouts = store.workouts(today.minusDays(MUSCLE_LOAD_DAYS - 1), today)
+                            val load = muscleLoad(workouts, today) { photoForExercise(it)?.technique }
+                            return ProfileState(days = days, stats = stats, weeklyMuscles = load)
+                        }
+
+                        if (change == null) return@use readProfile()
                         val db = store.writableDatabase
                         db.beginTransaction()
                         try {
                             store.change()
-                            store.profileStats(days).also { db.setTransactionSuccessful() }
+                            readProfile().also { db.setTransactionSuccessful() }
                         } finally { db.endTransaction() }
                     }
                 }
-                state.value = ProfileState(days = days, stats = stats)
             } catch (e: SQLException) {
                 state.value = state.value.copy(busy = false, error = "Не удалось прочитать или сохранить данные профиля.")
             }

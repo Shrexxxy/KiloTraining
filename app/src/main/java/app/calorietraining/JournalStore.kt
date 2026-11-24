@@ -335,6 +335,9 @@ fun FoodStore.previousExercise(day: LocalDate, session: Long, exercise: String):
 
 fun FoodStore.workouts(day: LocalDate): List<Workout> = readWorkouts("w.day=?", arrayOf(day.toString()), "w.id")
 
+internal fun FoodStore.workouts(from: LocalDate, through: LocalDate): List<Workout> =
+    readWorkouts("w.day BETWEEN ? AND ?", arrayOf(from.toString(), through.toString()), "w.id")
+
 internal fun FoodStore.workouts(session: Long? = null, activeOnly: Boolean = false): List<Workout> = when {
     session != null -> readWorkouts("w.id=?", arrayOf(session.toString()), "w.id")
     activeOnly -> readWorkouts("w.live=1 AND w.finished_at IS NULL", null, "w.id DESC")
