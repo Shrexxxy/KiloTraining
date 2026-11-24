@@ -100,7 +100,8 @@ private fun FoodBody(state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier:
         state.library?.let { foods ->
             val barcode = draft.barcode.takeIf { state.scanOutcome != null }
             FoodLibrary(if (state.recipe == null && barcode == null) foods else foods.filter { it.weighted },
-                onChoose = { onEvent(FoodEvent.Edit(it.copy(meal = draft.meal, mealTime = draft.mealTime, barcode = barcode ?: it.barcode))) },
+                onChoose = { onEvent(FoodEvent.Edit(it.copy(meal = draft.meal, mealTime = draft.mealTime,
+                    barcode = barcode ?: it.barcode, venueName = draft.venueName, photoPath = draft.photoPath))) },
                 onClose = { onEvent(FoodEvent.BackToEditor) }, modifier = modifier,
                 search = { onEvent(FoodEvent.FindFood(it)) }, online = state.online,
                 onManage = { onEvent(FoodEvent.ManageProducts) })
@@ -176,10 +177,14 @@ private fun MealCard(day: LocalDate, meal: Meal, entries: List<FoodEntry>, total
             entries.forEach { row ->
                 Row(Modifier.fillMaxWidth().clickable { onEvent(FoodEvent.Edit(row.edit())) }
                     .heightIn(min = 48.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    row.photoPath?.let {
+                        VenueThumbnail(it, Modifier.size(44.dp), "Фото блюда")
+                        Spacer(Modifier.width(10.dp))
+                    }
                     Column(Modifier.weight(1f)) {
                         Text(row.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                         val portion = if (row.grams.isEmpty()) "1 порция" else "${row.grams} г"
-                        Text(listOf(row.mealTime, portion).filter(String::isNotBlank).joinToString(" · "),
+                        Text(listOf(row.venueName, row.mealTime, portion).filter(String::isNotBlank).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                     }
                     Text("${row.calories.display()} ккал", Modifier.padding(start = 8.dp),
@@ -308,6 +313,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                 if (state.recipe != null) TextButton(onClick = { onEvent(FoodEvent.Scan) }) { Text("Сканировать штрихкод") }
                 DiaryTextField(draft.name, { edit(draft.copy(name = it)) }, Modifier.fillMaxWidth().focusRequester(nameFocus),
                     label = { Text("Название") }, singleLine = true)
+                if (state.recipe == null) VenueEditorFields(draft, state.venues, state.busy, onEvent)
                 if (scanCode == null && draft.barcode != null && state.hint.isNotBlank()) Text(state.hint, style = MaterialTheme.typography.bodySmall)
                 if (draft.barcode == null && state.recipe == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !draft.weighted, label = { Text("За порцию") },
@@ -335,7 +341,7 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
 
             }
             Button(onClick = { onEvent(FoodEvent.Save) },
-                enabled = draft.calories != null && !state.confirmingDelete,
+                enabled = draft.calories != null && !state.confirmingDelete && !state.busy,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).heightIn(min = 52.dp)) { Text("Сохранить") }
         }
     }

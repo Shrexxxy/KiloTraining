@@ -13,7 +13,8 @@ import java.time.LocalDateTime
 private val tables = linkedMapOf(
     "recipe" to listOf("id","name","cooked"),
     "ingredient" to listOf("id","recipe_id","name","grams","energy","protein","fat","carbs"),
-    "food" to listOf("id", "day", "name", "energy", "grams", "calories", "meal", "meal_time", "protein", "fat", "carbs"),
+    "venue" to listOf("id", "name", "created_at"),
+    "food" to listOf("id", "day", "name", "energy", "grams", "calories", "meal", "meal_time", "protein", "fat", "carbs", "venue_id"),
     "my_product" to listOf("id", "name", "brand", "barcode", "weighted", "energy", "protein", "fat", "carbs", "source", "search_key", "updated_at"),
     "workout" to listOf("id", "day", "title", "minutes", "started_at", "finished_at", "live"),
     "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup", "done_at"),
@@ -37,7 +38,7 @@ private val workoutTimeFields = mapOf(
 )
 private val nullableTimeFields = setOf("started_at", "finished_at", "done_at")
 
-private const val FORMAT_VERSION = 15
+private const val FORMAT_VERSION = 16
 private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
 internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
@@ -79,6 +80,7 @@ private fun validateRow(table: String, row: ContentValues) {
     if (table == "food" || table == "workout") LocalDate.parse(field("day"))
     if (table == "template_set" || table == "lifting") require(field("warmup") in setOf("0", "1"))
     when (table) {
+        "venue" -> require(field("name").isNotBlank() && field("created_at").toLongOrNull() != null)
         "recipe" -> require(field("name").isNotBlank() && field("cooked").amount()?.signum() == 1)
         "ingredient" -> require(field("recipe_id").toLong() > 0 && FoodDraft(name=field("name"), weighted=true,
             grams=field("grams"), energy=field("energy"), macros=Macros(field("protein"),field("fat"),field("carbs"))).calories != null)
@@ -156,6 +158,8 @@ fun FoodStore.readBackup(input: Reader): String {
     var missingMacros = false
     var missingWorkoutTimes = false
     var hasWorkoutTimes = false
+    var hasVenueLink = false
+    var missingVenueLink = false
     JsonReader(input).use { json ->
         db.atomic {
             json.beginObject()
@@ -180,7 +184,7 @@ fun FoodStore.readBackup(input: Reader): String {
                     while (json.hasNext()) {
                         val field = json.nextName()
                         require(field in columns && !row.containsKey(field))
-                        if ((key == "my_product" && field == "barcode" || field in nullableTimeFields) &&
+                        if ((key == "my_product" && field == "barcode" || key == "food" && field == "venue_id" || field in nullableTimeFields) &&
                             json.peek() == JsonToken.NULL) {
                             json.nextNull()
                             row.putNull(field)
@@ -195,6 +199,15 @@ fun FoodStore.readBackup(input: Reader): String {
                         else {
                             missingWorkoutTimes = true
                             if (field == "live") row.put(field, "0") else row.putNull(field)
+                        }
+                    }
+                    if (key == "food") {
+                        if (row.containsKey("venue_id")) {
+                            hasVenueLink = true
+                            row.getAsString("venue_id")?.let { require(it.toLong() > 0) }
+                        } else {
+                            missingVenueLink = true
+                            row.putNull("venue_id")
                         }
                     }
                     if (key == "food" && !row.containsKey("meal_time")) {
@@ -245,6 +258,8 @@ fun FoodStore.readBackup(input: Reader): String {
             }
             json.endObject()
             val expected = tables.keys.toMutableSet()
+            if (version < 16) expected.remove("venue")
+            require(if (version >= 16) !missingVenueLink else !hasVenueLink)
             if (version < 15) expected.remove("user_profile")
             if (version < 13) {
                 expected.remove("my_product")
@@ -278,6 +293,8 @@ fun FoodStore.readBackup(input: Reader): String {
                 fun value(name: String) = legacyGoals.getAsInteger(name) ?: 0
                 db.importLegacyGoals(value("kcal"), value("protein"), value("fat"), value("carbs"))
             }
+            db.rawQuery("""SELECT 1 FROM food f LEFT JOIN venue v ON v.id=f.venue_id
+                WHERE f.venue_id IS NOT NULL AND v.id IS NULL LIMIT 1""", null).use { require(!it.moveToFirst()) }
             db.rawQuery("""SELECT 1 FROM ingredient i LEFT JOIN recipe r ON r.id=i.recipe_id WHERE r.id IS NULL
                 UNION ALL SELECT 1 FROM recipe r WHERE NOT EXISTS (SELECT 1 FROM ingredient i WHERE i.recipe_id=r.id) LIMIT 1""",
                 null).use { require(!it.moveToFirst()) }
@@ -295,6 +312,9 @@ fun FoodStore.readBackup(input: Reader): String {
 fun FoodStore.replaceFrom(staged: FoodStore) {
     val db = writableDatabase
     db.atomic {
+        db.rawQuery("SELECT photo_path FROM food UNION SELECT logo_path FROM venue", null).use {
+            while (it.moveToNext()) it.getString(0)?.let(unusedPhotos::add)
+        }
         tables.keys.reversed().forEach { db.delete(it, null, null) }
         tables.forEach { (name, columns) ->
             staged.readableDatabase.eachRow(name, columns) { values ->
@@ -304,4 +324,5 @@ fun FoodStore.replaceFrom(staged: FoodStore) {
             }
         }
     }
+    cleanUnusedPhotos()
 }

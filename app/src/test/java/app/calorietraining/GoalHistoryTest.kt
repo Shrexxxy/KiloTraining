@@ -65,10 +65,11 @@ class GoalHistoryTest {
 
     private fun previousDatabase(name: String, goals: Boolean, vararg days: LocalDate) {
         context.openOrCreateDatabase(name, 0, null).use { db ->
-            db.execSQL("CREATE TABLE food(day TEXT)")
+            db.createLegacyFoodTable()
             db.execSQL("CREATE TABLE daily_goal(id INTEGER PRIMARY KEY, kcal INTEGER)")
             db.execSQL("CREATE TABLE macro_goal(id INTEGER PRIMARY KEY, protein INTEGER, fat INTEGER, carbs INTEGER)")
-            for (day in days) db.execSQL("INSERT INTO food VALUES(?)", arrayOf(day.toString()))
+            for (day in days) db.execSQL("INSERT INTO food(day, name, energy, grams, calories) VALUES(?, 'Каша', '200', '', '200')",
+                arrayOf(day.toString()))
             if (goals) {
                 db.execSQL("INSERT INTO daily_goal VALUES(1,2200)")
                 db.execSQL("INSERT INTO macro_goal VALUES(1,140,0,0)")
@@ -113,7 +114,7 @@ class GoalHistoryTest {
             store.setGoals(third, DailyGoals(2000))
             store.backup()
         }
-        assertEquals("calorietraining/15", backup.getString("format"))
+        assertEquals("calorietraining/16", backup.getString("format"))
         FoodStore(context, "restored").use { store ->
             store.readBackup(backup.toString().reader())
             assertEquals(2, store.countGoals())

@@ -79,7 +79,16 @@ internal fun FoodLibrary(foods: List<FoodDraft>, onChoose: (FoodDraft) -> Unit, 
 @Composable
 internal fun AddMealFood(meal: Meal, state: FoodUiState, event: (FoodEvent) -> Unit, modifier: Modifier) {
     var products by rememberSaveable { mutableStateOf(false) }
-    val active = if (state.recipes != null) 2 else if (products) 1 else 0
+    val active = when {
+        state.venueTab -> 3
+        state.recipes != null -> 2
+        products -> 1
+        else -> 0
+    }
+    state.openVenue?.let {
+        VenueScreen(it, meal, state, event, modifier)
+        return
+    }
     val cards = remember(state.myProducts) { state.myProducts.map(MyProduct::toDraft) }
     val diary = remember(state.frequent, state.recent) {
         (state.frequent + state.recent).distinctBy { foodSuggestionKey(it.name, it.weighted) }
@@ -90,19 +99,22 @@ internal fun AddMealFood(meal: Meal, state: FoodUiState, event: (FoodEvent) -> U
         onScan = { event(FoodEvent.Scan) }, onManual = { choose(FoodDraft()) }) { content ->
         Column(content.fillMaxWidth()) {
             SecondaryTabRow(selectedTabIndex = active, containerColor = Color.Transparent) {
-                listOf("Из дневника", "Мои продукты", "Рецепты").forEachIndexed { index, label ->
+                listOf("Из дневника", "Мои продукты", "Рецепты", "Заведения").forEachIndexed { index, label ->
                     Tab(selected = index == active, onClick = {
                         products = index == 1
+                        if (index == 3) event(FoodEvent.Venues)
+                        else if (state.venueTab) event(FoodEvent.LeaveVenues)
                         if (index == 2 && state.recipes == null) event(FoodEvent.Recipes)
                         if (index != 2 && state.recipes != null) event(FoodEvent.LeaveRecipes)
                     }) {
-                        Text(label, Modifier.padding(vertical = 14.dp),
-                            style = MaterialTheme.typography.labelLarge)
+                        Text(label, Modifier.padding(vertical = 10.dp),
+                            style = MaterialTheme.typography.labelMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
                 }
             }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             when (active) {
+                3 -> VenuesList(state.venues, glassAccent(meal), { event(FoodEvent.OpenVenue(it)) }, Modifier.weight(1f))
                 2 -> RecipeList(state.recipes.orEmpty(), event, Modifier.weight(1f))
                 else -> {
                     if (active == 1) TextButton(onClick = { event(FoodEvent.ManageProducts) }) {

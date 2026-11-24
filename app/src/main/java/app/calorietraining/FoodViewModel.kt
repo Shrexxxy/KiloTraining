@@ -2,6 +2,9 @@ package app.calorietraining
 
 import android.app.Application
 import android.database.SQLException
+import android.net.Uri
+import java.io.File
+import java.io.IOException
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -41,7 +44,11 @@ data class FoodUiState(
     val recipes: List<Recipe>? = null,
     val recipe: Recipe? = null,
     val ingredientIndex: Int? = null,
-    val confirmingDelete: Boolean = false
+    val confirmingDelete: Boolean = false,
+    val venues: List<Venue> = emptyList(),
+    val venueTab: Boolean = false,
+    val openVenue: Venue? = null,
+    val venueDishes: List<FoodDraft> = emptyList()
 )
 
 sealed interface FoodEvent {
@@ -50,6 +57,12 @@ sealed interface FoodEvent {
     data class FindFood(val term: String) : FoodEvent
     data class AddInMeal(val meal: Meal) : FoodEvent
     data class AddNextMeal(val day: LocalDate) : FoodEvent
+    data object Venues : FoodEvent
+    data object LeaveVenues : FoodEvent
+    data class OpenVenue(val venue: Venue) : FoodEvent
+    data object BackFromVenue : FoodEvent
+    data class VenuePhoto(val uri: Uri, val capture: File? = null, val venueId: Long? = null) : FoodEvent
+    data object VenuePhotoFailed : FoodEvent
     data object Recipes : FoodEvent
     data object LeaveRecipes : FoodEvent
     data class EditRecipe(val value: Recipe?) : FoodEvent
@@ -85,6 +98,8 @@ class FoodViewModel internal constructor(
     private val state = MutableStateFlow(FoodUiState())
     val uiState = state.asStateFlow()
 
+    private var unsavedPhoto: String? = null
+
     private val productServer = ProductServerSettings(application)
 
     init {
@@ -99,10 +114,19 @@ class FoodViewModel internal constructor(
 
     fun onEvent(event: FoodEvent) {
         val current = state.value
-        if (current.busy) return
+        if (current.busy) {
+            if (event is FoodEvent.VenuePhoto) event.capture?.delete()
+            return
+        }
         when (event) {
             is FoodEvent.AddInMeal -> openMeal(event.meal)
             is FoodEvent.AddNextMeal -> openMeal(null, event.day)
+            FoodEvent.Venues -> state.value = current.copy(venueTab = true, recipes = null, error = null)
+            FoodEvent.LeaveVenues -> state.value = current.copy(venueTab = false, openVenue = null, error = null)
+            is FoodEvent.OpenVenue -> openVenue(current, event.venue)
+            FoodEvent.BackFromVenue -> state.value = current.copy(openVenue = null, venueDishes = emptyList(), error = null)
+            is FoodEvent.VenuePhoto -> importVenuePhoto(current, event)
+            FoodEvent.VenuePhotoFailed -> state.value = current.copy(error = "Не удалось открыть камеру или галерею")
             FoodEvent.Recipes -> refresh(current.day, showRecipes = true)
             FoodEvent.LeaveRecipes -> state.value = current.copy(recipes = null, recipe = null, error = null)
             is FoodEvent.EditRecipe -> state.value = current.copy(recipe = event.value, error = null)
@@ -123,7 +147,13 @@ class FoodViewModel internal constructor(
             is FoodEvent.CopyMeal -> if (current.day == event.source && current.rows.any { it.meal == event.meal }) {
                 refresh(event.destination) { copyMeal(event.source, event.destination, event.meal) }
             }
-            is FoodEvent.Edit -> state.value = current.copy(draft = if (current.draft == null && event.value.id == null) event.value.copy(mealTime = defaultMealTime(current.day)) else event.value, error = null, library = null)
+            is FoodEvent.Edit -> {
+                if (current.draft?.photoPath != event.value.photoPath) discardUnsavedPhoto()
+                val draft = if (current.draft == null && event.value.id == null) {
+                    event.value.copy(mealTime = defaultMealTime(current.day))
+                } else event.value
+                state.value = current.copy(draft = draft, error = null, library = null)
+            }
             is FoodEvent.FindFood -> findFood(event.term.trim())
             FoodEvent.BackToEditor -> state.value = current.copy(library = null)
             FoodEvent.ManageProducts -> state.value = current.copy(managingProducts = true)
@@ -147,9 +177,12 @@ class FoodViewModel internal constructor(
                 val keepDraft = current.scanning && current.recipe != null
                 val newEntry = current.draft != null && current.draft.id == null
                 val keepMeal = current.scanning || current.recipe != null || (current.addingMeal != null && newEntry)
+                if (!keepDraft) discardUnsavedPhoto()
                 if (!keepMeal) searchJob?.cancel()
                 state.value = current.copy(draft = current.draft.takeIf { keepDraft }, scanning = false,
                     addingMeal = current.addingMeal.takeIf { keepMeal },
+                    venueTab = keepMeal && current.venueTab,
+                    openVenue = current.openVenue.takeIf { keepMeal },
                     recipes = current.recipes.takeUnless { current.addingMeal != null && !keepMeal }, hint = "",
                     scanOutcome = current.scanOutcome.takeIf { keepDraft }, confirmingDelete = false, error = null)
             }
@@ -184,7 +217,8 @@ class FoodViewModel internal constructor(
                             draft = null, recipes = null, recipe = null)
                         base.copy(addingMeal = meal ?: nextMealToFill(base.rows.map { it.meal }),
                             frequent = store.frequentFoods(day), recent = store.foodSuggestions(day, 12),
-                            myProducts = store.myProducts(), online = CatalogSearch.Idle, error = null)
+                            myProducts = store.myProducts(), venues = store.venues(),
+                            venueTab = false, openVenue = null, online = CatalogSearch.Idle, error = null)
                     }
                 }
                 state.value = snapshot
@@ -192,6 +226,74 @@ class FoodViewModel internal constructor(
                 state.value = state.value.copy(busy = false, error = "Не удалось загрузить продукты")
             }
         }
+    }
+
+    private fun openVenue(current: FoodUiState, venue: Venue) {
+        state.value = current.copy(busy = true, error = null)
+        viewModelScope.launch {
+            try {
+                val dishes = withContext(io) { FoodStore(getApplication()).use { it.venueDishes(venue) } }
+                state.value = current.copy(openVenue = venue, venueDishes = dishes)
+            } catch (e: SQLException) {
+                state.value = current.copy(error = "Не удалось загрузить блюда")
+            }
+        }
+    }
+
+    private fun importVenuePhoto(current: FoodUiState, event: FoodEvent.VenuePhoto) {
+        val draft = current.draft
+        val venue = current.openVenue
+        if (event.venueId == null && draft == null || event.venueId != null && venue?.id != event.venueId) {
+            event.capture?.delete()
+            return
+        }
+        state.value = current.copy(busy = true, error = null)
+        viewModelScope.launch {
+            try {
+                val path = withContext(io) {
+                    try {
+                        getApplication<Application>().saveVenuePhoto(event.uri, event.capture).also { photo ->
+                            event.venueId?.let { id ->
+                                try {
+                                    FoodStore(getApplication()).use { it.setVenueLogo(id, photo) }
+                                } catch (e: SQLException) {
+                                    File(photo).delete()
+                                    throw e
+                                }
+                            }
+                        }
+                    } finally {
+                        event.capture?.delete()
+                    }
+                }
+                if (event.venueId == null && draft != null) {
+                    discardUnsavedPhoto()
+                    unsavedPhoto = path
+                    state.value = current.copy(draft = draft.copy(photoPath = path))
+                } else if (venue != null) {
+                    val updated = venue.copy(logoPath = path)
+                    state.value = current.copy(openVenue = updated,
+                        venues = current.venues.map { if (it.id == updated.id) updated else it })
+                }
+            } catch (e: IOException) {
+                android.util.Log.w("VenueCamera", "Не удалось обработать фото", e)
+                state.value = current.copy(error = "Не удалось прочитать или сохранить фото")
+            } catch (e: SecurityException) {
+                state.value = current.copy(error = "Фото недоступно")
+            } catch (e: SQLException) {
+                state.value = current.copy(error = "Не удалось сохранить логотип")
+            }
+        }
+    }
+
+    private fun discardUnsavedPhoto() {
+        unsavedPhoto?.let { File(it).delete() }
+        unsavedPhoto = null
+    }
+
+    override fun onCleared() {
+        if (!state.value.busy) discardUnsavedPhoto()
+        super.onCleared()
     }
 
     private fun changeProducts(sync: Boolean = false, change: FoodStore.() -> Unit) {
@@ -285,13 +387,14 @@ class FoodViewModel internal constructor(
 
     private fun refresh(day: LocalDate, showRecipes: Boolean = false, sync: Boolean = false, change: (FoodStore.() -> Unit)? = null) {
         val current = state.value
+        val pendingPhoto = unsavedPhoto
         state.value = current.copy(busy = true, error = null, confirmingDelete = false)
         viewModelScope.launch {
             try {
                 val snapshot = withContext(io) {
                     FoodStore(getApplication()).use { store ->
                         fun snapshot() = FoodUiState(day = day, rows = store.entries(day),
-                            goals = store.goalsFor(day), loaded = true,
+                            goals = store.goalsFor(day), loaded = true, venues = store.venues(),
                             recipes = if (showRecipes) store.recipes() else null,
                             addingMeal = current.addingMeal.takeIf { showRecipes },
                             myProducts = current.myProducts.takeIf { showRecipes }.orEmpty(),
@@ -300,12 +403,16 @@ class FoodViewModel internal constructor(
                         if (change == null) return@use snapshot()
                         val db = store.writableDatabase
                         db.beginTransaction()
-                        try {
+                        val updated = try {
                             store.change()
                             snapshot().also { db.setTransactionSuccessful() }
                         } finally { db.endTransaction() }
+                        pendingPhoto?.let(store.unusedPhotos::add)
+                        store.cleanUnusedPhotos()
+                        updated
                     }
                 }
+                if (change == null) discardUnsavedPhoto() else unsavedPhoto = null
                 state.value = snapshot
                 if (sync) {
                     ProductServerSettings.queueChanged()

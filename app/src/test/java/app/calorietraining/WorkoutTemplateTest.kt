@@ -98,6 +98,7 @@ class WorkoutTemplateTest {
             db.execSQL("CREATE TABLE lifting(id INTEGER PRIMARY KEY, session INTEGER, exercise_group TEXT, exercise TEXT, weight TEXT, reps INTEGER, planned INTEGER)")
             db.execSQL("INSERT INTO workout VALUES(1,?,'')", arrayOf(day.toString()))
             db.execSQL("INSERT INTO lifting VALUES(1,1,'a','Жим лёжа','40',10,0)")
+            db.createLegacyFoodTable()
             db.version = 8
         }
         FoodStore(context, "legacy").use { store ->
