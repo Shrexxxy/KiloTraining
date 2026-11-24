@@ -32,7 +32,7 @@ class ExerciseMusclesScreenshotTest {
     private fun captureDetails(theme: ThemeMode, title: String, filename: String) {
         catalog(theme)
         ui.onNodeWithText("Название или группа мышц").performTextInput(title)
-        ui.onNodeWithContentDescription("Мышцы и техника").performClick()
+        ui.onNode(hasContentDescription("Мышцы и техника") and hasAnySibling(hasText(title))).performClick()
         ui.onNodeWithText(title).assertIsDisplayed()
         capture(filename)
     }

@@ -56,6 +56,40 @@ class ExerciseMusclesUiTest {
         ui.onNodeWithText("грудь").assertDoesNotExist()
     }
 
+    @Test fun catalogWinsOverExistingCustomMusclesAndBackupKeepsThem() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val name = "Жим Арнольда"
+        val key = name.searchKey()
+        val backup = FoodStore(app).use { store ->
+            store.writableDatabase.execSQL(
+                "INSERT INTO exercise_muscle(exercise_key, muscle, is_primary) VALUES (?, ?, 1)",
+                arrayOf(key, "Chest"),
+            )
+            java.io.StringWriter().also(store::exportDiary).toString()
+        }
+        FoodStore(app, "catalog-collision-backup").use { restored ->
+            restored.readBackup(backup.reader())
+            val copy = org.json.JSONObject(java.io.StringWriter().also(restored::exportDiary).toString())
+            assertEquals(key, copy.getJSONArray("exercise_muscle").getJSONObject(0).getString("exercise_key"))
+            assertEquals("Chest", copy.getJSONArray("exercise_muscle").getJSONObject(0).getString("muscle"))
+        }
+        val workout = Workout(1, listOf(SetDraft(1, "arnold", name, "20", "8")))
+        ui.setContent {
+            DiaryTheme(ThemeMode.DARK) {
+                WorkoutContent(WorkoutState(day = workout.day, list = listOf(workout), opened = workout.id), {})
+            }
+        }
+        ui.onNode(hasScrollToIndexAction()).performScrollToNode(icon)
+        ui.onNode(icon).performClick()
+        ui.onNodeWithContentDescription("Основные мышцы: плечи", substring = true).assertExists()
+        FoodStore(app).use { store ->
+            store.readableDatabase.rawQuery("SELECT muscle FROM exercise_muscle WHERE exercise_key=?", arrayOf(key)).use {
+                assertTrue(it.moveToFirst())
+                assertEquals("Chest", it.getString(0))
+            }
+        }
+    }
+
     private fun showCatalogRow() {
         ui.setContent {
             DiaryTheme(ThemeMode.DARK) { ExercisePicker({ selected = it.name }, {}) }
