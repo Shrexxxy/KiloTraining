@@ -86,3 +86,23 @@ docker compose exec -T api dotnet /app/CalorieTraining.Server.dll import-off --o
 ## Тесты
 
 При запущенном Docker команда `dotnet test CalorieTraining.Server.sln` поднимет отдельный PostgreSQL, применит миграции и выполнит проверки API. Для интеграционных тестов сервис из Compose запускать не требуется.
+
+## Отправка карточек в Open Food Facts
+
+Отправка выключена по умолчанию. Для настройки создайте учётную запись на нужной площадке
+Open Food Facts. В локальном файле окружения сервера укажите имя пользователя в `OFF_USER`,
+пароль в `OFF_PASSWORD` и идентификатор приложения с контактами в `OFF_USER_AGENT`.
+Храните пароль в окружении сервера. Когда настройки готовы, задайте `OFF_ENABLED=true`.
+
+По умолчанию используется тестовый адрес `https://world.openfoodfacts.net`. После слияния
+на тестовой площадке проверьте создание карточки, заполнение пропусков, отказ при наличии
+калорий и видимость сообщения о тестовой площадке в диалоге. Для рабочего адреса задайте
+`OFF_BASE_URL=https://world.openfoodfacts.org` и используйте учётную запись рабочей площадки.
+
+Запись выполняется по явному согласию пользователя. Перед отправкой сервер читает карточку
+в Open Food Facts. Для записи используются только штрихкод, название, марка и пищевая
+ценность на 100 г. Карточка с пищевой ценностью на порцию требует ручной проверки.
+
+[Площадки API](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/) ·
+[Поля записи](https://openfoodfacts.github.io/documentation/docs/Product-Opener/v2/products/post-cgi-product_jqm2.pl/) ·
+[Авторизация и ответ записи](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/tutorial-off-api/)

@@ -11,9 +11,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 internal fun MyProductsScreen(
@@ -27,25 +29,58 @@ internal fun MyProductsScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var editing by remember { mutableStateOf<MyProduct?>(null) }
+    var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var sharing by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val settings = remember(context) { ProductServerSettings(context) }
+    val address = settings.address.trim()
+    val key = settings.key.trim()
+    val submission = if (address.isNotEmpty() && key.isNotEmpty()) {
+        viewModel { OffSubmitModel(context.applicationContext) }
+    } else null
+    LaunchedEffect(address, key) { submission?.load(address, key) }
+    val current = editing ?: products.firstOrNull { it.id == selectedId }
+    fun closeCard() {
+        editing = null
+        selectedId = null
+        sharing = false
+        submission?.clearResult()
+    }
     var confirming by remember { mutableStateOf(false) }
     val matches = remember(products, query) { products.filter { it.matches(query) } }
     val close = {
         if (!busy) {
-            if (editing == null) onClose() else editing = null
+            if (current == null) onClose() else closeCard()
         }
     }
     Scaffold(modifier = modifier, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
-            ScreenHeader(if (editing == null) "Мои продукты" else "Продукт", onBack = close, backEnabled = !busy)
+            ScreenHeader(if (current == null) "Мои продукты" else "Продукт", onBack = close, backEnabled = !busy)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            val card = editing
+            submission?.result?.let { Text(it, modifier = Modifier.padding(vertical = 8.dp)) }
+            val card = current
             if (card != null) {
+                val status = submission?.status
+                val canShare = status?.enabled == true && card.canShareWithOff() && products.any { it == card }
                 ProductEditor(card, { editing = it }, onSave = {
                     onSave(card.copy(source = if (products.any {
                         it.id == card.id && it.name == card.name && it.energy == card.energy && it.macros == card.macros
                     }) card.source else "manual", updatedAt = ""))
-                    editing = null
-                }, onDelete = { confirming = true })
+                    closeCard()
+                }, onDelete = { confirming = true }, share = if (canShare) {
+                    {
+                        submission.clearResult()
+                        sharing = true
+                    }
+                } else null, sending = submission?.sending == true)
+                if (sharing && canShare) {
+                    LaunchedEffect(submission.result) {
+                        if (submission.result != null) sharing = false
+                    }
+                    OffSubmitDialog(card, status.test, submission.sending,
+                        onDismiss = { sharing = false },
+                        onSubmit = { submission.submit(card, address, key) })
+                }
                 if (confirming) AlertDialog(
                     onDismissRequest = { confirming = false },
                     title = { Text("Удалить продукт?") },
@@ -54,7 +89,7 @@ internal fun MyProductsScreen(
                         TextButton(onClick = {
                             onDelete(requireNotNull(card.id))
                             confirming = false
-                            editing = null
+                            closeCard()
                         }) { Text("Удалить") }
                     },
                     dismissButton = { TextButton(onClick = { confirming = false }) { Text("Отмена") } }
@@ -72,7 +107,7 @@ internal fun MyProductsScreen(
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(matches, key = { requireNotNull(it.id) }) { product ->
-                        GlassCard(MaterialTheme.colorScheme.onSurfaceVariant, Modifier.fillMaxWidth(), onClick = { editing = product }, enabled = !busy) {
+                        GlassCard(MaterialTheme.colorScheme.onSurfaceVariant, Modifier.fillMaxWidth(), onClick = { selectedId = product.id }, enabled = !busy) {
                             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Column(Modifier.weight(1f)) {
                                     Text(product.name, style = MaterialTheme.typography.titleMedium)
@@ -94,7 +129,14 @@ internal fun MyProductsScreen(
 }
 
 @Composable
-private fun ProductEditor(card: MyProduct, onChange: (MyProduct) -> Unit, onSave: () -> Unit, onDelete: () -> Unit) {
+private fun ProductEditor(
+    card: MyProduct,
+    onChange: (MyProduct) -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit,
+    share: (() -> Unit)?,
+    sending: Boolean
+) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(if (card.id == null) "Новый продукт" else "Правка продукта", style = MaterialTheme.typography.headlineMedium)
@@ -118,6 +160,9 @@ private fun ProductEditor(card: MyProduct, onChange: (MyProduct) -> Unit, onSave
             Button(onClick = onSave, enabled = card.name.isNotBlank() && card.macros.valid &&
                 (card.energy.isBlank() || card.energy.amount() != null)) { Text("Сохранить") }
             if (card.id != null) TextButton(onClick = onDelete) { Text("Удалить") }
+        }
+        if (share != null) {
+            TextButton(onClick = share, enabled = !sending) { Text("Поделиться в Open Food Facts") }
         }
     }
 }

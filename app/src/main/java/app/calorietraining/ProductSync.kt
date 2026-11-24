@@ -24,10 +24,10 @@ internal fun FoodStore.pendingSyncCount(): Int =
         it.getInt(0)
     }
 
-private val syncLock = Mutex()
+internal val productSyncLock = Mutex()
 
 internal suspend fun FoodStore.syncProducts(server: ProductServer): ProductSyncReport = withContext(Dispatchers.IO) {
-    syncLock.withLock {
+    productSyncLock.withLock {
         val pending = readableDatabase.rawQuery("$selectCard WHERE pending_sync=1 ORDER BY id", null).use { rows ->
             buildList { while (rows.moveToNext()) add(rows.card()) }
         }
@@ -71,7 +71,7 @@ internal suspend fun FoodStore.syncProducts(server: ProductServer): ProductSyncR
     }
 }
 
-private fun MyProduct.serverCard(): ServerProduct? {
+internal fun MyProduct.serverCard(): ServerProduct? {
     fun String.inRange(maximum: Int) = amount()?.takeIf { it <= maximum.toBigDecimal() }?.toDouble()
     val kcal = energy.inRange(900) ?: return null
     return ServerProduct(name = name, brand = brand, barcode = barcode, kcal = kcal,

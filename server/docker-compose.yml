@@ -25,6 +25,11 @@ services:
     environment:
       Api__Key: ${API_KEY:-}
       ConnectionStrings__Products: "Host=db;Port=5432;Database=products;Username=products;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}"
+      Off__Enabled: "${OFF_ENABLED:-}"
+      Off__BaseUrl: "${OFF_BASE_URL:-}"
+      Off__User: "${OFF_USER:-}"
+      Off__Password: "${OFF_PASSWORD:-}"
+      Off__UserAgent: "${OFF_USER_AGENT:-}"
       Database__MigrateOnStartup: "true"
     ports:
       - "5080:5080"
