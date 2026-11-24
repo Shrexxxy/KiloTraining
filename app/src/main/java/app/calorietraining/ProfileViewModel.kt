@@ -136,7 +136,10 @@ class ProfileViewModel internal constructor(
                             val stats = store.profileStats(days)
                             val today = stats.end
                             val workouts = store.workouts(today.minusDays(MUSCLE_LOAD_DAYS - 1), today)
-                            val load = muscleLoad(workouts, today) { photoForExercise(it)?.technique }
+                            val custom = store.customMuscles()
+                            val load = muscleLoad(workouts, today) { name ->
+                                photoForExercise(name)?.technique ?: custom[name.searchKey()]
+                            }
                             return ProfileState(days = days, stats = stats, weeklyMuscles = load)
                         }
 
