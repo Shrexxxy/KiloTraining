@@ -269,7 +269,7 @@ class FoodViewModel internal constructor(
                 if (event.venueId == null && draft != null) {
                     discardUnsavedPhoto()
                     unsavedPhoto = path
-                    state.value = current.copy(draft = draft.copy(photoPath = path))
+                    state.value = current.copy(draft = draft.copy(photoPath = path, photoHash = null))
                 } else if (venue != null) {
                     val updated = venue.copy(logoPath = path)
                     state.value = current.copy(openVenue = updated,

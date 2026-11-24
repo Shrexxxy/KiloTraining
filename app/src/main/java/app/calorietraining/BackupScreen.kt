@@ -19,8 +19,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -38,9 +40,13 @@ internal data class BackupState(
     val preview: String? = null,
     val message: String? = null,
     val revision: Int = 0,
+    val photoRevision: Int = 0,
+    val autoPhotoWarning: String? = null,
     val serverConfigured: Boolean = false,
     val copies: List<ServerBackup> = emptyList(),
-    val lastCopy: Instant? = null
+    val lastCopy: Instant? = null,
+    val photoProgress: PhotoProgress? = null,
+    val missingPhotos: Int = 0
 )
 
 class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
@@ -48,6 +54,7 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
     private val state = MutableStateFlow(BackupState())
     internal val uiState = state.asStateFlow()
     private var staged: File? = null
+    private var photoJob: Job? = null
 
     fun export(uri: Uri) = runOperation("Не удалось записать копию. Выберите другой файл.") {
         FoodStore(app).use { store ->
@@ -69,19 +76,25 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
         val server = settings.backupClient()
         state.value = state.value.copy(serverConfigured = server != null, copies = emptyList(),
             lastCopy = settings.lastAutoBackupMillis.takeIf { server != null && it > 0 }?.let(Instant::ofEpochMilli))
-        if (server == null) return
         runOperation("Не удалось получить список копий") {
-            val copies = server.listBackups()
+            val missing = FoodStore(app).use { it.missingPhotos().size }
+            val warning = app.backupPreferences.getInt(AutoBackupUnsentPhotos, 0).takeIf { it > 0 && server != null }
+            state.update { it.copy(missingPhotos = missing, autoPhotoWarning = warning?.let(::savedOnServerMessage)) }
+            if (warning != null) app.backupPreferences.edit().remove(AutoBackupUnsentPhotos).apply()
+            val copies = server?.listBackups().orEmpty()
             state.value.copy(busy = false, copies = copies,
                 lastCopy = listOfNotNull(state.value.lastCopy, copies.firstOrNull()?.createdAt).maxOrNull())
         }
     }
 
     internal fun uploadServerCopy() {
+        if (photoJob?.isActive == true) return
         val server = settings.backupClient() ?: return
         runOperation("Не удалось сохранить копию") {
-            val copy = server.uploadDiary(app)
-            state.value.copy(busy = false, message = "Копия сохранена на сервере", lastCopy = copy.createdAt,
+            val result = server.uploadDiary(app, settings.photoClient(), ::updatePhotoProgress)
+            val copy = result.copy
+            state.value.copy(busy = false, message = savedOnServerMessage(result.unsentPhotos), autoPhotoWarning = null,
+                photoProgress = null, lastCopy = copy.createdAt,
                 copies = (listOf(copy) + state.value.copies.filterNot { it.id == copy.id }).take(30))
         }
     }
@@ -116,23 +129,55 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun restore() {
         val file = staged ?: return
-        runOperation("Не удалось восстановить дневник. Попробуйте ещё раз.") {
-            FoodStore(app, file.absolutePath).use { source ->
-                FoodStore(app).use { it.replaceFrom(source) }
+        runOperation("Не удалось восстановить дневник. Попробуйте ещё раз.", onSuccess = ::downloadPhotos) {
+            photoJob?.cancel()
+            photoJob?.join()
+            val missing = FoodStore(app, file.absolutePath).use { source ->
+                FoodStore(app).use {
+                    it.replaceFrom(source)
+                    it.missingPhotos().size
+                }
             }
             SQLiteDatabase.deleteDatabase(file)
             staged = null
             state.value.copy(busy = false, preview = null, message = "Дневник восстановлен",
-                revision = state.value.revision + 1)
+                revision = state.value.revision + 1, missingPhotos = missing, photoProgress = null)
         }
     }
 
-    private fun runOperation(failure: String, action: suspend () -> BackupState) {
+    internal fun downloadPhotos() {
+        val server = settings.photoClient() ?: return
+        if (photoJob?.isActive == true || state.value.missingPhotos == 0) return
+        updatePhotoProgress(PhotoProgress(0, state.value.missingPhotos))
+        photoJob = viewModelScope.launch {
+            try {
+                val (changed, missing) = withContext(Dispatchers.IO) {
+                    FoodStore(app).use { store ->
+                        server.restore(store, ::updatePhotoProgress) to store.missingPhotos().size
+                    }
+                }
+                state.update { it.copy(missingPhotos = missing, photoRevision = it.photoRevision + if (changed) 1 else 0) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Дневник уже сохранён, оставшиеся фото можно докачать вручную.
+            } finally {
+                state.update { it.copy(photoProgress = null) }
+            }
+        }
+    }
+
+    private fun updatePhotoProgress(progress: PhotoProgress) {
+        state.update { it.copy(photoProgress = progress) }
+    }
+
+    private fun runOperation(failure: String, onSuccess: () -> Unit = {}, action: suspend () -> BackupState) {
         if (state.value.busy) return
         state.value = state.value.copy(busy = true, message = null)
         viewModelScope.launch {
             try {
                 state.value = withContext(Dispatchers.IO) { action() }
+                onSuccess()
             } catch (e: CancellationException) { throw e }
             catch (e: ProductServerException) {
                 state.value = state.value.copy(busy = false, message = backupServerMessage(e))
@@ -167,7 +212,13 @@ fun BackupScreen(model: BackupViewModel, onClose: () -> Unit) {
             val preview = state.preview
             if (preview == null) {
                 Text("Сохраните питание, продукты и тренировки в файл. Его можно перенести на другой телефон.")
-                Text("Фото блюд и логотипы в копию не входят", style = MaterialTheme.typography.bodyMedium)
+                Text("Фото хранятся на сервере отдельно от файла копии", style = MaterialTheme.typography.bodyMedium)
+                state.photoProgress?.let { Text("Фото: ${it.done} из ${it.total}") }
+                if (state.missingPhotos > 0 && state.photoProgress == null) {
+                    OutlinedButton(enabled = state.serverConfigured && !state.busy, onClick = model::downloadPhotos) {
+                        Text("Докачать фото")
+                    }
+                }
                 Button(enabled = !state.busy, onClick = { create.launch("diary-${LocalDate.now()}.json") }) { Text("Сохранить копию") }
                 OutlinedButton(enabled = !state.busy, onClick = { open.launch(arrayOf("*/*")) }) { Text("Восстановить из файла") }
                 if (state.serverConfigured) {
@@ -180,6 +231,7 @@ fun BackupScreen(model: BackupViewModel, onClose: () -> Unit) {
                 OutlinedButton(enabled = !state.busy, onClick = model::discard) { Text("Отмена") }
             }
             if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            state.autoPhotoWarning?.let { Text(it) }
             state.message?.let { Text(it) }
         }
     }
@@ -192,7 +244,7 @@ private fun ServerBackupCard(state: BackupState, onUpload: () -> Unit, onDownloa
             Text("На сервере", style = MaterialTheme.typography.titleLarge)
             Text("Последняя копия: ${state.lastCopy?.backupDate() ?: "—"}",
                 style = MaterialTheme.typography.bodyMedium)
-            Button(enabled = !state.busy, onClick = onUpload) { Text("Сохранить на сервер") }
+            Button(enabled = !state.busy && state.photoProgress == null, onClick = onUpload) { Text("Сохранить на сервер") }
             state.copies.forEach { copy ->
                 HorizontalDivider()
                 ListItem(

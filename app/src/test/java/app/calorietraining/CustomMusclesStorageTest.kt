@@ -31,10 +31,12 @@ class CustomMusclesStorageTest {
         app.openOrCreateDatabase("muscles-v18", 0, null).use { db ->
             db.execSQL("CREATE TABLE workout(id INTEGER PRIMARY KEY, title TEXT)")
             db.execSQL("INSERT INTO workout VALUES(7,'Моя тренировка')")
+            db.createLegacyFoodTable()
+            db.createVenues()
             db.version = 18
         }
         FoodStore(app, "muscles-v18").use { store ->
-            assertEquals(19, store.readableDatabase.version)
+            assertEquals(20, store.readableDatabase.version)
             store.readableDatabase.rawQuery("SELECT title FROM workout WHERE id = 7", null).use {
                 assertTrue(it.moveToFirst())
                 assertEquals("Моя тренировка", it.getString(0))
@@ -46,7 +48,7 @@ class CustomMusclesStorageTest {
     @Test fun backup17RoundTripsAndBackup16ClearsSelection() {
         FoodStore(app).use { store ->
             val backup = store.emptyBackup()
-            assertEquals("calorietraining/17", backup.getString("format"))
+            assertEquals("calorietraining/18", backup.getString("format"))
             store.saveCustomMuscles("Мой жим", chestAndTriceps.primary, chestAndTriceps.secondary)
             val exported = store.emptyBackup()
             store.restore(backup)

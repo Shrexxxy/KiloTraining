@@ -32,6 +32,7 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     val backupState by backup.uiState.collectAsStateWithLifecycle()
     var showingSettings by rememberSaveable { mutableStateOf(false) }
     var copying by rememberSaveable { mutableStateOf(false) }
+    var appliedPhotoRevision by rememberSaveable(backupState.revision) { mutableIntStateOf(backupState.photoRevision) }
     if (copying) {
         DiaryBackground { BackupScreen(backup) { copying = false } }
         return
@@ -67,6 +68,15 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
     }
     val food: FoodViewModel = viewModel(key = "food-$revision") { FoodViewModel(app) }
     val foodState by food.uiState.collectAsStateWithLifecycle()
+    val canRefreshPhotos = foodState.loaded && !foodState.busy && foodState.draft == null &&
+        !foodState.scanning && !foodState.managingProducts && foodState.recipes == null &&
+        foodState.addingMeal == null && !foodState.venueTab
+    if (canRefreshPhotos && appliedPhotoRevision != backupState.photoRevision) {
+        LaunchedEffect(food, backupState.photoRevision) {
+            appliedPhotoRevision = backupState.photoRevision
+            food.onEvent(FoodEvent.Day(foodState.day))
+        }
+    }
     val workout: WorkoutViewModel = viewModel(key = "workout-${backupState.revision}") { WorkoutViewModel(app) }
     val workoutState by workout.uiState.collectAsStateWithLifecycle()
     val editing = when (tab) {

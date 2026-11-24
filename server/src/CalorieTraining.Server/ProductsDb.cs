@@ -7,6 +7,7 @@ internal sealed class ProductsDb(DbContextOptions<ProductsDb> options) : DbConte
 {
     internal DbSet<Product> Products => Set<Product>();
     internal DbSet<DiaryBackup> DiaryBackups => Set<DiaryBackup>();
+    internal DbSet<Photo> Photos => Set<Photo>();
 
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -53,7 +53,7 @@ class MacroGoalTest {
             db.version = 11
         }
         FoodStore(context, "upgrade").use { store ->
-            assertEquals(19, store.readableDatabase.version)
+            assertEquals(20, store.readableDatabase.version)
             assertEquals(2200, store.goalsFor(today).kcal)
             assertEquals(MacroGoals(), store.goalsFor(today).macros)
         }
@@ -65,7 +65,7 @@ class MacroGoalTest {
             StringWriter().also(store::exportDiary).toString()
         }
         val json = JSONObject(backup)
-        assertEquals("calorietraining/17", json.getString("format"))
+        assertEquals("calorietraining/18", json.getString("format"))
         val row = json.getJSONArray("goal").getJSONObject(0)
         assertEquals("140", row.get("protein"))
         assertEquals("0", row.get("carbs"))

@@ -13,8 +13,8 @@ import java.time.LocalDateTime
 private val tables = linkedMapOf(
     "recipe" to listOf("id","name","cooked"),
     "ingredient" to listOf("id","recipe_id","name","grams","energy","protein","fat","carbs"),
-    "venue" to listOf("id", "name", "created_at"),
-    "food" to listOf("id", "day", "name", "energy", "grams", "calories", "meal", "meal_time", "protein", "fat", "carbs", "venue_id"),
+    "venue" to listOf("id", "name", "created_at", "logo_hash"),
+    "food" to listOf("id", "day", "name", "energy", "grams", "calories", "meal", "meal_time", "protein", "fat", "carbs", "venue_id", "photo_hash"),
     "my_product" to listOf("id", "name", "brand", "barcode", "weighted", "energy", "protein", "fat", "carbs", "source", "search_key", "updated_at"),
     "workout" to listOf("id", "day", "title", "minutes", "started_at", "finished_at", "live"),
     "lifting" to listOf("id", "session", "exercise_group", "exercise", "weight", "reps", "planned", "warmup", "done_at"),
@@ -39,7 +39,8 @@ private val workoutTimeFields = mapOf(
 )
 private val nullableTimeFields = setOf("started_at", "finished_at", "done_at")
 
-private const val FORMAT_VERSION = 17
+private const val FORMAT_VERSION = 18
+private val photoHashFields = mapOf("food" to "photo_hash", "venue" to "logo_hash")
 private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
 internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
@@ -60,6 +61,7 @@ fun FoodStore.exportDiary(output: Writer) {
     val db = readableDatabase
     JsonWriter(output).use { json ->
         db.atomic {
+            refreshPhotoHashes()
             json.beginObject().name("format").value(FORMAT)
             tables.forEach { (table, columns) ->
                 json.name(table).beginArray()
@@ -164,6 +166,7 @@ fun FoodStore.readBackup(input: Reader): String {
     var missingMacros = false
     var missingWorkoutTimes = false
     var hasWorkoutTimes = false
+    var hasPhotoHash = false
     var hasVenueLink = false
     var missingVenueLink = false
     JsonReader(input).use { json ->
@@ -190,7 +193,7 @@ fun FoodStore.readBackup(input: Reader): String {
                     while (json.hasNext()) {
                         val field = json.nextName()
                         require(field in columns && !row.containsKey(field))
-                        if ((key == "my_product" && field == "barcode" || key == "food" && field == "venue_id" || field in nullableTimeFields) &&
+                        if ((key == "my_product" && field == "barcode" || key == "food" && field == "venue_id" || field in nullableTimeFields || field == photoHashFields[key]) &&
                             json.peek() == JsonToken.NULL) {
                             json.nextNull()
                             row.putNull(field)
@@ -200,6 +203,10 @@ fun FoodStore.readBackup(input: Reader): String {
                         }
                     }
                     json.endObject()
+                    photoHashFields[key]?.let { field ->
+                        if (row.containsKey(field)) hasPhotoHash = true else row.putNull(field)
+                        row.getAsString(field)?.let { require(validPhotoHash(it)) }
+                    }
                     workoutTimeFields[key].orEmpty().forEach { field ->
                         if (row.containsKey(field)) hasWorkoutTimes = true
                         else {
@@ -264,6 +271,7 @@ fun FoodStore.readBackup(input: Reader): String {
             }
             json.endObject()
             val expected = tables.keys.toMutableSet()
+            require(version >= 18 || !hasPhotoHash)
             if (version < 17) expected.remove("exercise_muscle")
             if (version < 16) expected.remove("venue")
             require(if (version >= 16) !missingVenueLink else !hasVenueLink)
@@ -330,6 +338,7 @@ fun FoodStore.replaceFrom(staged: FoodStore) {
                 db.insertOrThrow(name, null, row)
             }
         }
+        reuseLocalPhotos()
     }
     cleanUnusedPhotos()
 }

@@ -69,7 +69,7 @@ internal fun VenueEditorFields(draft: FoodDraft, venues: List<Venue>, busy: Bool
     } else {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             VenueThumbnail(photo, Modifier.size(width = 96.dp, height = 72.dp), "Фото блюда")
-            IconButton(onClick = { event(FoodEvent.Edit(draft.copy(photoPath = null))) }, enabled = !busy) {
+            IconButton(onClick = { event(FoodEvent.Edit(draft.copy(photoPath = null, photoHash = null))) }, enabled = !busy) {
                 Icon(painterResource(R.drawable.ic_close), "Убрать фото")
             }
         }
