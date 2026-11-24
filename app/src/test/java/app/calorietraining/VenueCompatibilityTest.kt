@@ -26,7 +26,7 @@ class VenueCompatibilityTest {
             db.version = 17
         }
         FoodStore(context, name).use { store ->
-            assertEquals(18, store.readableDatabase.version)
+            assertEquals(19, store.readableDatabase.version)
             val entry = store.entries(day).single()
             assertEquals("Шаурма", entry.name)
             assertEquals(Meal.LUNCH, entry.meal)

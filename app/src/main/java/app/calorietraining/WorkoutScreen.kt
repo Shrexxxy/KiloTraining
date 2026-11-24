@@ -134,8 +134,10 @@ private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (Workou
     var exerciseDetails by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val now = workoutNow(state, workout, event)
-    exerciseDetails?.let(::photoForExercise)?.let { exercise ->
-        ExerciseMusclesScreen(exercise, onBack = { exerciseDetails = null })
+    exerciseDetails?.let { name ->
+        val photo = photoForExercise(name)
+        if (photo != null) ExerciseMusclesScreen(photo, onBack = { exerciseDetails = null })
+        else CustomMusclesScreen(name, onBack = { exerciseDetails = null })
         return
     }
     var finishing by rememberSaveable { mutableStateOf(false) }
@@ -178,7 +180,7 @@ private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (Workou
             }
         }
         items(exercises, key = { it.first().group }) { sets ->
-            ExerciseCard(sets, rests, onMuscles = { exerciseDetails = it.name }) { event(WorkoutEvent.Edit(workout.id, it)) }
+            ExerciseCard(sets, rests, onMuscles = { exerciseDetails = it }) { event(WorkoutEvent.Edit(workout.id, it)) }
         }
     }
 }

@@ -35,7 +35,7 @@ class ExerciseMusclesUiTest {
         ui.runOnIdle { assertEquals(row, selected) }
     }
 
-    @Test fun workoutShowsMusclesOnlyForCatalogExercise() {
+    @Test fun workoutKeepsCatalogDetailsAndShowsCustomIcon() {
         val set = SetDraft(1, "bench", bench, "60", "8")
         val workout = Workout(1, listOf(set, set.copy(id = 2, group = "custom", exercise = "Мой жим")))
         ui.setContent {
@@ -47,11 +47,13 @@ class ExerciseMusclesUiTest {
         val customCard = hasTestTag("glass-card") and hasAnyDescendant(hasText("Мой жим"))
         list.performScrollToNode(customCard)
         ui.onNode(customCard).assertIsDisplayed()
-        ui.onNode(icon and hasAnyAncestor(customCard)).assertDoesNotExist()
+        ui.onNode(hasContentDescription("Мышцы упражнения") and hasAnyAncestor(customCard)).assertIsDisplayed()
         list.performScrollToNode(icon)
         ui.onNode(icon).performClick()
         ui.onNodeWithText(bench).assertIsDisplayed()
         ui.onNodeWithText("Как делать").assertExists()
+        ui.onNodeWithText("Сохранить").assertDoesNotExist()
+        ui.onNodeWithText("грудь").assertDoesNotExist()
     }
 
     private fun showCatalogRow() {

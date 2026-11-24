@@ -85,7 +85,7 @@ class VenueFlowTest {
             source.writableDatabase.execSQL("UPDATE venue SET logo_path=?", arrayOf(logo.absolutePath))
             val exported = StringWriter().also(source::exportDiary).toString()
             val json = JSONObject(exported)
-            assertEquals("calorietraining/16", json.getString("format"))
+            assertEquals("calorietraining/17", json.getString("format"))
             for (excluded in listOf("photo_path", "logo_path", File(photoPath).name, logo.name)) {
                 assertFalse(exported.contains(excluded))
             }

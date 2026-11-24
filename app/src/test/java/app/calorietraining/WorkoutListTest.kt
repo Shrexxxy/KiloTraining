@@ -34,7 +34,7 @@ class WorkoutListTest {
             db.version = 14
         }
         FoodStore(app, "workout-v14").use { store ->
-            assertEquals(18, store.readableDatabase.version)
+            assertEquals(19, store.readableDatabase.version)
             assertEquals(listOf("2026-11-20", "Старая", "30", null, null, "0"),
                 store.row("SELECT day,title,minutes,started_at,finished_at,live FROM workout WHERE id=7"))
             assertEquals(listOf("7", "Жим", "40", "10", null),
@@ -44,7 +44,7 @@ class WorkoutListTest {
 
     @Test fun backup15RetainsWorkoutTimestamps() {
         FoodStore(app).use { source ->
-            assertEquals("calorietraining/16", JSONObject(source.backup()).getString("format"))
+            assertEquals("calorietraining/17", JSONObject(source.backup()).getString("format"))
             val id = source.fixture("Живая", "2026-11-23T19:05", live = true)
             source.writableDatabase.execSQL("UPDATE workout SET finished_at='2026-11-23T20:01',minutes=56 WHERE id=?", arrayOf(id))
             source.fixtureSet(id, "bench", "Жим", "60", "8", "2026-11-23T19:12:30")
