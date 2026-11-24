@@ -7,7 +7,6 @@ import androidx.core.content.FileProvider
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.compose.ui.test.*
@@ -247,14 +246,8 @@ class VenueFlowTest {
     }
 
     private fun capture(name: String) {
-        val view = ui.activity.window.decorView
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-        }
-        val target = File("build/screenshots", "$name.png")
-        target.parentFile!!.mkdirs()
-        target.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        bitmap.recycle()
+        // Активность сама рисует тему и общий фон.
+        ScreenCapture(ui) { ui.activity.window.decorView }.captureScreen("$name.png").recycle()
     }
 
     private fun photoFile(path: String) =

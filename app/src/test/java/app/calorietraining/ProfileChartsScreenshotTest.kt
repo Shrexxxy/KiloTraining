@@ -1,12 +1,7 @@
 package app.calorietraining
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
-import java.io.File
 import java.time.LocalDate
 import kotlin.math.roundToInt
 import org.junit.Rule
@@ -32,13 +27,7 @@ class ProfileChartsScreenshotTest {
 
     private fun capture(name: String, mode: ThemeMode, period: String, empty: Boolean = false) {
         if (!empty) seed()
-        lateinit var view: View
-        ui.setContent {
-            DiaryTheme(mode) {
-                view = LocalView.current
-                DiaryApp(mode, {})
-            }
-        }
+        val screen = ui.setScreenshotContent(mode) { DiaryApp(mode, {}) }
         val profileTab = hasText("Профиль") and isSelectable()
         ui.onNode(profileTab).performClick()
         val last = hasText(if (empty) "Добавь время еды." else "23:00")
@@ -57,13 +46,8 @@ class ProfileChartsScreenshotTest {
         ui.onNode(last).assertIsDisplayed()
         // Высокое окно вмещает все карточки, снимок обрезается по нижней карточке.
         val end = ui.onNode(last).fetchSemanticsNode().boundsInRoot.bottom
-        val height = (end + 36 * view.resources.displayMetrics.density).roundToInt()
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, height.coerceAtMost(view.height), Bitmap.Config.ARGB_8888)
-                .also { view.draw(Canvas(it)) }
-        }
-        val dir = File("build/screenshots").apply { mkdirs() }
-        File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        val density = RuntimeEnvironment.getApplication().resources.displayMetrics.density
+        screen.captureScreen("$name.png", heightPx = (end + 36 * density).roundToInt())
     }
 
     private fun seed() {

@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import java.math.BigDecimal
 import java.math.MathContext
+import java.math.RoundingMode
 import java.time.LocalDate
 
 private fun BigDecimal.signed(): String = when (signum()) {
@@ -30,7 +31,7 @@ internal fun PeriodComparison(now: PeriodStats, before: PeriodStats, days: Int) 
     val accents = LocalDiaryAccents.current
     ComparisonMetric("Тренировки", "", before.workouts.toBigDecimal(), now.workouts.toBigDecimal(), accents.workout)
     ComparisonMetric("Средний рабочий жим", " кг", before.benchAverage, now.benchAverage, accents.workout,
-        "подходов: ${before.benchSets} / ${now.benchSets}")
+        "подходов: ${before.benchSets} / ${now.benchSets}", scale = 1)
     ComparisonMetric("Средние калории", " ккал", before.averageCalories, now.averageCalories, accents.kcal,
         "дней с записями: ${before.foodDays} / ${now.foodDays}")
 }
@@ -38,15 +39,34 @@ internal fun PeriodComparison(now: PeriodStats, before: PeriodStats, days: Int) 
 @Composable
 private fun ComparisonMetric(
     title: String, unit: String, before: BigDecimal?, now: BigDecimal?, color: Color, sample: String? = null,
+    scale: Int = 0,
 ) {
     if (before == null && now == null) return
-    val left = before?.let { it.groupedNumber() + unit } ?: "—"
-    val right = now?.let { it.groupedNumber() + unit } ?: "—"
-    val delta = if (before != null && now != null) (now - before).signed() + unit else "—"
+    val parts = ComparisonParts(before, now, scale)
+    val described = "$title, было ${parts.before}${unit.takeIf { before != null }.orEmpty()}, " +
+        "стало ${parts.now}${unit.takeIf { now != null }.orEmpty()}, разница ${parts.delta?.let { it + unit } ?: "—"}"
     Text(title, style = MaterialTheme.typography.titleSmall)
     ChartBars(listOf(before?.toFloat(), now?.toFloat()), color,
-        listOfNotNull("$title, было $left, стало $right, разница $delta", sample).joinToString(", "), height = 56)
-    ChartLabel("$left / $right · Δ $delta")
+        listOfNotNull(described, sample).joinToString(", "), height = 56)
+    ChartLabel(comparisonLabel(before, now, unit, scale))
+}
+
+/** Округлённые «было», «стало» и разница со знаком. */
+private class ComparisonParts(before: BigDecimal?, now: BigDecimal?, private val scale: Int) {
+    private fun BigDecimal.rounded() = setScale(scale, RoundingMode.HALF_UP)
+    val before = before?.rounded()?.groupedNumber() ?: "—"
+    val now = now?.rounded()?.groupedNumber() ?: "—"
+    val delta = if (before == null || now == null) null else (now.rounded() - before.rounded()).let { difference ->
+        val sign = when (difference.signum()) { 1 -> "+"; -1 -> "−"; else -> "" }
+        sign + difference.abs().groupedNumber()
+    }
+}
+
+/** Подпись «было …, стало … (разница)» с округлением до [scale] знаков; стрелок в интерфейсе нет по решению пользователя. */
+internal fun comparisonLabel(before: BigDecimal?, now: BigDecimal?, unit: String, scale: Int): String {
+    val parts = ComparisonParts(before, now, scale)
+    fun withUnit(value: String) = if (value == "—") value else value + unit
+    return "было ${withUnit(parts.before)}, стало ${withUnit(parts.now)}" + (parts.delta?.let { " ($it$unit)" } ?: "")
 }
 
 @Composable

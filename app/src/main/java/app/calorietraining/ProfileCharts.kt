@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.math.BigDecimal
 import java.math.RoundingMode.HALF_UP
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -130,8 +131,7 @@ internal fun MacrosChart(series: ProfileSeries) {
     labels.forEachIndexed { index, label ->
         val value = values[index]
         val goal = goals[index]
-        val grams = value?.display()?.let { "$it г" } ?: "—"
-        val amount = if (goal == null) grams else "$grams / $goal г"
+        val amount = macroAmount(value, goal)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label + (shares.getOrNull(index)?.let { " · $it%" } ?: ""), style = MaterialTheme.typography.bodyMedium)
             Text(amount, style = MaterialTheme.typography.bodyMedium)
@@ -139,7 +139,7 @@ internal fun MacrosChart(series: ProfileSeries) {
         if (value != null && goal != null) {
             val track = MaterialTheme.colorScheme.surfaceContainerHighest
             val fill = if (goal == 0) if (value.signum() == 0) 0f else 1f else (value.toFloat() / goal).coerceIn(0f, 1f)
-            Canvas(Modifier.fillMaxWidth().height(5.dp).chartDescription("$label, среднее $grams, цель $goal г")) {
+            Canvas(Modifier.fillMaxWidth().height(5.dp).chartDescription("$label, среднее ${macroAmount(value, null)}, цель $goal г")) {
                 val radius = CornerRadius(size.height / 2)
                 drawRoundRect(track, cornerRadius = radius)
                 drawRoundRect(colors[index], size = Size(size.width * fill, size.height), cornerRadius = radius)
@@ -152,13 +152,13 @@ internal fun MacrosChart(series: ProfileSeries) {
 internal fun BmiChart(bmi: Bmi) {
     val accents = LocalDiaryAccents.current
     val marker = MaterialTheme.colorScheme.onSurface
-    val colors = listOf(accents.protein, accents.workout, accents.kcal, accents.carbs)
+    val colors = bmiZoneColors(accents, MaterialTheme.colorScheme.onSurfaceVariant)
     val limits = listOf(14f) + bmiBoundaries.map { it.toFloat() } + listOf(36f)
     Canvas(Modifier.fillMaxWidth().height(20.dp).chartDescription("ИМТ ${bmi.value.display()}")) {
         fun x(value: Float) = (value - limits.first()) / (limits.last() - limits.first()) * size.width
         for (i in colors.indices) {
             val left = x(limits[i])
-            drawRect(colors[i].copy(alpha = .7f), Offset(left, size.height * .3f),
+            drawRect(colors[i], Offset(left, size.height * .3f),
                 Size(x(limits[i + 1]) - left, size.height * .4f))
         }
         val position = x(bmi.value.toFloat().coerceIn(limits.first(), limits.last()))
@@ -183,3 +183,13 @@ internal fun ActivityChart(level: ActivityLevel, color: Color) {
             Offset(size.width * (i + .5f) / 5, center.y)) }
     }
 }
+
+/** Граммы целыми, с целью через косую черту. */
+internal fun macroAmount(value: BigDecimal?, goal: Int?): String {
+    val grams = value?.setScale(0, HALF_UP)?.groupedNumber() ?: return "—"
+    return if (goal == null) "$grams г" else "$grams / $goal г"
+}
+
+/** Цвета зон ИМТ: норма — спокойный акцент калорий, края приглушены, чтобы шкала не выглядела тревожной в норме. */
+internal fun bmiZoneColors(accents: DiaryAccents, muted: Color): List<Color> =
+    listOf(muted.copy(alpha = .35f), accents.kcal, accents.carbs.copy(alpha = .55f), accents.fat.copy(alpha = .55f))

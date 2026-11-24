@@ -33,11 +33,12 @@ internal class ScreenCapture(
     private val ui: ComposeContentTestRule,
     private val view: () -> View,
 ) {
-    fun captureScreen(filename: String, includeDialog: Boolean = false): Bitmap {
+    fun captureScreen(filename: String, includeDialog: Boolean = false, heightPx: Int? = null): Bitmap {
         // В Robolectric captureToImage ждёт перерисовки окна, которая здесь не вызывается.
         val bitmap = ui.runOnIdle {
             val root = view()
-            Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888).also {
+            val height = heightPx?.coerceIn(1, root.height) ?: root.height
+            Bitmap.createBitmap(root.width, height, Bitmap.Config.ARGB_8888).also {
                 val canvas = Canvas(it)
                 root.draw(canvas)
                 if (includeDialog) {
