@@ -85,7 +85,7 @@ class VenueFlowTest {
             source.writableDatabase.execSQL("UPDATE venue SET logo_path=?", arrayOf(logo.absolutePath))
             val exported = StringWriter().also(source::exportDiary).toString()
             val json = JSONObject(exported)
-            assertEquals("calorietraining/17", json.getString("format"))
+            assertEquals("calorietraining/18", json.getString("format"))
             for (excluded in listOf("photo_path", "logo_path", File(photoPath).name, logo.name)) {
                 assertFalse(exported.contains(excluded))
             }
@@ -96,8 +96,8 @@ class VenueFlowTest {
                     val db = restored.readableDatabase
                     assertEquals(listOf("Chicken Dener"), db.values(
                         "SELECT venue.name FROM food JOIN venue ON venue.id = food.venue_id"))
-                    assertEquals(listOf(null), db.values("SELECT photo_path FROM food"))
-                    assertEquals(listOf(null), db.values("SELECT logo_path FROM venue"))
+                    assertArrayEquals(File(photoPath).readBytes(), File(db.values("SELECT photo_path FROM food").single()!!).readBytes())
+                    assertArrayEquals(logo.readBytes(), File(db.values("SELECT logo_path FROM venue").single()!!).readBytes())
                 }
             }
         }

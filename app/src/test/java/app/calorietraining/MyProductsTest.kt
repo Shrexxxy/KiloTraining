@@ -95,7 +95,7 @@ class MyProductsTest {
             db.version = 13
         }
         FoodStore(context).use { store ->
-            assertEquals(19, store.readableDatabase.version)
+            assertEquals(20, store.readableDatabase.version)
             assertEquals(3, store.myProducts().size)
             assertEquals("openfoodfacts", store.myProductByBarcode(code)?.source)
             assertEquals("200", store.myProducts("творог 5%").single().energy)
@@ -114,7 +114,7 @@ class MyProductsTest {
             store.exportDiary(output)
             store.myProducts()
         }
-        assertTrue(output.toString().contains("calorietraining/17"))
+        assertTrue(output.toString().contains("calorietraining/18"))
         FoodStore(context, "import13.db").use { store ->
             assertTrue(store.readBackup(StringReader(output.toString())).contains("Продуктов: 2"))
             assertEquals(saved, store.myProducts())

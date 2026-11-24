@@ -90,6 +90,7 @@ var backups = app.MapGroup("/backups");
 backups.MapPost("", BackupEndpoints.Upload);
 backups.MapGet("", BackupEndpoints.List);
 backups.MapGet("/{id:guid}", BackupEndpoints.Download);
+app.MapPhotoEndpoints();
 app.Run();
 
 /// <summary>Точка входа сервера продуктов.</summary>

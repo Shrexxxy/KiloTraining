@@ -1,6 +1,8 @@
 package app.calorietraining
 
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -88,6 +90,30 @@ internal class ServerHttpClient(address: String, private val key: String, privat
         allowMissing: Boolean = false,
         readBody: Boolean = true,
         parse: (String) -> T
+    ): T? {
+        val bytes = body?.toByteArray(Charsets.UTF_8)
+        return exchange(path, method, authenticated, allowMissing, bytes?.size?.toLong(),
+            "application/json; charset=utf-8", write = { it.write(requireNotNull(bytes)) }) { connection ->
+            parse(if (readBody) connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() } else "")
+        }
+    }
+
+    suspend fun <T> getBinary(path: String, read: (InputStream) -> T): T? =
+        exchange(path, "GET", allowMissing = true) { connection -> connection.inputStream.use(read) }
+
+    suspend fun putBinary(path: String, length: Long, mediaType: String, write: (OutputStream) -> Unit) {
+        exchange(path, "PUT", length = length, mediaType = mediaType, write = write) {}
+    }
+
+    private suspend fun <T> exchange(
+        path: String,
+        method: String,
+        authenticated: Boolean = true,
+        allowMissing: Boolean = false,
+        length: Long? = null,
+        mediaType: String? = null,
+        write: (OutputStream) -> Unit = {},
+        read: (HttpURLConnection) -> T
     ): T? = withContext(Dispatchers.IO) {
         try {
             val endpoint = URL(base)
@@ -101,17 +127,14 @@ internal class ServerHttpClient(address: String, private val key: String, privat
                 connection.instanceFollowRedirects = false
                 connection.requestMethod = method
                 if (authenticated) connection.setRequestProperty("X-Api-Key", key)
-                if (body != null) {
+                if (length != null) {
                     connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    val bytes = body.toByteArray(Charsets.UTF_8)
-                    connection.setFixedLengthStreamingMode(bytes.size)
-                    connection.outputStream.use { it.write(bytes) }
+                    connection.setRequestProperty("Content-Type", mediaType)
+                    connection.setFixedLengthStreamingMode(length)
+                    connection.outputStream.use(write)
                 }
                 return when (connection.responseCode) {
-                    in 200..299 -> parse(if (readBody) {
-                        connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                    } else "")
+                    in 200..299 -> read(connection)
                     404 -> if (allowMissing) null else throw ProductServerException(ServerFailure.OTHER)
                     401 -> throw ProductServerException(ServerFailure.UNAUTHORIZED)
                     400 -> throw ProductServerException(ServerFailure.INVALID_DATA)

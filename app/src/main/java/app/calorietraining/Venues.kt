@@ -48,7 +48,7 @@ internal fun FoodStore.venues(): List<Venue> = readableDatabase.rawQuery(
 }
 
 internal fun FoodStore.venueDishes(venue: Venue): List<FoodDraft> = readableDatabase.rawQuery(
-    """SELECT name, energy, grams, protein, fat, carbs, photo_path FROM food
+    """SELECT name, energy, grams, protein, fat, carbs, photo_path, photo_hash FROM food
        WHERE venue_id = ? ORDER BY day DESC, id DESC""", arrayOf(venue.id.toString())
 ).use { rows ->
     val seen = mutableSetOf<String>()
@@ -58,6 +58,7 @@ internal fun FoodStore.venueDishes(venue: Venue): List<FoodDraft> = readableData
             val grams = rows.getString(2)
             if (seen.add(venueKey(name))) add(FoodDraft(name = name, energy = rows.getString(1),
                 weighted = grams.isNotEmpty(), grams = grams, venueName = venue.name, photoPath = rows.getString(6),
+                photoHash = rows.getString(7),
                 macros = Macros(rows.getString(3), rows.getString(4), rows.getString(5))))
         }
     }
@@ -67,15 +68,22 @@ internal fun SQLiteDatabase.entryPhoto(day: LocalDate, id: Long): String? =
     rawQuery("SELECT photo_path FROM food WHERE id = ? AND day = ?", arrayOf(id.toString(), day.toString()))
         .use { if (it.moveToFirst()) it.getString(0) else null }
 
-internal fun FoodStore.setVenueLogo(id: Long, path: String) {
+internal fun FoodStore.setVenueLogo(id: Long, path: String?) {
     val db = writableDatabase
     db.atomic {
-        db.rawQuery("SELECT logo_path FROM venue WHERE id = ?", arrayOf(id.toString())).use {
-            if (it.moveToFirst()) it.getString(0)?.takeIf { old -> old != path }?.let(unusedPhotos::add)
+        val oldHash = db.rawQuery("SELECT logo_path, logo_hash FROM venue WHERE id = ?", arrayOf(id.toString())).use {
+            if (!it.moveToFirst()) null else {
+                val oldPath = it.getString(0)
+                oldPath?.takeIf { old -> old != path }?.let(unusedPhotos::add)
+                it.getString(1).takeIf { path != null && oldPath == path }
+            }
         }
-        val updated = db.update("venue", ContentValues().apply { put("logo_path", path) },
+        val updated = db.update("venue", ContentValues().apply {
+            put("logo_path", path)
+            put("logo_hash", context.photoHash(path) ?: oldHash)
+        },
             "id = ?", arrayOf(id.toString()))
-        if (updated == 0) unusedPhotos.add(path)
+        if (updated == 0 && path != null) unusedPhotos.add(path)
     }
     cleanUnusedPhotos()
 }

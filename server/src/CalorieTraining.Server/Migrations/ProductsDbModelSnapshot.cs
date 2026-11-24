@@ -53,6 +53,26 @@ namespace CalorieTraining.Server.Migrations
                     b.ToTable("diary_backups");
                 });
 
+            modelBuilder.Entity("CalorieTraining.Server.Photo", b =>
+                {
+                    b.Property<string>("Sha256")
+                        .HasColumnType("text")
+                        .HasColumnName("sha256");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("content");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("Sha256");
+
+                    b.ToTable("photos");
+                });
+
             modelBuilder.Entity("CalorieTraining.Server.Product", b =>
                 {
                     b.Property<Guid>("Id")
