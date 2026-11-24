@@ -87,7 +87,7 @@ internal val exerciseCatalog = listOf(
     ExercisePhoto("Скручивания на блоке", "Пресс", "блок молитва на коленях", R.drawable.ex_cable_crunch_0, R.drawable.ex_cable_crunch_1)
 )
 
-private fun String.searchKey() = trim().lowercase().replace('ё', 'е')
+internal fun String.searchKey() = trim().lowercase().replace('ё', 'е')
 
 /** Ищет упражнения каталога по всем словам запроса в названии, группе мышц и синонимах. */
 internal fun searchExercises(query: String): List<ExercisePhoto> {

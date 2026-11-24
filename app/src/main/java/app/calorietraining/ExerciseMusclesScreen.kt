@@ -13,11 +13,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 
 @Composable
-internal fun ExerciseMusclesButton(onClick: () -> Unit) {
+internal fun ExerciseMusclesButton(description: String = "Мышцы и техника", onClick: () -> Unit) {
     IconButton(onClick = onClick) {
         Icon(
             painterResource(R.drawable.ic_exercise_muscles),
-            contentDescription = "Мышцы и техника",
+            contentDescription = description,
             tint = LocalDiaryAccents.current.workout,
         )
     }

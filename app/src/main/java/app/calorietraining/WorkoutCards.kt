@@ -75,7 +75,7 @@ internal fun NextSetCard(set: SetDraft, enabled: Boolean, complete: () -> Unit) 
 internal fun ExerciseCard(
     sets: List<SetDraft>,
     rests: Map<Long?, Duration>,
-    onMuscles: (ExercisePhoto) -> Unit,
+    onMuscles: (String) -> Unit,
     edit: (SetDraft) -> Unit,
 ) {
     val exercise = sets.first().exercise
@@ -88,7 +88,11 @@ internal fun ExerciseCard(
                     exercise, Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
                 )
-                photo?.let { ExerciseMusclesButton { onMuscles(it) } }
+                if (exercise.isNotBlank()) {
+                    ExerciseMusclesButton(if (photo == null) "Мышцы упражнения" else "Мышцы и техника") {
+                        onMuscles(exercise)
+                    }
+                }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 sets.forEachIndexed { index, set ->

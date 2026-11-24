@@ -22,7 +22,8 @@ private val tables = linkedMapOf(
     "template_set" to listOf("id", "template", "exercise_group", "exercise", "weight", "reps", "warmup"),
     "goal" to listOf("start_day", "kcal", "protein", "fat", "carbs", "carbs_zero"),
     "measurement" to listOf("day", "weight", "fat"),
-    "user_profile" to listOf("id", "sex", "birth_year", "height_cm", "activity", "goal_kind", "updated_at")
+    "user_profile" to listOf("id", "sex", "birth_year", "height_cm", "activity", "goal_kind", "updated_at"),
+    "exercise_muscle" to listOf("exercise_key", "muscle", "is_primary"),
 )
 
 private val legacyProductColumns = listOf("code", "name", "energy", "protein", "fat", "carbs")
@@ -38,7 +39,7 @@ private val workoutTimeFields = mapOf(
 )
 private val nullableTimeFields = setOf("started_at", "finished_at", "done_at")
 
-private const val FORMAT_VERSION = 16
+private const val FORMAT_VERSION = 17
 private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
 internal inline fun SQLiteDatabase.atomic(block: () -> Unit) {
@@ -76,10 +77,15 @@ fun FoodStore.exportDiary(output: Writer) {
 
 private fun validateRow(table: String, row: ContentValues) {
     fun field(name: String) = row.getAsString(name)
-    if (table != "product" && table != "measurement" && table != "goal") require(field("id").toLong() > 0)
+    if (table != "product" && table != "measurement" && table != "goal" && table != "exercise_muscle") require(field("id").toLong() > 0)
     if (table == "food" || table == "workout") LocalDate.parse(field("day"))
     if (table == "template_set" || table == "lifting") require(field("warmup") in setOf("0", "1"))
     when (table) {
+        "exercise_muscle" -> {
+            require(field("exercise_key").isNotBlank())
+            Muscle.valueOf(field("muscle"))
+            require(field("is_primary") in setOf("0", "1"))
+        }
         "venue" -> require(field("name").isNotBlank() && field("created_at").toLongOrNull() != null)
         "recipe" -> require(field("name").isNotBlank() && field("cooked").amount()?.signum() == 1)
         "ingredient" -> require(field("recipe_id").toLong() > 0 && FoodDraft(name=field("name"), weighted=true,
@@ -258,6 +264,7 @@ fun FoodStore.readBackup(input: Reader): String {
             }
             json.endObject()
             val expected = tables.keys.toMutableSet()
+            if (version < 17) expected.remove("exercise_muscle")
             if (version < 16) expected.remove("venue")
             require(if (version >= 16) !missingVenueLink else !hasVenueLink)
             if (version < 15) expected.remove("user_profile")

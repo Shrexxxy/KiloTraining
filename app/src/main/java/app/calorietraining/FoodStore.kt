@@ -113,7 +113,7 @@ internal fun SQLiteDatabase.importLegacyGoals(kcal: Int, protein: Int, fat: Int,
 
 class FoodStore(internal val context: Context, databaseName: String = "food.db",
     internal val clock: java.time.Clock = java.time.Clock.systemDefaultZone(),
-) : SQLiteOpenHelper(context, databaseName, null, 18) {
+) : SQLiteOpenHelper(context, databaseName, null, 19) {
     internal val unusedPhotos = mutableSetOf<String>()
     private fun createLegacyCalorieTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
@@ -168,6 +168,49 @@ class FoodStore(internal val context: Context, databaseName: String = "food.db",
         db.execSQL("DROP TABLE macro_goal")
     }
 
+    private fun SQLiteDatabase.createExerciseMuscles() {
+        execSQL("""CREATE TABLE exercise_muscle (
+            exercise_key TEXT NOT NULL,
+            muscle TEXT NOT NULL,
+            is_primary INTEGER NOT NULL CHECK(is_primary IN (0,1)),
+            PRIMARY KEY(exercise_key, muscle)
+        )""")
+    }
+
+    /** Возвращает выбранные мышцы своих упражнений по нормализованным названиям. */
+    internal fun customMuscles(): Map<String, ExerciseTechnique> = readableDatabase.rawQuery(
+        "SELECT exercise_key, muscle, is_primary FROM exercise_muscle ORDER BY exercise_key, muscle", null,
+    ).use { rows ->
+        val byExercise = mutableMapOf<String, MutableMap<Muscle, Boolean>>()
+        while (rows.moveToNext()) {
+            val key = rows.getString(0)
+            if (photoForExercise(key) != null) continue
+            byExercise.getOrPut(key) { mutableMapOf() }[Muscle.valueOf(rows.getString(1))] = rows.getInt(2) == 1
+        }
+        byExercise.mapValues { (_, roles) ->
+            ExerciseTechnique(
+                primary = Muscle.entries.filter { roles[it] == true },
+                secondary = Muscle.entries.filter { roles[it] == false },
+                steps = emptyList(),
+            )
+        }
+    }
+
+    /** Заменяет выбор мышц для своего упражнения. Пустой выбор удаляет запись. */
+    internal fun saveCustomMuscles(name: String, primary: List<Muscle>, secondary: List<Muscle>) {
+        val key = name.searchKey()
+        if (key.isEmpty() || photoForExercise(key) != null) return
+        val roles = secondary.associateWith { 0 } + primary.associateWith { 1 }
+        val db = writableDatabase
+        db.atomic {
+            db.delete("exercise_muscle", "exercise_key=?", arrayOf(key))
+            roles.forEach { (muscle, isPrimary) ->
+                db.execSQL("INSERT INTO exercise_muscle(exercise_key, muscle, is_primary) VALUES(?,?,?)",
+                    arrayOf<Any>(key, muscle.name, isPrimary))
+            }
+        }
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE food (
             id INTEGER PRIMARY KEY, day TEXT NOT NULL, name TEXT NOT NULL,
@@ -185,6 +228,7 @@ class FoodStore(internal val context: Context, databaseName: String = "food.db",
         addWorkoutTimes(db)
         createUserProfileAndZeroCarbs(db)
         db.createVenues()
+        db.createExerciseMuscles()
     }
 
     private fun createUserProfileAndZeroCarbs(db: SQLiteDatabase) {
@@ -229,6 +273,7 @@ class FoodStore(internal val context: Context, databaseName: String = "food.db",
         if (oldVersion < 16) addWorkoutTimes(db)
         if (oldVersion < 17) createUserProfileAndZeroCarbs(db)
         if (oldVersion < 18) db.createVenues()
+        if (oldVersion < 19) db.createExerciseMuscles()
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(
