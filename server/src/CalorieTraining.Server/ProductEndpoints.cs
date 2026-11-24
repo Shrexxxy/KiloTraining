@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 
 namespace CalorieTraining.Server;
@@ -28,17 +29,61 @@ internal static class ProductEndpoints
 
     internal static async Task<IResult> Search(string? q, int? limit, ProductsDb db, CancellationToken cancellationToken)
     {
-        var query = SearchKey.Normalize(q ?? "");
+        q ??= "";
+        var length = q.EnumerateRunes().Take(101).Count();
+        if (length > 100)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Введите не более 100 символов."] });
+
+        var query = SearchKey.Normalize(q);
         if (query.EnumerateRunes().Take(2).Count() < 2 || query.Contains('\0'))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Введите минимум два допустимых символа."] });
+        var words = query.Split(' ');
+        if (words.Length > 8)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Введите не более восьми слов."] });
         if (limit is < 1 or > 50)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["limit"] = ["Допустимое значение от 1 до 50."] });
 
-        var pattern = "%" + query.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
-        var matches = await db.Products.AsNoTracking()
-            .Where(p => EF.Functions.Like(p.SearchKey, pattern, "\\"))
+        var candidates = db.Products.AsNoTracking();
+        var longWords = words.Where(word => word.EnumerateRunes().Take(3).Count() == 3)
+            .ToHashSet(StringComparer.Ordinal);
+        if (longWords.Count == 0)
+            candidates = candidates.Where(p => p.Source == "phone" || p.Ru);
+
+        foreach (var word in words.Distinct(StringComparer.Ordinal))
+        {
+            if (longWords.Contains(word) && (word.Contains('.') || word.EndsWith('%')))
+            {
+                var numberPattern = NumberPattern(word);
+                candidates = candidates.Where(p => Regex.IsMatch(p.SearchKey, numberPattern));
+            }
+            else if (longWords.Contains(word))
+            {
+                var pattern = "%" + EscapeLike(word) + "%";
+                candidates = candidates.Where(p => EF.Functions.Like(p.SearchKey, pattern, "\\"));
+            }
+            else
+            {
+                var shortWord = word;
+                if (shortWord.EndsWith('%'))
+                {
+                    var previousPercent = shortWord.Insert(shortWord.Length - 1, " ");
+                    candidates = candidates.Where(p =>
+                        p.SearchKey.IndexOf(shortWord) >= 0 || p.SearchKey.IndexOf(previousPercent) >= 0);
+                }
+                else
+                    candidates = candidates.Where(p => p.SearchKey.IndexOf(shortWord) >= 0);
+            }
+        }
+
+        const string separator = "[[:space:][:punct:]]";
+        var startsName = "^" + separator + "*" + string.Join(separator + "+", words.Select(NamePattern));
+        var startsWords = "^" + string.Concat(words.Select(word =>
+            "(?= *(?:.* )?" + NumberPattern(word) + ")"));
+        var matches = await candidates
             .OrderByDescending(p => p.Source == "phone")
             .ThenByDescending(p => p.Ru)
+            .ThenByDescending(p => Regex.IsMatch(p.Name, startsName, RegexOptions.IgnoreCase))
+            .ThenByDescending(p => Regex.IsMatch(p.SearchKey, startsWords))
             .ThenByDescending(p => EF.Functions.TrigramsSimilarity(p.SearchKey, query))
             .ThenBy(p => p.Name)
             .ThenBy(p => p.Id)
@@ -46,6 +91,14 @@ internal static class ProductEndpoints
             .ToListAsync(cancellationToken);
         return Results.Ok(matches.Select(ProductResponse.From));
     }
+
+    private static string EscapeLike(string word) =>
+        word.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+
+    private static string NamePattern(string word) => NumberPattern(word).Replace("е", "[её]");
+
+    private static string NumberPattern(string word) =>
+        Regex.Escape(word).Replace("\\.", "[.,]").Replace("%", "[[:space:]]*%");
 
     internal static Task<IResult> Put(string barcode, ProductInput input, ProductsDb db, CancellationToken cancellationToken) =>
         IsBarcode(barcode) ? Save(barcode, input, db, cancellationToken) : Task.FromResult(InvalidBarcode());
@@ -71,12 +124,17 @@ internal static class ProductEndpoints
         if (errors.Count > 0)
             return Results.ValidationProblem(errors);
 
-        var searchKey = SearchKey.Normalize(name!);
+        var searchKey = SearchKey.ForProduct(name!, barcode is null ? null : brand);
+        var legacyKey = barcode is null
+            ? SearchKey.CollapseWhitespace(name!).ToLowerInvariant().Replace('ё', 'е')
+            : null;
         var id = Guid.NewGuid();
         var inserted = await db.Products.FromSql($"""
             INSERT INTO products (id, barcode, name, brand, kcal, protein, fat, carbs, source, created_at, updated_at, search_key)
-            VALUES ({id}, {barcode}, {name}, {brand}, {input.Kcal}, {input.Protein}, {input.Fat}, {input.Carbs},
-                    'phone', statement_timestamp(), statement_timestamp(), {searchKey})
+            SELECT {id}, {barcode}, {name}, {brand}, {input.Kcal}, {input.Protein}, {input.Fat}, {input.Carbs},
+                    'phone', statement_timestamp(), statement_timestamp(), {searchKey}
+            WHERE NOT EXISTS (
+                SELECT 1 FROM products WHERE barcode IS NULL AND source = 'phone' AND search_key = {legacyKey})
             ON CONFLICT DO NOTHING
             RETURNING *
             """).AsNoTracking().ToListAsync(cancellationToken);
@@ -86,7 +144,8 @@ internal static class ProductEndpoints
 
         // После конфликта новый запрос видит карточку, созданную параллельной транзакцией.
         var existing = barcode is null
-            ? db.Products.Where(p => p.Barcode == null && p.Source == "phone" && p.SearchKey == searchKey)
+            ? db.Products.Where(p => p.Barcode == null && p.Source == "phone" && (p.SearchKey == searchKey || p.SearchKey == legacyKey))
+                .OrderByDescending(p => p.SearchKey == searchKey).Take(1)
             : db.Products.Where(p => p.Barcode == barcode);
         var existingId = await existing.Select(p => p.Id).SingleAsync(cancellationToken);
         var updated = await db.Products.FromSql($"""

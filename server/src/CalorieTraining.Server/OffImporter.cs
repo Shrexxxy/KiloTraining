@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
+using System.Net;
 using Microsoft.VisualBasic.FileIO;
 using Npgsql;
 using NpgsqlTypes;
@@ -154,14 +155,14 @@ internal static class OffImporter
         if (barcode.Length is not (8 or 12 or 13 or 14) || !barcode.All(char.IsAsciiDigit))
             return "штрихкод";
 
-        var name = fields[positions[1]].Trim();
+        var name = DecodeText(fields[positions[1]]);
         if (name.Length is 0 or > 200)
             return "название";
 
         if (ParseNutrition(fields[positions[4]], 900) is not { } kcal)
             return "калорийность";
 
-        var brand = fields[positions[2]].Trim();
+        var brand = DecodeText(fields[positions[2]]);
         if (name.Contains('\0') || brand.Contains('\0'))
             return "формат";
 
@@ -169,8 +170,21 @@ internal static class OffImporter
         var ru = taggedRussia || (barcode.Length == 13 && barcode[0] == '4' && barcode[1] == '6');
         product = new OffProduct(barcode, name, brand.Length == 0 ? null : brand, kcal,
             ParseNutrition(fields[positions[5]], 100), ParseNutrition(fields[positions[6]], 100),
-            ParseNutrition(fields[positions[7]], 100), SearchKey.Normalize(name), ru, modified);
+            ParseNutrition(fields[positions[7]], 100), SearchKey.ForProduct(name, brand), ru, modified);
         return null;
+    }
+
+    private static string DecodeText(string value)
+    {
+        for (var pass = 0; pass < 2 && value.Contains('&'); pass++)
+        {
+            var decoded = WebUtility.HtmlDecode(value);
+            if (decoded == value)
+                break;
+            value = decoded;
+        }
+
+        return SearchKey.CollapseWhitespace(value);
     }
 
     private static decimal? ParseNutrition(string value, decimal maximum) =>

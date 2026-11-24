@@ -80,11 +80,11 @@ public sealed class ProductsTests(ProductsFixture fixture) : IClassFixture<Produ
     public async Task KeepsOneProductWithoutBarcode()
     {
         using var client = fixture.CreateClient();
-        using var created = await client.PostAsJsonAsync("/products", Food("Гречка варёная", 100));
+        using var created = await client.PostAsJsonAsync("/products", new { name = "Гречка варёная", brand = "Первая марка", kcal = 100 });
         created.StatusCode.Should().Be(HttpStatusCode.Created);
         var original = await Read(created);
         original.GetProperty("barcode").ValueKind.Should().Be(JsonValueKind.Null);
-        using var updated = await client.PostAsJsonAsync("/products", Food("ГРЕЧКА  вареная", 110));
+        using var updated = await client.PostAsJsonAsync("/products", new { name = "ГРЕЧКА  вареная", brand = "Другая марка", kcal = 110 });
         updated.StatusCode.Should().Be(HttpStatusCode.OK);
         var saved = await Read(updated);
         saved.GetProperty("id").GetGuid().Should().Be(original.GetProperty("id").GetGuid());

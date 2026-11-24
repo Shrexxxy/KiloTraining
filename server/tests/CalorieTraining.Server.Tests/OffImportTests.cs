@@ -5,6 +5,8 @@ using System.Text.Json;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
@@ -62,7 +64,7 @@ public sealed class OffImportTests
             var products = await db.Products.AsNoTracking().ToListAsync();
             products.Select(p => p.Barcode).Should().BeEquivalentTo(
                 new[] { curd, phone, "4600000000062", "4600000000079" });
-            products.Single(p => p.Barcode == "4600000000062").Name.Should().Be("Хлеб\tржаной");
+            products.Single(p => p.Barcode == "4600000000062").Name.Should().Be("Хлеб ржаной");
             products.Single(p => p.Barcode == phone).Should().BeEquivalentTo(original);
             var imported = products.Single(p => p.Barcode == curd);
             imported.Protein.Should().BeNull();
@@ -88,6 +90,70 @@ public sealed class OffImportTests
             {
                 File.Delete(plain);
             }
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    /// <summary>Сохраняет карточки при миграции и обновляет старые ключи при повторном импорте.</summary>
+    [Fact]
+    public async Task RefreshesLegacyTextWithoutChangingPhone()
+    {
+        await using var database = new PostgreSqlBuilder("postgres:17.7").Build();
+        await database.StartAsync();
+        var connection = database.GetConnectionString();
+        var options = new DbContextOptionsBuilder<ProductsDb>().UseNpgsql(connection).Options;
+        await using var db = new ProductsDb(options);
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261123131750_AddProductRu");
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO products (id, barcode, name, brand, kcal, search_key, source, ru, created_at, updated_at)
+            VALUES
+                (gen_random_uuid(), '4600010100021', 'Продукт &quot;Бурёнкин Луг&quot;', 'A & B', 50,
+                 'продукт &quot;буренкин луг&quot;', 'openfoodfacts', true, now(), now()),
+                (gen_random_uuid(), '4600010100022', 'Своя карточка', 'Своя марка', 70,
+                 'своя карточка', 'phone', false, now(), now())
+            """);
+        var before = await db.Products.AsNoTracking().ToListAsync();
+        await db.Database.MigrateAsync();
+        (await db.Database.GetAppliedMigrationsAsync()).Should()
+            .Contain(id => id.EndsWith("_ImproveProductSearch", StringComparison.Ordinal));
+        db.Database.HasPendingModelChanges().Should().BeFalse();
+        (await db.Products.AsNoTracking().ToListAsync()).Should().BeEquivalentTo(before);
+
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<string, string?> { ["ConnectionStrings:Products"] = connection, ["Api:Key"] = "off-test-key" })));
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "off-test-key");
+        var legacy = await client.GetFromJsonAsync<JsonElement>(
+            "/products/search?q=" + Uri.EscapeDataString("лупа буренкин"));
+        legacy.EnumerateArray().Should().BeEmpty();
+        var reversed = await client.GetFromJsonAsync<JsonElement>(
+            "/products/search?q=" + Uri.EscapeDataString("луг буренкин"));
+        reversed.EnumerateArray().Should().ContainSingle();
+
+        var file = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllLinesAsync(file,
+            [
+                "code\tproduct_name\tbrands\tcountries_tags\tenergy-kcal_100g\tproteins_100g\tfat_100g\tcarbohydrates_100g\tlast_modified_t",
+                "4600010100021\tПродукт  &quot;Бурёнкин Луг&quot;\tA & B &amp;quot;\ten:russia\t50\t\t\t\t1",
+                "4600010100022\tЧужая карточка\tДругая марка\ten:russia\t80\t\t\t\t1"
+            ]);
+            var result = await OffImporter.RunAsync(connection, file, null, CancellationToken.None);
+            result.Updated.Should().Be(1);
+            result.Phone.Should().Be(1);
+            var refreshed = await db.Products.AsNoTracking().SingleAsync(p => p.Barcode == "4600010100021");
+            refreshed.Id.Should().Be(before.Single(p => p.Barcode == refreshed.Barcode).Id);
+            refreshed.Name.Should().Be("Продукт \"Бурёнкин Луг\"");
+            refreshed.Brand.Should().Be("A & B \"");
+            refreshed.SearchKey.Should().Be("продукт буренкин луг a b");
+            (await db.Products.AsNoTracking().SingleAsync(p => p.Source == "phone"))
+                .Should().BeEquivalentTo(before.Single(p => p.Source == "phone"));
         }
         finally
         {
