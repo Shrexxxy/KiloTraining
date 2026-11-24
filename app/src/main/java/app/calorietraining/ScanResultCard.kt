@@ -13,7 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-internal fun ScanResultCard(code: String, outcome: ScanOutcome, busy: Boolean, onEvent: (FoodEvent) -> Unit) {
+internal fun ScanResultCard(
+    code: String, outcome: ScanOutcome, busy: Boolean, onEvent: (FoodEvent) -> Unit,
+    enterLabel: (() -> Unit)? = null,
+) {
     val message = when (outcome) {
         ScanOutcome.PHONE -> "Сохранено на телефоне"
         ScanOutcome.SERVER -> "Найдено в вашей базе"
@@ -26,6 +29,9 @@ internal fun ScanResultCard(code: String, outcome: ScanOutcome, busy: Boolean, o
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Штрихкод $code", style = MaterialTheme.typography.titleMedium)
             Text(message, style = MaterialTheme.typography.bodyMedium)
+            if (enterLabel != null) {
+                TextButton(onClick = enterLabel, enabled = !busy) { Text("Ввести с этикетки") }
+            }
             when (outcome) {
                 ScanOutcome.MISSING, ScanOutcome.NO_ENERGY ->
                     TextButton(onClick = { onEvent(FoodEvent.BrowseFoods) }, enabled = !busy) {
