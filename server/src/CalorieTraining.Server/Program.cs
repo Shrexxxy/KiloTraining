@@ -24,6 +24,7 @@ if (args is ["import-off", .. var importArgs])
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration["Urls"] ??= "http://0.0.0.0:5080";
 builder.Services.AddProblemDetails();
+builder.Services.AddSingleton<OffSubmission>();
 builder.Services.AddDbContext<ProductsDb>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Products")));
 
@@ -91,6 +92,7 @@ backups.MapPost("", BackupEndpoints.Upload);
 backups.MapGet("", BackupEndpoints.List);
 backups.MapGet("/{id:guid}", BackupEndpoints.Download);
 app.MapPhotoEndpoints();
+OffSubmission.Map(app);
 app.Run();
 
 /// <summary>Точка входа сервера продуктов.</summary>
