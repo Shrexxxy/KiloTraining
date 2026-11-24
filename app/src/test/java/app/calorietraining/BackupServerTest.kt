@@ -1,10 +1,6 @@
 package app.calorietraining
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.sun.net.httpserver.HttpServer
@@ -147,22 +143,13 @@ class BackupServerScreenTest {
     @Test fun listsTwoCopiesAndUploadsFromDarkScreen() {
         BackupHttpFixture().use { fixture ->
             fixture.configure(context)
-            lateinit var view: View
-            ui.setContent {
-                DiaryTheme(ThemeMode.DARK) {
-                    view = LocalView.current
-                    BackupScreen(androidx.lifecycle.viewmodel.compose.viewModel { BackupViewModel(context) }, {})
-                }
+            val screen = ui.setScreenshotContent(ThemeMode.DARK) {
+                BackupScreen(androidx.lifecycle.viewmodel.compose.viewModel { BackupViewModel(context) }, {})
             }
             backupRow().assertIsDisplayed()
             awaitText("21.11.2026", substring = true)
             ui.onNodeWithText("На сервере").assertIsDisplayed()
-            val bitmap = ui.runOnIdle {
-                Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-            }
-            File(File("build/screenshots").apply { mkdirs() }, "backup-server-dark.png").outputStream().use {
-                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
+            screen.captureScreen("backup-server-dark.png")
             ui.onNodeWithText("Сохранить на сервер").performClick()
             awaitText("Копия сохранена на сервере")
             assertEquals(1, fixture.posts.get())

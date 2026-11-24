@@ -1,9 +1,5 @@
 package app.calorietraining
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.*
@@ -16,7 +12,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.io.File
 import java.io.StringWriter
 import java.time.LocalDate
 
@@ -30,14 +25,14 @@ class OnboardingFlowTest {
     private val birthYear get() = (today.year - 30).toString()
     private val goals = DailyGoals(2760, MacroGoals(128, 72, 400))
     private val instance = mutableIntStateOf(0)
-    private lateinit var view: View
+    private lateinit var screen: ScreenCapture
 
     @Test fun savesCalculatedGoalAndTodaysMeasurement() {
         launch()
-        capture("onboarding-goal-dark.png")
+        screen.captureScreen("onboarding-goal-dark.png")
         completeQuestionnaire()
         ui.onNode(hasText("2 760 ккал") or hasText("2\u00a0760 ккал") or hasText("2\u202f760 ккал")).assertIsDisplayed()
-        capture("onboarding-result-dark.png")
+        screen.captureScreen("onboarding-result-dark.png")
         click("Сохранить цель")
         ui.awaitUntil(10_000) { ui.onAllNodes(hasText("Главная") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
         ui.onNode(hasText("Главная") and isSelectable()).assertIsSelected()
@@ -116,7 +111,7 @@ class OnboardingFlowTest {
         ui.onNodeWithText("Ваша цель").assertDoesNotExist()
         click("Профиль")
         ui.onNodeWithText("Мои данные").performScrollTo().assertIsDisplayed()
-        capture("profile-mydata-dark.png")
+        screen.captureScreen("profile-mydata-dark.png")
         click("Пересчитать цель")
         ui.onNodeWithText("Ваша цель").assertIsDisplayed()
         click("Далее")
@@ -154,24 +149,13 @@ class OnboardingFlowTest {
         launch(ThemeMode.LIGHT)
         completeQuestionnaire()
         ui.onNodeWithText("Сохранить цель").assertIsDisplayed()
-        capture("onboarding-result-light.png")
+        screen.captureScreen("onboarding-result-light.png")
     }
 
-    private fun launch(mode: ThemeMode = ThemeMode.DARK) = ui.setContent {
-        key(instance.intValue) {
-            DiaryTheme(mode) {
-                view = LocalView.current
-                DiaryApp(mode, {})
-            }
+    private fun launch(mode: ThemeMode = ThemeMode.DARK) {
+        screen = ui.setScreenshotContent(mode) {
+            key(instance.intValue) { DiaryApp(mode, {}) }
         }
-    }
-
-    private fun capture(filename: String) {
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-        }
-        val directory = File("build/screenshots").apply { mkdirs() }
-        File(directory, filename).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     private fun completeQuestionnaire() {

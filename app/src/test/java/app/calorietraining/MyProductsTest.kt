@@ -1,13 +1,8 @@
 package app.calorietraining
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
-import java.io.File
 import java.io.IOException
 import java.io.StringReader
 import java.io.StringWriter
@@ -141,10 +136,8 @@ class MyProductsTest {
 
     @Test fun managesAndDeletesMatchingProduct() = FoodStore(context).use { store ->
         val cards = mutableStateOf(seed(store))
-        lateinit var view: View
         ui.setContent {
             DiaryTheme(ThemeMode.DARK) {
-                view = LocalView.current
                 MyProductsScreen(
                     products = cards.value,
                     onSave = { store.saveMyProduct(it); cards.value = store.myProducts() },
@@ -154,7 +147,6 @@ class MyProductsTest {
             }
         }
         ui.onNodeWithText(coffee.name).assertIsDisplayed()
-        screenshot(view, "my-products-dark.png")
         ui.onNode(hasSetTextAction()).performTextInput("сыр")
         ui.onNodeWithText(coffee.name).assertDoesNotExist()
         ui.onNodeWithText(cheese.name).performClick()
@@ -168,26 +160,22 @@ class MyProductsTest {
         val cards = seed(store)
         val state = mutableStateOf(FoodUiState(loaded = true))
         var selected: FoodDraft? = null
-        lateinit var view: View
-        ui.setContent {
-            DiaryTheme(ThemeMode.DARK) {
-                view = LocalView.current
-                FoodContent(state.value, { event ->
-                    when (event) {
-                        is FoodEvent.AddInMeal -> state.value = state.value.copy(
-                            addingMeal = event.meal, myProducts = cards
-                        )
-                        is FoodEvent.Edit -> selected = event.value
-                        is FoodEvent.FindFood -> error("Локальный поиск не обращается к сети")
-                        else -> Unit
-                    }
-                })
-            }
+        val screen = ui.setScreenshotContent(ThemeMode.DARK) {
+            FoodContent(state.value, { event ->
+                when (event) {
+                    is FoodEvent.AddInMeal -> state.value = state.value.copy(
+                        addingMeal = event.meal, myProducts = cards
+                    )
+                    is FoodEvent.Edit -> selected = event.value
+                    is FoodEvent.FindFood -> error("Локальный поиск не обращается к сети")
+                    else -> Unit
+                }
+            })
         }
         ui.addInMeal(Meal.BREAKFAST)
         ui.onNodeWithText("Мои продукты").performClick()
         ui.onNodeWithText(cheese.name).assertIsDisplayed()
-        screenshot(view, "food-search-dark.png")
+        screen.captureScreen("food-search-dark.png")
         ui.onNode(hasSetTextAction()).performTextInput("сыр")
         ui.onNode(hasText("Мои продукты") and !hasClickAction()).assertIsDisplayed()
         ui.onNodeWithText(coffee.name).assertDoesNotExist()
@@ -200,13 +188,5 @@ class MyProductsTest {
         store.saveMyProduct(cheese.copy(brand = "Молочная", source = "openfoodfacts"))
         store.saveMyProduct(coffee)
         return store.myProducts()
-    }
-
-    private fun screenshot(view: View, filename: String) {
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-        }
-        val dir = File("build/screenshots").apply { mkdirs() }
-        File(dir, filename).outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
     }
 }

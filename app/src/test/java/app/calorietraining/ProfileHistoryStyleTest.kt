@@ -1,9 +1,5 @@
 package app.calorietraining
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import org.junit.Rule
@@ -13,7 +9,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
@@ -27,7 +22,7 @@ class ProfileHistoryStyleTest {
     private val today = LocalDate.now()
     private val monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     private val exercise = "Жим штанги лёжа"
-    private lateinit var view: View
+    private lateinit var screen: ScreenCapture
 
     @Test fun comparisonShowsSeparatePeriodsAndDifference() {
         profile(ThemeMode.DARK)
@@ -35,12 +30,12 @@ class ProfileHistoryStyleTest {
         ui.onNodeWithText("Последние 30 дней").assertIsDisplayed()
         ui.onNodeWithText("+2").assertIsDisplayed()
         ui.onAllNodesWithText("→", substring = true).assertCountEquals(0)
-        capture("profile-dark.png")
+        screen.captureScreen("profile-dark.png")
     }
 
     @Test fun profileShowsWorkoutTilesAndTodayInNutrition() {
         profile(ThemeMode.LIGHT)
-        capture("profile-light.png")
+        screen.captureScreen("profile-light.png")
         val list = ui.onNode(hasScrollAction())
         for ((label, value) in listOf("ЗАНЯТИЙ" to "3", "ПОДХОДОВ" to "4",
             "ПОВТОРЕНИЙ" to "32", "ОБЪЁМ" to "1\u00a0920 кг")) {
@@ -59,7 +54,7 @@ class ProfileHistoryStyleTest {
         ui.onNodeWithText("Упражнения").performClick().assertIsSelected()
         ui.onNodeWithText(exercise).assertIsDisplayed()
         ui.onNodeWithText("60 кг × 8").assertIsDisplayed()
-        capture("history-exercise-dark.png")
+        screen.captureScreen("history-exercise-dark.png")
     }
 
     @Test fun weeklyNutritionShowsSevenBarsAndRecordedDayAverage() {
@@ -67,7 +62,7 @@ class ProfileHistoryStyleTest {
         ui.onAllNodesWithTag("week-bar").assertCountEquals(7)
         ui.onNodeWithText("3\u00a0600 ккал").assertIsDisplayed()
         ui.onNodeWithText("Среднее за день с записями · 1\u00a0200 ккал").assertIsDisplayed()
-        capture("history-food-dark.png")
+        screen.captureScreen("history-food-dark.png")
     }
 
     private fun profile(mode: ThemeMode) {
@@ -83,10 +78,9 @@ class ProfileHistoryStyleTest {
             store.saveMeasurement(Measurement(today.minusDays(5), "83", "22"))
         }
         val model = ProfileViewModel(app)
-        ui.setContent { DiaryTheme(mode) {
-            view = LocalView.current
-            DiaryBackground { ProfileScreen(model, {}) }
-        } }
+        screen = ui.setScreenshotContent(mode) {
+            ProfileScreen(model, {})
+        }
         ui.awaitUntil(timeoutMillis = 10_000) { model.uiState.value.stats != null }
         ui.waitForIdle()
     }
@@ -100,20 +94,10 @@ class ProfileHistoryStyleTest {
             store.saveSet(store.newWorkout(monday), SetDraft(exercise = exercise, weight = "60", reps = "8"))
         }
         val model = HistoryViewModel(app)
-        ui.setContent { DiaryTheme(ThemeMode.DARK) {
-            view = LocalView.current
-            DiaryBackground { HistoryScreen(model, {}, {}) }
-        } }
+        screen = ui.setScreenshotContent(ThemeMode.DARK) {
+            HistoryScreen(model, {}, {})
+        }
         ui.awaitUntil(timeoutMillis = 10_000) { !model.uiState.value.loading }
         ui.waitForIdle()
-    }
-
-    private fun capture(name: String) {
-        // В Robolectric перерисовка окна для captureToImage не вызывается.
-        val bitmap = ui.runOnIdle {
-            Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
-        }
-        val dir = File("build/screenshots").apply { mkdirs() }
-        File(dir, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 }
