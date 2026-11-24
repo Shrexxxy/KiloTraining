@@ -72,13 +72,23 @@ internal fun NextSetCard(set: SetDraft, enabled: Boolean, complete: () -> Unit) 
 }
 
 @Composable
-internal fun ExerciseCard(sets: List<SetDraft>, rests: Map<Long?, Duration>, edit: (SetDraft) -> Unit) {
+internal fun ExerciseCard(
+    sets: List<SetDraft>,
+    rests: Map<Long?, Duration>,
+    onMuscles: (ExercisePhoto) -> Unit,
+    edit: (SetDraft) -> Unit,
+) {
     val exercise = sets.first().exercise
+    val photo = photoForExercise(exercise)
     GlassCard(LocalDiaryAccents.current.workout) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                photoForExercise(exercise)?.let { Image(painterResource(it.second), null, Modifier.size(48.dp)) }
-                Text(exercise, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                photo?.let { Image(painterResource(it.second), null, Modifier.size(48.dp)) }
+                Text(
+                    exercise, Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                )
+                photo?.let { ExerciseMusclesButton { onMuscles(it) } }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 sets.forEachIndexed { index, set ->
