@@ -28,6 +28,8 @@ internal sealed class ProductsDb(DbContextOptions<ProductsDb> options) : DbConte
         product.HasIndex(p => p.Barcode).IsUnique().HasFilter("barcode IS NOT NULL");
         product.HasIndex(p => p.SearchKey, "ix_products_phone_without_barcode").IsUnique()
             .HasFilter("barcode IS NULL AND source = 'phone'");
+        product.HasIndex(p => p.Id, "ix_products_short_search")
+            .HasFilter("source = 'phone' OR ru").IsCreatedConcurrently();
         product.HasIndex(p => p.SearchKey, "ix_products_search_key").HasMethod("gin").HasOperators("gin_trgm_ops");
     }
 }
@@ -82,7 +84,7 @@ internal sealed class Product
     [Column("updated_at")]
     public DateTime UpdatedAt { get; init; }
 
-    /// <summary>Нормализованное название продукта.</summary>
+    /// <summary>Нормализованное название, дополненное маркой для карточек со штрихкодом.</summary>
     [Column("search_key")]
     public required string SearchKey { get; init; }
 }

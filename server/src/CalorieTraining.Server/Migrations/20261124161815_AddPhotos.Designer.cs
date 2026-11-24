@@ -155,6 +155,10 @@ namespace CalorieTraining.Server.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "SearchKey" }, "ix_products_search_key"), "gin");
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "SearchKey" }, "ix_products_search_key"), new[] { "gin_trgm_ops" });
 
+                    b.HasIndex(new[] { "Id" }, "ix_products_short_search")
+                        .HasFilter("source = 'phone' OR ru")
+                        .HasAnnotation("Npgsql:CreatedConcurrently", true);
+
                     b.ToTable("products", null, t =>
                         {
                             t.HasCheckConstraint("ck_products_name", "btrim(name) <> ''");
