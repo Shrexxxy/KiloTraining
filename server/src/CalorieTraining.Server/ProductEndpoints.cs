@@ -79,11 +79,13 @@ internal static class ProductEndpoints
         var startsName = "^" + separator + "*" + string.Join(separator + "+", words.Select(NamePattern));
         var startsWords = "^" + string.Concat(words.Select(word =>
             "(?= *(?:.* )?" + NumberPattern(word) + ")"));
+        var startsWordsWithPunctuation = "^" + string.Concat(words.Select(word =>
+            "(?=(?:.*" + separator + ")?" + NumberPattern(word) + ")"));
         var matches = await candidates
             .OrderByDescending(p => p.Source == "phone")
             .ThenByDescending(p => p.Ru)
             .ThenByDescending(p => Regex.IsMatch(p.Name, startsName, RegexOptions.IgnoreCase))
-            .ThenByDescending(p => Regex.IsMatch(p.SearchKey, startsWords))
+            .ThenByDescending(p => Regex.IsMatch(p.SearchKey, p.Barcode == null ? startsWordsWithPunctuation : startsWords))
             .ThenByDescending(p => EF.Functions.TrigramsSimilarity(p.SearchKey, query))
             .ThenBy(p => p.Name)
             .ThenBy(p => p.Id)
@@ -124,17 +126,14 @@ internal static class ProductEndpoints
         if (errors.Count > 0)
             return Results.ValidationProblem(errors);
 
-        var searchKey = SearchKey.ForProduct(name!, barcode is null ? null : brand);
-        var legacyKey = barcode is null
+        var searchKey = barcode is null
             ? SearchKey.CollapseWhitespace(name!).ToLowerInvariant().Replace('ё', 'е')
-            : null;
+            : SearchKey.ForProduct(name!, brand);
         var id = Guid.NewGuid();
         var inserted = await db.Products.FromSql($"""
             INSERT INTO products (id, barcode, name, brand, kcal, protein, fat, carbs, source, created_at, updated_at, search_key)
-            SELECT {id}, {barcode}, {name}, {brand}, {input.Kcal}, {input.Protein}, {input.Fat}, {input.Carbs},
-                    'phone', statement_timestamp(), statement_timestamp(), {searchKey}
-            WHERE NOT EXISTS (
-                SELECT 1 FROM products WHERE barcode IS NULL AND source = 'phone' AND search_key = {legacyKey})
+            VALUES ({id}, {barcode}, {name}, {brand}, {input.Kcal}, {input.Protein}, {input.Fat}, {input.Carbs},
+                    'phone', statement_timestamp(), statement_timestamp(), {searchKey})
             ON CONFLICT DO NOTHING
             RETURNING *
             """).AsNoTracking().ToListAsync(cancellationToken);
@@ -144,8 +143,7 @@ internal static class ProductEndpoints
 
         // После конфликта новый запрос видит карточку, созданную параллельной транзакцией.
         var existing = barcode is null
-            ? db.Products.Where(p => p.Barcode == null && p.Source == "phone" && (p.SearchKey == searchKey || p.SearchKey == legacyKey))
-                .OrderByDescending(p => p.SearchKey == searchKey).Take(1)
+            ? db.Products.Where(p => p.Barcode == null && p.Source == "phone" && p.SearchKey == searchKey)
             : db.Products.Where(p => p.Barcode == barcode);
         var existingId = await existing.Select(p => p.Id).SingleAsync(cancellationToken);
         var updated = await db.Products.FromSql($"""
