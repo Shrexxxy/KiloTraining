@@ -23,13 +23,24 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun MuscleDiagram(technique: ExerciseTechnique, primary: Color, secondary: Color) {
     val names = technique.primary.joinToString { it.label }
+    MuscleDiagram("Основные мышцы: $names. Вид спереди и сзади.") { muscle ->
+        when (muscle) {
+            in technique.primary -> primary
+            in technique.secondary -> secondary
+            else -> Color.Transparent
+        }
+    }
+}
+
+@Composable
+internal fun MuscleDiagram(description: String, fill: (Muscle) -> Color) {
     val outline = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
-        Modifier.fillMaxWidth().semantics { contentDescription = "Основные мышцы: $names. Вид спереди и сзади." },
+        Modifier.fillMaxWidth().semantics { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        BodyFigure("Спереди", frontMuscles, technique, primary, secondary, outline, Modifier.weight(1f))
-        BodyFigure("Сзади", backMuscles, technique, primary, secondary, outline, Modifier.weight(1f))
+        BodyFigure("Спереди", frontMuscles, fill, outline, Modifier.weight(1f))
+        BodyFigure("Сзади", backMuscles, fill, outline, Modifier.weight(1f))
     }
 }
 
@@ -37,14 +48,12 @@ internal fun MuscleDiagram(technique: ExerciseTechnique, primary: Color, seconda
 private fun BodyFigure(
     caption: String,
     regions: List<MuscleRegion>,
-    technique: ExerciseTechnique,
-    primary: Color,
-    secondary: Color,
+    fill: (Muscle) -> Color,
     outline: Color,
     modifier: Modifier,
 ) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Canvas(Modifier.fillMaxWidth().height(204.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(260.dp)) {
             val factor = minOf(size.width / 100f, size.height / 216f)
             val left = (size.width - 100f * factor) / 2f
             val top = (size.height - 216f * factor) / 2f
@@ -55,12 +64,7 @@ private fun BodyFigure(
                         scale(direction, 1f, Offset(50f, 0f)) {
                             drawPath(bodyOutline, outline, style = border)
                             for ((muscle, path) in regions) {
-                                val fill = when (muscle) {
-                                    in technique.primary -> primary
-                                    in technique.secondary -> secondary
-                                    else -> Color.Transparent
-                                }
-                                drawPath(path, fill)
+                                drawPath(path, fill(muscle))
                                 drawPath(path, outline.copy(alpha = 0.66f), style = border)
                             }
                         }
