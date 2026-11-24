@@ -253,6 +253,16 @@ internal fun DateArrow(icon: Int, label: String, enabled: Boolean, onClick: () -
 private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent) -> Unit, modifier: Modifier = Modifier) {
     fun edit(value: FoodDraft) = onEvent(FoodEvent.Edit(value))
     val scanCode = draft.barcode.takeIf { state.scanOutcome != null }
+    val scanNeedsLabel = scanCode != null && state.scanOutcome in
+        setOf(ScanOutcome.MISSING, ScanOutcome.NO_ENERGY, ScanOutcome.UNAVAILABLE)
+    var labelOpen by rememberSaveable(draft.id, draft.barcode) { mutableStateOf(false) }
+    if (labelOpen) {
+        LabelEntryScreen(draft, back = { labelOpen = false }, apply = {
+            edit(it)
+            labelOpen = false
+        }, modifier)
+        return
+    }
     val nameFocus = remember { FocusRequester() }
     LaunchedEffect(scanCode) {
         if (scanCode != null && draft.name.isBlank()) {
@@ -289,7 +299,8 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                     }
                 }
                 if (scanCode != null && state.scanOutcome != null) {
-                    ScanResultCard(scanCode, state.scanOutcome, state.busy, onEvent)
+                    val enterLabel: (() -> Unit)? = if (scanNeedsLabel) ({ labelOpen = true }) else null
+                    ScanResultCard(scanCode, state.scanOutcome, state.busy, onEvent, enterLabel)
                 }
                 if (draft.id != null && !state.confirmingDelete) {
                     TextButton(onClick = { onEvent(FoodEvent.AskDelete) }) {
@@ -327,6 +338,9 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                         isError = !validMealTime(draft.mealTime), supportingText = { Text("Можно оставить пустым") })
                 }
                 if (draft.weighted) AmountField(if (state.recipe == null) "Вес порции, г" else "Вес ингредиента, г", draft.grams, true) { edit(draft.copy(grams = it)) }
+                if (draft.weighted && !scanNeedsLabel && state.recipe == null) {
+                    TextButton(onClick = { labelOpen = true }, enabled = !state.busy) { Text("Ввести с этикетки") }
+                }
                 AmountField(if (draft.weighted) "Ккал на 100 г" else "Ккал на порцию", draft.energy, true) {
                     edit(draft.copy(energy = it))
                 }
