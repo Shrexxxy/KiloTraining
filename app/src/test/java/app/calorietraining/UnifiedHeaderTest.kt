@@ -131,7 +131,7 @@ class UnifiedHeaderTest {
 
     @Test fun measurementHeaderReturnsToProfile() {
         ui.onNode(hasText("Профиль") and isSelectable()).performClick()
-        await("Сравнение периодов")
+        await("Калории по дням")
         ui.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Записать замер"))
         text("Записать замер").performClick()
         ui.headerBack()

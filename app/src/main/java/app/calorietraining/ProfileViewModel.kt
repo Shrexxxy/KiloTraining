@@ -127,7 +127,7 @@ class ProfileViewModel internal constructor(
 
     fun refresh(days: Int = state.value.days, change: (FoodStore.() -> Unit)? = null) {
         if (state.value.busy) return
-        state.value = state.value.copy(days = days, busy = true, error = null)
+        state.value = state.value.copy(busy = true, error = null)
         viewModelScope.launch {
             try {
                 val stats = withContext(Dispatchers.IO) {

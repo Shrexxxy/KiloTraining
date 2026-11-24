@@ -68,7 +68,7 @@ class AppScreenshotTest {
         if (tab == "Настройки") ui.onNodeWithContentDescription("Настройки").performClick()
         val ready = when (tab) {
             "Главная" -> if (live) "Идёт тренировка" else "Последняя тренировка"
-            "Профиль" -> "Сравнение периодов"
+            "Профиль" -> "Калории по дням"
             "Настройки" -> "Сервер продуктов"
             else -> "Завтрак"
         }

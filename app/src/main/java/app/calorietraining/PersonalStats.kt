@@ -45,12 +45,14 @@ data class PeriodStats(
     val averageMinutes get() = totalMinutes.toBigDecimal().averageBy(timedWorkouts)
 }
 data class ProfileStats(val current: PeriodStats, val previous: PeriodStats?, val end: LocalDate,
-    val hours: List<Int>, val measurements: List<Measurement>, val todayEntries: List<FoodEntry> = emptyList())
+    val hours: List<Int>, val measurements: List<Measurement>, val todayEntries: List<FoodEntry>, val series: ProfileSeries)
 
 private fun BigDecimal.averageBy(count: Int) =
     if (count == 0) null else divide(count.toBigDecimal(), 2, RoundingMode.HALF_UP)
 
 private val benchNames = setOf("жим штанги лежа", "жим лежа", "жим лежа штанги", "жим лежа со штангой")
+
+internal fun isBenchExercise(name: String) = name.trim().lowercase().replace('ё', 'е') in benchNames
 
 private fun FoodStore.periodStats(range: Array<String>): PeriodStats {
     val db = readableDatabase
@@ -83,7 +85,7 @@ private fun FoodStore.periodStats(range: Array<String>): PeriodStats {
             reps += count
             val weight = rows.getString(2).amount() ?: continue
             volume += weight * count.toBigDecimal()
-            if (rows.getInt(4) == 0 && rows.getString(1).trim().lowercase().replace('ё','е') in benchNames) {
+            if (rows.getInt(4) == 0 && isBenchExercise(rows.getString(1))) {
                 val repetitions = count.toInt()
                 records[repetitions] = records[repetitions]?.max(weight) ?: weight
                 benchSum += weight
@@ -131,5 +133,5 @@ fun FoodStore.profileStats(days: Int): ProfileStats {
     val measurements = db.rawQuery("SELECT day,weight,fat FROM measurement ORDER BY day DESC",null).use { rows ->
         buildList { while (rows.moveToNext()) add(Measurement(LocalDate.parse(rows.getString(0)),rows.getString(1),rows.getString(2))) }
     }
-    return ProfileStats(current, previous, today, hours, measurements, entries(today))
+    return ProfileStats(current, previous, today, hours, measurements, entries(today), profileSeries(days, today))
 }
