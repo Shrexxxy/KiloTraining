@@ -31,9 +31,9 @@ class ProfileHistoryStyleTest {
 
     @Test fun comparisonShowsSeparatePeriodsAndDifference() {
         profile(ThemeMode.DARK)
-        ui.onNodeWithText("Прошлые 30 дней").assertIsDisplayed()
-        ui.onNodeWithText("Последние 30 дней").assertIsDisplayed()
-        ui.onNodeWithText("+2").assertIsDisplayed()
+        ui.onNode(hasScrollAction()).performScrollToNode(hasText("Сравнение периодов"))
+        ui.onNodeWithText("Было · прошлые 30 дней / стало · последние 30 дней").assertExists()
+        ui.onNodeWithContentDescription("Тренировки, было 1, стало 3, разница +2", substring = true).assertExists()
         ui.onAllNodesWithText("→", substring = true).assertCountEquals(0)
         capture("profile-dark.png")
     }
@@ -42,7 +42,10 @@ class ProfileHistoryStyleTest {
         profile(ThemeMode.LIGHT)
         capture("profile-light.png")
         val list = ui.onNode(hasScrollAction())
-        for ((label, value) in listOf("ЗАНЯТИЙ" to "3", "ПОДХОДОВ" to "4",
+        val workoutChart = hasContentDescription("Тренировки по неделям, занятий 3", substring = true)
+        list.performScrollToNode(workoutChart)
+        ui.onNode(workoutChart).assertIsDisplayed()
+        for ((label, value) in listOf("ПОДХОДОВ" to "4",
             "ПОВТОРЕНИЙ" to "32", "ОБЪЁМ" to "1\u00a0920 кг")) {
             list.performScrollToNode(hasText(label))
             ui.onNodeWithText(label).assertIsDisplayed()

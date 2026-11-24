@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.*
@@ -36,7 +37,7 @@ internal fun ProfileScreen(
                 val measurement = state.stats?.let { stats ->
                     stats.measurements.firstOrNull { it.weight.isNotEmpty() && it.day <= LocalDate.now() }
                 } ?: lastMeasurement.takeIf { state.stats == null }
-                MyDataBlock(personalData, measurement) { recalculate(measurement) }
+                MyDataBlock(personalData, measurement, state.stats?.series?.bmi) { recalculate(measurement) }
             }
         })
         DelayedProgress(state.busy)
@@ -93,69 +94,27 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
             val profile = state.stats
             if (profile != null) {
                 val stats = profile.current
-                profile.previous?.takeIf { state.days == 7 || state.days == 30 }?.let { previous ->
-                    item { ProfileBlock("Сравнение периодов", LocalDiaryAccents.current.kcal) {
-                        PeriodComparison(stats, previous, profile.end, state.days)
-                    } }
+                val series = profile.series
+                val caloriePeriod = when {
+                    state.days != 0 -> "по дням"
+                    series.calories.size > 1 && series.calories[0].day.plusMonths(1) == series.calories[1].day -> "по месяцам"
+                    else -> "по неделям"
                 }
-                item { ProfileBlock("Тренировки", LocalDiaryAccents.current.workout) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ProfileMetric("ЗАНЯТИЙ", stats.workouts.toBigDecimal().groupedNumber(), Modifier.weight(1f))
-                        ProfileMetric("ПОДХОДОВ", stats.sets.toBigDecimal().groupedNumber(), Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ProfileMetric("ПОВТОРЕНИЙ", stats.reps.toBigDecimal().groupedNumber(), Modifier.weight(1f))
-                        ProfileMetric("ОБЪЁМ", "${stats.volume.groupedNumber()} кг", Modifier.weight(1f))
-                    }
-                    stats.averageMinutes?.let { average ->
-                        val hours = stats.totalMinutes / 60
-                        val minutes = stats.totalMinutes % 60
-                        Text("Время занятий · ${if (hours > 0) "$hours ч $minutes мин" else "$minutes мин"}")
-                        Text("В среднем · ${average.display()} мин")
-                        Text("Длительность указана у ${stats.timedWorkouts} из ${stats.workouts} занятий",
-                            style = MaterialTheme.typography.bodySmall)
+                item { ProfileBlock("Калории $caloriePeriod", LocalDiaryAccents.current.kcal) {
+                    CaloriesChart(series, stats, caloriePeriod)
+                    if (profile.todayEntries.isNotEmpty()) {
+                        ChartLabel("Сегодня: ${profile.todayEntries.sumOf { it.calories }.groupedNumber()} ккал")
                     }
                 } }
-                item { ProfileBlock("Жим штанги лёжа", LocalDiaryAccents.current.workout) {
-                    if (stats.benchSets == 0) Text("За период нет выполненных рабочих подходов жима штанги лёжа.")
-                    else {
-                        ProfileValue("СРЕДНИЙ РАБОЧИЙ ВЕС", "${stats.benchAverage?.groupedNumber()} кг",
-                            LocalDiaryAccents.current.workout)
-                        Text("Лучший: ${stats.benchMax?.groupedNumber()} кг · Подходов: ${stats.benchSets}")
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            stats.benchRecords.forEach { (reps, weight) ->
-                                WorkoutSetTile(weight.groupedNumber(), reps.toString())
-                            }
-                        }
-                    }
-                } }
-                item { ProfileBlock("Питание", LocalDiaryAccents.current.kcal) {
-                    val accents = LocalDiaryAccents.current
-                    if (stats.averageCalories != null) {
-                        ProfileValue("В СРЕДНЕМ ЗА ДЕНЬ", "${stats.averageCalories.groupedNumber()} ккал", accents.kcal)
-                        Text("Дней с записями: ${stats.foodDays}", style = MaterialTheme.typography.bodySmall)
-                        if (stats.averageProtein != null) {
-                            ProfileValue("БЕЛОК В СРЕДНЕМ ЗА ДЕНЬ", "${stats.averageProtein.groupedNumber()} г", accents.protein)
-                            Text("Дней с полными данными по белку: ${stats.proteinDays} из ${stats.foodDays}",
-                                style = MaterialTheme.typography.bodySmall)
-                        } else Text("Для среднего белка нужен хотя бы один день с белком во всех записях.")
-                    } else Text("За период нет записей питания.")
-                    HorizontalDivider()
-                    if (profile.todayEntries.isEmpty()) Text("Сегодня пока нет записей") else {
-                        Text("Сегодня: ${profile.todayEntries.sumOf { it.calories }.groupedNumber()} ккал")
-                        DailyNutrition(profile.todayEntries.dailyMacros())
-                    }
-                    MealHours(profile.hours)
-                } }
+                item { ProfileBlock("БЖУ", LocalDiaryAccents.current.protein) { MacrosChart(series) } }
                 item { ProfileBlock("Мои замеры", LocalDiaryAccents.current.protein) {
                     val weight = profile.measurements.firstOrNull { it.weight.isNotEmpty() }
                     val fat = profile.measurements.firstOrNull { it.fat.isNotEmpty() }
-                    if (weight == null && fat == null) Text("Добавь первый замер, чтобы отслеживать изменения.")
+                    if (weight == null && fat == null) Text("Добавь первый замер.")
                     if (weight != null || fat != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            weight?.let { ProfileMetric("ВЕС", "${it.weight} кг", Modifier.weight(1f), it.day.caption()) }
-                            fat?.let { ProfileMetric("ЖИР", "${it.fat}%", Modifier.weight(1f), it.day.caption()) }
+                            weight?.let { ProfileMetric("ВЕС", "${it.weight.amount()?.display() ?: it.weight} кг", Modifier.weight(1f), it.day.caption()) }
+                            fat?.let { ProfileMetric("ЖИР", "${it.fat.amount()?.display() ?: it.fat}%", Modifier.weight(1f), it.day.caption()) }
                         }
                     }
                     MeasurementTrends(profile.measurements, profile.end, state.days)
@@ -173,28 +132,94 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                         }
                     }
                 }
+                item { ProfileBlock("Тренировки", LocalDiaryAccents.current.workout) {
+                    if (stats.workouts == 0) Text("Добавь тренировку.")
+                    else {
+                        val color = LocalDiaryAccents.current.workout
+                        val points = series.workouts
+                        val period = when {
+                            state.days == 7 -> "по дням"
+                            points.size > 1 && points[0].day.plusMonths(1) == points[1].day -> "по месяцам"
+                            else -> "по неделям"
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(stats.workouts.toBigDecimal().groupedNumber(), style = MaterialTheme.typography.titleLarge, color = color)
+                            ChartLabel("Занятия $period")
+                        }
+                        ChartBars(points.map { it.count.takeIf { count -> count > 0 }?.toFloat() }, color,
+                            "Тренировки $period, занятий ${stats.workouts}")
+                        ChartDates(points.first().day, points.last().day)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ProfileMetric("ПОДХОДОВ", stats.sets.toBigDecimal().groupedNumber(), Modifier.weight(1f))
+                            ProfileMetric("ПОВТОРЕНИЙ", stats.reps.toBigDecimal().groupedNumber(), Modifier.weight(1f))
+                            ProfileMetric("ОБЪЁМ", "${stats.volume.groupedNumber()} кг", Modifier.weight(1f))
+                        }
+                        stats.averageMinutes?.let { average ->
+                            ChartLabel("Время · ${stats.totalMinutes} мин · в среднем ${average.display()} мин")
+                        }
+                    }
+                } }
+                item { ProfileBlock("Жим штанги лёжа", LocalDiaryAccents.current.workout) {
+                    if (series.bench.isEmpty()) Text("Добавь рабочий подход жима лёжа.")
+                    else {
+                        TrendChart("Лучший рабочий вес", "кг", LocalDiaryAccents.current.workout,
+                            series.bench.map { it.day to it.weight })
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            stats.benchRecords.forEach { (reps, weight) ->
+                                WorkoutSetTile(weight.groupedNumber(), reps.toString())
+                            }
+                        }
+                    }
+                } }
+                profile.previous?.takeIf { state.days == 7 || state.days == 30 }?.let { previous ->
+                    item { ProfileBlock("Сравнение периодов", LocalDiaryAccents.current.kcal) {
+                        PeriodComparison(stats, previous, state.days)
+                    } }
+                }
+                item { ProfileBlock("Когда я обычно ем", LocalDiaryAccents.current.kcal) { MealHours(profile.hours) } }
             }
         }
     }
 }
 
 @Composable
-private fun MyDataBlock(profile: UserProfile?, measurement: Measurement?, recalculate: () -> Unit) {
+private fun MyDataBlock(profile: UserProfile?, measurement: Measurement?, savedBmi: Bmi?, recalculate: () -> Unit) {
     ProfileBlock("Мои данные", LocalDiaryAccents.current.kcal) {
-        val values = listOf(
-            "Цель" to profile?.kind?.label,
-            "Пол" to profile?.sex?.label,
-            "Возраст" to profile?.let { (LocalDate.now().year - it.birthYear).toString() },
-            "Рост" to profile?.let { "${it.heightCm} см" },
-            "Активность" to profile?.activity?.label,
-            "Последний вес" to measurement?.let { "${it.weight} кг" },
-        )
-        values.forEach { (label, value) ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(label, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium)
-                Text(value ?: "—", Modifier.weight(1.35f), style = MaterialTheme.typography.bodyMedium)
+        val color = LocalDiaryAccents.current.kcal
+        val arrow = when (profile?.kind) {
+            GoalKind.LOSE -> "↓"
+            GoalKind.MAINTAIN -> "→"
+            GoalKind.GAIN -> "↑"
+            null -> null
+        }
+        val goal = when (profile?.kind) {
+            GoalKind.LOSE -> "Похудеть"
+            GoalKind.MAINTAIN -> "Поддерживать"
+            GoalKind.GAIN -> "Набрать"
+            null -> "—"
+        }
+        Surface(Modifier.fillMaxWidth(), color = color.copy(alpha = .14f), shape = MaterialTheme.shapes.medium) {
+            Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                if (arrow != null) Text(arrow, color = color, style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.clearAndSetSemantics {})
+                ProfileValue("ЦЕЛЬ", goal, MaterialTheme.colorScheme.onSurface)
             }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ProfileMetric("ВОЗРАСТ", profile?.let { (LocalDate.now().year - it.birthYear).toString() } ?: "—", Modifier.weight(1f))
+            ProfileMetric("РОСТ", profile?.let { "${it.heightCm} см" } ?: "—", Modifier.weight(1f))
+            ProfileMetric("ВЕС", measurement?.weight?.amount()?.let { "${it.display()} кг" } ?: "—", Modifier.weight(1f))
+        }
+        val bmi = savedBmi ?: profileBmi(profile?.heightCm, measurement?.weight?.amount())
+        if (bmi != null) {
+            Text("ИМТ · ${bmi.value.display()}", style = MaterialTheme.typography.titleSmall)
+            BmiChart(bmi)
+        }
+        if (profile != null) {
+            ActivityChart(profile.activity, color)
+            ChartLabel(profile.activity.label)
         }
         OutlinedButton(recalculate, Modifier.fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
@@ -242,10 +267,11 @@ private fun MealHours(hours: List<Int>) {
     val peak = hours.maxOrNull() ?: 0
     Surface(shape = MaterialTheme.shapes.medium, color = colors.surfaceContainerHighest.copy(alpha = .55f)) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Когда я обычно ем", style = MaterialTheme.typography.titleSmall)
-            if (peak == 0) Text("Укажи время еды в дневнике, чтобы увидеть распределение по часам.")
+            if (peak == 0) Text("Добавь время еды.")
             else {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(Modifier.fillMaxWidth().chartDescription(
+                    "Приёмы пищи по часам, всего ${hours.sum()}, пик в ${hours.indexOf(peak)}:00, приёмов $peak"
+                ), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     hours.forEachIndexed { hour, count ->
                         Box(Modifier.weight(1f).height(64.dp)
                             .background(colors.surfaceContainer, MaterialTheme.shapes.extraSmall)
@@ -261,8 +287,6 @@ private fun MealHours(hours: List<Int>) {
                         Text(hour, style = MaterialTheme.typography.labelSmall)
                     }
                 }
-                Text("Число приёмов пищи по часам. Блюда одной категории в течение одного часа объединены.",
-                    style = MaterialTheme.typography.bodySmall)
             }
         }
     }
