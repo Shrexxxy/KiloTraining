@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.*
@@ -187,12 +186,6 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
 private fun MyDataBlock(profile: UserProfile?, measurement: Measurement?, savedBmi: Bmi?, recalculate: () -> Unit) {
     ProfileBlock("Мои данные", LocalDiaryAccents.current.kcal) {
         val color = LocalDiaryAccents.current.kcal
-        val arrow = when (profile?.kind) {
-            GoalKind.LOSE -> "↓"
-            GoalKind.MAINTAIN -> "→"
-            GoalKind.GAIN -> "↑"
-            null -> null
-        }
         val goal = when (profile?.kind) {
             GoalKind.LOSE -> "Похудеть"
             GoalKind.MAINTAIN -> "Поддерживать"
@@ -202,8 +195,9 @@ private fun MyDataBlock(profile: UserProfile?, measurement: Measurement?, savedB
         Surface(Modifier.fillMaxWidth(), color = color.copy(alpha = .14f), shape = MaterialTheme.shapes.medium) {
             Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                if (arrow != null) Text(arrow, color = color, style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.clearAndSetSemantics {})
+                if (profile != null) {
+                    Icon(painterResource(R.drawable.ic_goal), contentDescription = "Цель", tint = color)
+                }
                 ProfileValue("ЦЕЛЬ", goal, MaterialTheme.colorScheme.onSurface)
             }
         }
