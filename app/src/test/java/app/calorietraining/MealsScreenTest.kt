@@ -19,6 +19,10 @@ internal val addMealButton = hasText("+ Добавить") or hasText("Доба�
 internal fun SemanticsNodeInteractionsProvider.mealList() = onNode(hasScrollToIndexAction())
 
 internal fun androidx.compose.ui.test.junit4.ComposeTestRule.addInMeal(meal: Meal) {
+    awaitUntil(10_000) { onAllNodes(hasScrollToIndexAction()).fetchSemanticsNodes().isNotEmpty() }
+    mealList().performScrollToIndex(0)
+    val goal = hasText("Задать дневную цель") or hasText("Изменить цель")
+    awaitUntil(10_000) { onAllNodes(goal).fetchSemanticsNodes().isNotEmpty() }
     mealList().performScrollToNode(hasText(meal.label))
     val header = onNodeWithText(meal.label).fetchSemanticsNode().boundsInRoot
     val buttons = onAllNodes(addMealButton)
@@ -26,7 +30,7 @@ internal fun androidx.compose.ui.test.junit4.ComposeTestRule.addInMeal(meal: Mea
     assertTrue("У приёма ${meal.label} должна быть кнопка добавления", index >= 0)
     buttons[index].performScrollTo().performClick()
     val title = "Добавить · ${meal.label}"
-    waitUntil(10_000) {
+    awaitUntil(10_000) {
         onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
     }
 }
@@ -46,7 +50,7 @@ class MealsScreenTest {
     }
 
     private fun text(label: String) = ui.onNodeWithText(label)
-    private fun waitFor(label: String) = ui.waitUntil(10_000) {
+    private fun waitFor(label: String) = ui.awaitUntil(10_000) {
         ui.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty()
     }
     private fun seed(block: FoodStore.() -> Unit) {
@@ -57,18 +61,17 @@ class MealsScreenTest {
     }
     private fun changeDay(label: String, destination: LocalDate) {
         val enabledArrow = hasContentDescription(label) and isEnabled()
-        ui.waitUntil(10_000) { ui.onAllNodes(enabledArrow).fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(10_000) { ui.onAllNodes(enabledArrow).fetchSemanticsNodes().isNotEmpty() }
         ui.onNode(enabledArrow).performClick()
         waitFor(destination.caption())
     }
     private fun add(meal: Meal) {
-        ui.waitUntil(10_000) { ui.onAllNodes(hasScrollToIndexAction()).fetchSemanticsNodes().isNotEmpty() }
         ui.addInMeal(meal)
         text("Добавить · ${meal.label}").assertIsDisplayed()
     }
     private fun save(name: String, meal: Meal) {
         text("Сохранить").performClick()
-        ui.waitUntil(10_000) {
+        ui.awaitUntil(10_000) {
             ui.onAllNodesWithContentDescription("Выбрать дату, ${day.caption()}").fetchSemanticsNodes().isNotEmpty()
         }
         ui.mealList().performScrollToNode(hasText(name))
@@ -169,6 +172,32 @@ class MealsScreenTest {
         save("Гречка", Meal.BREAKFAST)
         ui.mealList().performScrollToNode(hasText(Meal.SNACK.label))
         text("Без категории").assertDoesNotExist()
+    }
+
+    @Test fun diarySuggestionBackReturnsToLunchWithoutSaving() {
+        seed { save(day.minusDays(1), FoodDraft(name = "Гречка", energy = "165", meal = Meal.LUNCH)) }
+        add(Meal.LUNCH)
+        text("Из дневника").assertIsSelected()
+        text("Гречка").performClick()
+        text("Название").assertIsDisplayed()
+
+        ui.headerBack()
+        text("Добавить · Обед").assertIsDisplayed()
+        ui.headerBack()
+        ui.mealList().assertExists()
+        FoodStore(ui.activity.application).use { assertTrue(it.entries(day).isEmpty()) }
+    }
+
+    @Test fun existingLunchEntryBackReturnsToNutrition() {
+        seed { save(day, FoodDraft(name = "Гречка", energy = "165", meal = Meal.LUNCH)) }
+        ui.mealList().performScrollToNode(hasText("Гречка"))
+        text("Гречка").performClick()
+        text("Обед").assertIsSelected()
+
+        ui.headerBack()
+        ui.mealList().performScrollToNode(hasText("Гречка"))
+        text("Гречка").assertIsDisplayed()
+        text("Добавить · Обед").assertDoesNotExist()
     }
 
     @Test fun m8MealSelectorAboveName() {

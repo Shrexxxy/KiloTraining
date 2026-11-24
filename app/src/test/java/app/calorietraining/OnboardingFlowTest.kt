@@ -39,7 +39,7 @@ class OnboardingFlowTest {
         ui.onNode(hasText("2 760 ккал") or hasText("2\u00a0760 ккал") or hasText("2\u202f760 ккал")).assertIsDisplayed()
         capture("onboarding-result-dark.png")
         click("Сохранить цель")
-        ui.waitUntil(10_000) { ui.onAllNodes(hasText("Главная") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(10_000) { ui.onAllNodes(hasText("Главная") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
         ui.onNode(hasText("Главная") and isSelectable()).assertIsSelected()
         FoodStore(context).use { store ->
             assertEquals(goals, store.goalsFor(today))
@@ -94,7 +94,7 @@ class OnboardingFlowTest {
         click("Изменить вручную")
         field("Ккал в день").performTextReplacement("2500")
         click("Сохранить")
-        ui.waitUntil(10_000) { ui.onAllNodes(hasText("Главная") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(10_000) { ui.onAllNodes(hasText("Главная") and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
         FoodStore(context).use {
             assertEquals(DailyGoals(2500, MacroGoals(128, 72, 400)), it.goalsFor(today))
             val data = it.onboardingData(today)

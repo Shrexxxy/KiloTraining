@@ -1,6 +1,5 @@
 package app.calorietraining
 
-import android.os.Looper
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.test.*
@@ -11,7 +10,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.LocalDate
@@ -27,15 +25,13 @@ class WorkoutFlowTest {
     private fun show() {
         val model = WorkoutViewModel(app, clock)
         ui.setContent { MaterialTheme { WorkoutContent(model.uiState.collectAsState().value, model::event) } }
-        ui.waitUntil(10_000) {
-            // Продолжение загрузки после ввода-вывода выполняется в очереди главного потока.
-            shadowOf(Looper.getMainLooper()).idle()
+        ui.awaitUntil(10_000) {
             !model.uiState.value.busy
         }
     }
 
     private fun await(text: String): SemanticsNodeInteraction {
-        ui.waitUntil(5_000) { ui.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+        ui.awaitUntil(5_000) { ui.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
         return ui.onNodeWithText(text)
     }
 
@@ -127,7 +123,7 @@ class WorkoutFlowTest {
         clock.set("2026-11-23T20:01:00")
         reveal("Завершить тренировку").performClick()
         ui.onNodeWithText("Завершить").performClick()
-        ui.waitUntil(5_000) { ui.onAllNodesWithText("Завершить тренировку").fetchSemanticsNodes().isEmpty() }
+        ui.awaitUntil(5_000) { ui.onAllNodesWithText("Завершить тренировку").fetchSemanticsNodes().isEmpty() }
         ui.onNodeWithTag("rest-ring").assertDoesNotExist()
         FoodStore(app).use { store ->
             assertEquals(listOf("2026-11-23T20:01", "56"),
@@ -200,7 +196,7 @@ class WorkoutFlowTest {
             assertEquals(listOf("1", null), store.row("SELECT planned,done_at FROM lifting WHERE session=$id"))
         }
         reveal("Засчитать").performClick()
-        ui.waitUntil(5_000) { ui.onAllNodesWithText("Засчитать").fetchSemanticsNodes().isEmpty() }
+        ui.awaitUntil(5_000) { ui.onAllNodesWithText("Засчитать").fetchSemanticsNodes().isEmpty() }
         FoodStore(app).use { store ->
             assertEquals(listOf("0", "2026-11-23T19:12:30"), store.row("SELECT planned,done_at FROM lifting WHERE session=$id"))
         }
