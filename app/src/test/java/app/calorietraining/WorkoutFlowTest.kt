@@ -1,5 +1,7 @@
 package app.calorietraining
 
+import android.app.Application
+import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.ViewModelProvider
@@ -19,7 +21,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
 import java.time.LocalDate
+import java.util.concurrent.CountDownLatch
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -236,7 +240,7 @@ class WorkoutFlowTest {
         ui.onNodeWithText("Другая тренировка").assertDoesNotExist()
     }
 
-    private fun loadedModel(): WorkoutViewModel = WorkoutViewModel(app, clock).also(::awaitLoaded)
+    private fun loadedModel(): WorkoutViewModel = WorkoutViewModel(GatedApplication(app), clock).also(::awaitLoaded)
 
     private fun awaitLoaded(model: WorkoutViewModel) {
         ui.awaitUntil(10_000) { !model.uiState.value.busy }
@@ -248,15 +252,16 @@ class WorkoutFlowTest {
         action: FoodStore.() -> Unit,
     ) {
         FoodStore(app).use { store ->
-            val db = store.writableDatabase
-            db.beginTransaction()
+            val held = model.getApplication<GatedApplication>()
+            val gate = CountDownLatch(1)
+            held.gate = gate
             try {
                 change?.invoke(store)
-                db.setTransactionSuccessful()
                 store.action()
                 assertTrue(model.uiState.value.busy)
             } finally {
-                db.endTransaction()
+                held.gate = null
+                gate.countDown()
             }
         }
     }
@@ -409,6 +414,8 @@ class WorkoutFlowTest {
         reveal("Силовая").performClick()
         awaitLoaded(model)
         await("Добавить упражнение")
+        // Открытие вкладки запускает ещё одно обновление: пока оно идёт, Refresh был бы пропущен.
+        awaitLoaded(model)
         duringLoad(model) {
             ui.runOnIdle { model.event(WorkoutEvent.Refresh) }
             ui.headerBack()
@@ -421,4 +428,17 @@ class WorkoutFlowTest {
         ui.onNodeWithText("Добавить упражнение").assertDoesNotExist()
     }
 
+    /** Держит открытие базы моделью, не блокируя саму базу. */
+    private class GatedApplication(base: Context) : Application() {
+        @Volatile var gate: CountDownLatch? = null
+
+        init {
+            attachBaseContext(base)
+        }
+
+        override fun getDatabasePath(name: String): File {
+            gate?.await()
+            return super.getDatabasePath(name)
+        }
+    }
 }
