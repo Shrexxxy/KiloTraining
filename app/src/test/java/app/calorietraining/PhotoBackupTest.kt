@@ -35,7 +35,7 @@ class PhotoBackupTest {
         }
         FoodStore(app, name).use { store ->
             val db = store.readableDatabase
-            assertEquals(20, db.version)
+            assertEquals(21, db.version)
             db.rawQuery("SELECT food.name, venue.name, photo_hash, logo_hash, exercise_key FROM food JOIN venue ON venue.id = food.venue_id CROSS JOIN exercise_muscle", null).use {
                 assertTrue(it.moveToFirst())
                 assertEquals("Суп", it.getString(0))
@@ -56,7 +56,7 @@ class PhotoBackupTest {
             source.setVenueLogo(source.venues().single().id, file.path)
             val backup = StringWriter().also(source::exportDiary).toString()
             val json = JSONObject(backup)
-            assertEquals("calorietraining/18", json.getString("format"))
+            assertEquals("calorietraining/19", json.getString("format"))
             assertEquals(hash, json.getJSONArray("food").getJSONObject(0).getString("photo_hash"))
             assertEquals(hash, json.getJSONArray("venue").getJSONObject(0).getString("logo_hash"))
             assertFalse(backup.contains("local-only.jpg"))

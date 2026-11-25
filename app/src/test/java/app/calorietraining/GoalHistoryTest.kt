@@ -114,7 +114,7 @@ class GoalHistoryTest {
             store.setGoals(third, DailyGoals(2000))
             store.backup()
         }
-        assertEquals("calorietraining/18", backup.getString("format"))
+        assertEquals("calorietraining/19", backup.getString("format"))
         FoodStore(context, "restored").use { store ->
             store.readBackup(backup.toString().reader())
             assertEquals(2, store.countGoals())

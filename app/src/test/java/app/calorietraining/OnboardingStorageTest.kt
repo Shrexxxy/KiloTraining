@@ -25,7 +25,7 @@ class OnboardingStorageTest {
             db.version = 16
         }
         FoodStore(context, "onboarding-v16").use { store ->
-            assertEquals(20, store.readableDatabase.version)
+            assertEquals(21, store.readableDatabase.version)
             assertEquals(goals, store.goalsFor(day))
             store.readableDatabase.rawQuery("SELECT * FROM user_profile", null).use {
                 assertFalse(it.moveToFirst())
@@ -41,7 +41,7 @@ class OnboardingStorageTest {
             store.setGoals(day, goals)
             store.backup()
         }
-        assertEquals("calorietraining/18", backup.getString("format"))
+        assertEquals("calorietraining/19", backup.getString("format"))
         FoodStore(context, "destination").use { store ->
             store.readBackup(backup.toString().reader())
             assertEquals(goals, store.goalsFor(day))

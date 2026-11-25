@@ -18,7 +18,7 @@ class ProfileMusclesTest {
     @get:Rule(order = 0) internal val skipOnboarding = SkipOnboardingRule()
     @get:Rule(order = 1) val ui = createComposeRule()
 
-    private val description = "Нагрузка мышц за 7 дней: грудь 3, плечи 1,5, трицепс 1,5"
+    private val description = "Нагрузка мышц за 7 дней: грудь 3, передняя дельта 1,5, трицепс 1,5"
 
     @Test fun weeklyMusclesAreIndependentOfProfilePeriod() {
         seed("Жим штанги лёжа", 3)
@@ -77,6 +77,7 @@ class ProfileMusclesTest {
     private fun assertBenchLoad() {
         ui.onNodeWithText("Грудь — 3").assertExists()
         ui.onNodeWithContentDescription(description).assertExists()
+        ui.onNode(hasTestTag("muscle-figure-full") and hasContentDescription(description)).assertExists()
     }
 
     private fun assertNoDiagram() {

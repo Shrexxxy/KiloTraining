@@ -115,7 +115,7 @@ internal val armsCatalog = listOf(
         "Жим штанги узким хватом", "Руки", "трицепс лежа",
         R.drawable.ex_closegrip_barbell_bench_press_0, R.drawable.ex_closegrip_barbell_bench_press_1,
         Equipment.Barbell, ExerciseTechnique(
-            listOf(Muscle.Triceps), listOf(Muscle.Chest, Muscle.Shoulders),
+            listOf(Muscle.Triceps), listOf(Muscle.Chest, Muscle.FrontDelts),
             listOf(
                 "Лягте на скамью и снимите штангу хватом примерно на ширине плеч.",
                 "Опустите гриф к середине груди, держа локти близко к корпусу.",
@@ -127,7 +127,7 @@ internal val armsCatalog = listOf(
         "Отжимания на брусьях на трицепс", "Руки", "собственный вес",
         R.drawable.ex_dips_triceps_version_0, R.drawable.ex_dips_triceps_version_1,
         Equipment.Bodyweight, ExerciseTechnique(
-            listOf(Muscle.Triceps), listOf(Muscle.Chest, Muscle.Shoulders),
+            listOf(Muscle.Triceps), listOf(Muscle.Chest, Muscle.FrontDelts),
             listOf(
                 "Примите упор на брусьях, удерживая корпус вертикально.",
                 "Опускайтесь, ведя локти назад, пока они не согнутся примерно под прямым углом.",

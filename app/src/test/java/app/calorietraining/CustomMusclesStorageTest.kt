@@ -19,8 +19,8 @@ class CustomMusclesStorageTest {
         FoodStore(app).use { store ->
             store.saveCustomMuscles("Мой жим", chestAndTriceps.primary, chestAndTriceps.secondary)
             assertEquals(mapOf("мой жим" to chestAndTriceps), store.customMuscles())
-            store.saveCustomMuscles("  МОЙ ЖИМ ", listOf(Muscle.Shoulders), emptyList())
-            assertEquals(ExerciseTechnique(listOf(Muscle.Shoulders), emptyList(), emptyList()), store.customMuscles()["мой жим"])
+            store.saveCustomMuscles("  МОЙ ЖИМ ", listOf(Muscle.SideDelts), emptyList())
+            assertEquals(ExerciseTechnique(listOf(Muscle.SideDelts), emptyList(), emptyList()), store.customMuscles()["мой жим"])
             store.saveCustomMuscles("мой жим", emptyList(), emptyList())
             store.saveCustomMuscles("Жим штанги лежа", listOf(Muscle.Chest), emptyList())
             assertTrue(store.customMuscles().isEmpty())
@@ -36,7 +36,7 @@ class CustomMusclesStorageTest {
             db.version = 18
         }
         FoodStore(app, "muscles-v18").use { store ->
-            assertEquals(20, store.readableDatabase.version)
+            assertEquals(21, store.readableDatabase.version)
             store.readableDatabase.rawQuery("SELECT title FROM workout WHERE id = 7", null).use {
                 assertTrue(it.moveToFirst())
                 assertEquals("Моя тренировка", it.getString(0))
@@ -48,7 +48,7 @@ class CustomMusclesStorageTest {
     @Test fun backup17RoundTripsAndBackup16ClearsSelection() {
         FoodStore(app).use { store ->
             val backup = store.emptyBackup()
-            assertEquals("calorietraining/18", backup.getString("format"))
+            assertEquals("calorietraining/19", backup.getString("format"))
             store.saveCustomMuscles("Мой жим", chestAndTriceps.primary, chestAndTriceps.secondary)
             val exported = store.emptyBackup()
             store.restore(backup)

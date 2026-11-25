@@ -115,7 +115,7 @@ internal fun SQLiteDatabase.importLegacyGoals(kcal: Int, protein: Int, fat: Int,
 
 class FoodStore(internal val context: Context, databaseName: String = "food.db",
     internal val clock: java.time.Clock = java.time.Clock.systemDefaultZone(),
-) : SQLiteOpenHelper(context, databaseName, null, 20) {
+) : SQLiteOpenHelper(context, databaseName, null, 21) {
     internal val unusedPhotos = mutableSetOf<String>()
     private fun createLegacyCalorieTable(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE daily_goal (id INTEGER PRIMARY KEY CHECK(id=1), kcal INTEGER NOT NULL CHECK(kcal>0))")
@@ -177,6 +177,15 @@ class FoodStore(internal val context: Context, databaseName: String = "food.db",
             is_primary INTEGER NOT NULL CHECK(is_primary IN (0,1)),
             PRIMARY KEY(exercise_key, muscle)
         )""")
+    }
+
+    /** Заменяет прежние «плечи» тремя дельтами с той же ролью; запись остаётся в одной транзакции обновления. */
+    private fun SQLiteDatabase.splitShoulders() {
+        execSQL("""INSERT OR IGNORE INTO exercise_muscle(exercise_key, muscle, is_primary)
+            SELECT e.exercise_key, d.muscle, e.is_primary FROM exercise_muscle e
+            CROSS JOIN (SELECT 'FrontDelts' AS muscle UNION ALL SELECT 'SideDelts' UNION ALL SELECT 'RearDelts') d
+            WHERE e.muscle = 'Shoulders'""")
+        execSQL("DELETE FROM exercise_muscle WHERE muscle = 'Shoulders'")
     }
 
     /** Возвращает выбранные мышцы своих упражнений по нормализованным названиям. */
@@ -278,6 +287,7 @@ class FoodStore(internal val context: Context, databaseName: String = "food.db",
         if (oldVersion < 18) db.createVenues()
         if (oldVersion < 19) db.createExerciseMuscles()
         if (oldVersion < 20) db.addPhotoHashes()
+        if (oldVersion < 21) db.splitShoulders()
     }
 
     fun entries(day: LocalDate): List<FoodEntry> = readableDatabase.rawQuery(
