@@ -171,10 +171,12 @@ private fun EquipmentIcon(equipment: Equipment) {
 
 @Composable
 internal fun ExerciseFrames(photo: ExercisePhoto, modifier: Modifier = Modifier) {
+    var opened by rememberSaveable(photo.name) { mutableStateOf<Int?>(null) }
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Image(painterResource(photo.first), "${photo.name}, первое положение",
-            Modifier.weight(1f).height(108.dp), contentScale = ContentScale.Fit)
-        Image(painterResource(photo.second), "${photo.name}, второе положение",
-            Modifier.weight(1f).height(108.dp), contentScale = ContentScale.Fit)
+        listOf(photo.first, photo.second).forEachIndexed { index, resource ->
+            Image(painterResource(resource), "Открыть фото: ${photo.name}, кадр ${index + 1}",
+                Modifier.weight(1f).height(108.dp).clickable { opened = index }, contentScale = ContentScale.Fit)
+        }
     }
+    opened?.let { ExercisePhotoViewer(photo, it, { frame -> opened = frame }) { opened = null } }
 }
