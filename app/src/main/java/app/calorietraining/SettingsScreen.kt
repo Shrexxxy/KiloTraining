@@ -5,10 +5,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -56,6 +59,8 @@ internal fun SettingsScreen(
                     photoProgress?.let { Text(it.label()) }
                 }
             }
+            Text(versionLabel(LocalContext.current), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -87,4 +92,10 @@ private fun ProductServerBlock(model: ProfileViewModel) {
             Text("Отправить сейчас")
         }
     }
+}
+
+private fun versionLabel(context: Context): String {
+    val info = context.packageManager.getPackageInfo(context.packageName, 0)
+    val debug = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+    return "Версия ${info.versionName} (${info.longVersionCode})" + if (debug) " · dev" else ""
 }
