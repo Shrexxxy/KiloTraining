@@ -1,15 +1,24 @@
 package app.calorietraining
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import java.time.LocalDate
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
+import kotlinx.coroutines.job
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -211,6 +220,34 @@ class OffSubmitTest {
         }
         awaitText("Отправлено")
         assertEquals(1, server.requests.count { it == "POST" })
+    }
+
+    @Test fun twoClicksBeforeRecompositionPostOnce() = fixture { server ->
+        val saved = save(card)
+        val model = OffSubmitModel(context)
+        val owner = object : ViewModelStoreOwner {
+            override val viewModelStore = ViewModelStore()
+        }
+        ViewModelProvider(owner, viewModelFactory { initializer { model } })[OffSubmitModel::class.java]
+        ui.setScreenshotContent {
+            CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
+                MyProductsScreen(listOf(saved), {}, {}, {})
+            }
+        }
+        openCard(saved.name)
+        awaitAction()
+        openDialog()
+        ui.onNodeWithText(consent).performClick()
+        val click = requireNotNull(ui.onNodeWithText("Отправить").assertIsEnabled()
+            .fetchSemanticsNode().config[SemanticsActions.OnClick].action)
+        ui.runOnIdle {
+            click()
+            click()
+        }
+        // Второй POST ушёл бы после итога первого, поэтому счёт верен только после всех отправок.
+        ui.awaitUntil(5_000) { model.viewModelScope.coroutineContext.job.children.none() }
+        awaitText("Отправлено")
+        assertEquals(listOf("GET", "PUT", "POST"), server.requests)
     }
 
     @Test fun darkScreenshot() = screenshot("off-submit-dark.png", ThemeMode.DARK, card)
