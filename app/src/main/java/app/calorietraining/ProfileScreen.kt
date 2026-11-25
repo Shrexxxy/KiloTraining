@@ -82,7 +82,7 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((days,label) in listOf(7 to "7 дней",30 to "30 дней",0 to "Всё время")) {
-                        FilterChip(selected = state.days == days, onClick = { event(ProfileEvent.Period(days)) }, label = { Text(label) })
+                        DiaryFilterChip(selected = state.days == days, onClick = { event(ProfileEvent.Period(days)) }, label = { Text(label) })
                     }
                 }
             }

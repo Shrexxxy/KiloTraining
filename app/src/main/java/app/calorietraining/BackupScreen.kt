@@ -213,7 +213,7 @@ fun BackupScreen(model: BackupViewModel, onClose: () -> Unit) {
             if (preview == null) {
                 Text("Сохраните питание, продукты и тренировки в файл. Его можно перенести на другой телефон.")
                 Text("Фото хранятся на сервере отдельно от файла копии", style = MaterialTheme.typography.bodyMedium)
-                state.photoProgress?.let { Text("Фото: ${it.done} из ${it.total}") }
+                state.photoProgress?.let { Text(it.label()) }
                 if (state.missingPhotos > 0 && state.photoProgress == null) {
                     OutlinedButton(enabled = state.serverConfigured && !state.busy, onClick = model::downloadPhotos) {
                         Text("Докачать фото")
@@ -257,6 +257,8 @@ private fun ServerBackupCard(state: BackupState, onUpload: () -> Unit, onDownloa
         }
     }
 }
+
+internal fun PhotoProgress.label() = "Фото: $done из $total"
 
 private val backupDateFormat = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm", Locale.forLanguageTag("ru"))
 private fun Instant.backupDate() = backupDateFormat.withZone(ZoneId.systemDefault()).format(this)

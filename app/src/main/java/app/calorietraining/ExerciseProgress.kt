@@ -66,8 +66,8 @@ internal fun ExerciseProgress(exercise: String, sessions: List<SessionHistory>,
                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             if (weights.isNotEmpty() && repetitions.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(!showReps, { preferReps = false }, label = { Text("С весом") })
-                    FilterChip(showReps, { preferReps = true }, label = { Text("Свой вес") })
+                    DiaryFilterChip(!showReps, { preferReps = false }, label = { Text("С весом") })
+                    DiaryFilterChip(showReps, { preferReps = true }, label = { Text("Свой вес") })
                 }
             }
             if (expanded && records.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),

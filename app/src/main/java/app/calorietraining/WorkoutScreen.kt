@@ -404,8 +404,8 @@ private fun SetEditor(state: WorkoutState, session: Long, draft: SetDraft, event
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !draft.warmup, onClick = { edit(draft.copy(warmup = false)) }, label = { Text("Рабочий") })
-            FilterChip(selected = draft.warmup, onClick = { edit(draft.copy(warmup = true)) }, label = { Text("Разминочный") })
+            DiaryFilterChip(selected = !draft.warmup, onClick = { edit(draft.copy(warmup = false)) }, label = { Text("Рабочий") })
+            DiaryFilterChip(selected = draft.warmup, onClick = { edit(draft.copy(warmup = true)) }, label = { Text("Разминочный") })
         }
         DiaryTextField(draft.weight,{edit(draft.copy(weight=it))},label={Text(if (usesDumbbell(draft.exercise)) "Вес одной гантели, кг" else "Вес, кг")},singleLine=true,
             supportingText={Text("Оставьте пустым для своего веса")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))

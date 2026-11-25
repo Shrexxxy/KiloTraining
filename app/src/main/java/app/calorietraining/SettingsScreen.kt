@@ -24,6 +24,7 @@ internal fun SettingsScreen(
     onThemeChange: (ThemeMode) -> Unit,
     onBackup: () -> Unit,
     onBack: () -> Unit,
+    photoProgress: PhotoProgress? = null,
 ) {
     Scaffold(containerColor = Color.Transparent) { padding ->
         Column(
@@ -50,8 +51,10 @@ internal fun SettingsScreen(
             }
             ProductServerBlock(model)
             GlassCard(MaterialTheme.colorScheme.onSurfaceVariant, Modifier.fillMaxWidth(), onClick = onBackup) {
-                Text("Резервная копия", Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold)
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Резервная копия", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    photoProgress?.let { Text(it.label()) }
+                }
             }
         }
     }
