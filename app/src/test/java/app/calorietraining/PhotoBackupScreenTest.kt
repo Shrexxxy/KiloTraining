@@ -172,6 +172,52 @@ class PhotoBackupScreenTest {
         }
     }
 
+    @Test fun settingsShowPhotoProgress() {
+        val progress = mutableStateOf<PhotoProgress?>(PhotoProgress(2, 5))
+        var opened = 0
+        val model = ProfileViewModel(app)
+        val screen = ui.setScreenshotContent(ThemeMode.DARK) {
+            SettingsScreen(model, ThemeMode.DARK, {}, { opened++ }, {}, photoProgress = progress.value)
+        }
+        val card = hasText("Резервная копия") and hasClickAction()
+        ui.onNode(card and hasText("Фото: 2 из 5")).performScrollTo().assertIsDisplayed()
+        screen.captureScreen("settings-photo-progress-dark.png")
+        ui.onNodeWithText("Фото: 2 из 5").performClick()
+        assertEquals(1, opened)
+        ui.runOnIdle { progress.value = null }
+        ui.onNode(card).assertIsDisplayed()
+        ui.onNodeWithText("Фото:", substring = true).assertDoesNotExist()
+    }
+
+    @Test fun settingsShowDownloadWhileServerHoldsPhoto() = Fixture().use { server ->
+        val food = jpeg(10)
+        server.backup = backup(food)
+        server.stored[hash(food)] = food
+        val gate = CountDownLatch(1)
+        server.downloadGate = gate
+        OnboardingSettings(app).skipped = true
+        try {
+            ui.setScreenshotContent(ThemeMode.DARK) { DiaryApp(ThemeMode.DARK, {}) }
+            ui.onNode(hasText("Профиль") and isSelectable()).performClick()
+            ui.awaitUntil(5_000) { ui.onAllNodesWithContentDescription("Настройки").fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithContentDescription("Настройки").performClick()
+            ui.onNodeWithText("Резервная копия").performScrollTo().performClick()
+            awaitText("22.11.2026", substring = true)
+            restore()
+            ui.awaitUntil(5_000) { server.gets.get() == 1 }
+            awaitText("Фото: 0 из 1")
+            ui.headerBack()
+            awaitText("Сервер продуктов")
+            ui.onNode(hasText("Резервная копия") and hasText("Фото: 0 из 1")).performScrollTo().assertIsDisplayed()
+            gate.countDown()
+            ui.awaitUntil(5_000) { ui.onAllNodesWithText("Фото:", substring = true).fetchSemanticsNodes().isEmpty() }
+            ui.onNodeWithText("Резервная копия").assertIsDisplayed()
+            assertArrayEquals(food, File(requireNotNull(foodPath())).readBytes())
+        } finally {
+            gate.countDown()
+        }
+    }
+
     @Test fun reportsRemainingPhotosAfterSecondPutFails() = Fixture().use { server ->
         val gate = CountDownLatch(1)
         server.secondPutGate = gate

@@ -2,7 +2,6 @@ package app.calorietraining
 
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -10,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -47,15 +45,9 @@ internal fun LabelEntryScreen(
         pasteBlocked = updated == null
         if (updated != null) input = updated
     }
-    BackHandler { back() }
     Scaffold(modifier, containerColor = Color.Transparent, contentColor = colors.onSurface) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(onClick = back) { Text("Назад") }
-                Text("С этикетки", style = typography.titleLarge)
-            }
+            ScreenHeader("С этикетки", onBack = back)
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
@@ -71,8 +63,8 @@ internal fun LabelEntryScreen(
                 if (emptyClipboard) Text("В буфере нет текста",
                     Modifier.semantics { liveRegion = LiveRegionMode.Polite }, style = typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(!input.perPortion, { input = input.copy(perPortion = false) }, { Text("На 100 г") })
-                    FilterChip(input.perPortion, { input = input.copy(perPortion = true) }, { Text("На порцию") })
+                    DiaryFilterChip(!input.perPortion, { input = input.copy(perPortion = false) }, { Text("На 100 г") })
+                    DiaryFilterChip(input.perPortion, { input = input.copy(perPortion = true) }, { Text("На порцию") })
                 }
                 if (input.perPortion) {
                     val invalidMass = input.grams.isNotBlank() &&
@@ -83,8 +75,8 @@ internal fun LabelEntryScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(!input.inKj, { input = input.copy(inKj = false) }, { Text("ккал") })
-                    FilterChip(input.inKj, { input = input.copy(inKj = true) }, { Text("кДж") })
+                    DiaryFilterChip(!input.inKj, { input = input.copy(inKj = false) }, { Text("ккал") })
+                    DiaryFilterChip(input.inKj, { input = input.copy(inKj = true) }, { Text("кДж") })
                 }
                 val labels = listOf("Энергия, ${if (input.inKj) "кДж" else "ккал"}", "Белки, г", "Жиры, г", "Углеводы, г")
                 labels.forEachIndexed { index, label ->

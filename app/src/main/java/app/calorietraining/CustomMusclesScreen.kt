@@ -74,7 +74,7 @@ internal fun CustomMusclesScreen(name: String, onBack: () -> Unit) {
                 ) {
                     Muscle.entries.forEach { muscle ->
                         val role = MuscleRole.entries[roles[muscle.ordinal]]
-                        FilterChip(
+                        DiaryFilterChip(
                             selected = role != MuscleRole.Inactive,
                             enabled = !saving,
                             modifier = Modifier.semantics { stateDescription = role.label },

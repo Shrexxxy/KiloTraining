@@ -327,9 +327,9 @@ private fun FoodEditor(draft: FoodDraft, state: FoodUiState, onEvent: (FoodEvent
                 if (state.recipe == null) VenueEditorFields(draft, state.venues, state.busy, onEvent)
                 if (scanCode == null && draft.barcode != null && state.hint.isNotBlank()) Text(state.hint, style = MaterialTheme.typography.bodySmall)
                 if (draft.barcode == null && state.recipe == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !draft.weighted, label = { Text("За порцию") },
+                    DiaryFilterChip(selected = !draft.weighted, label = { Text("За порцию") },
                         onClick = { if (draft.weighted) edit(draft.copy(weighted = false, energy = "", macros = Macros())) })
-                    FilterChip(selected = draft.weighted, label = { Text("На 100 г") },
+                    DiaryFilterChip(selected = draft.weighted, label = { Text("На 100 г") },
                         onClick = { if (!draft.weighted) edit(draft.copy(weighted = true, energy = "", macros = Macros())) })
                 }
                 if (state.recipe == null) {

@@ -149,8 +149,8 @@ private fun ProductEditor(
                 readOnly = true, singleLine = true)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(card.weighted, { onChange(card.copy(weighted = true)) }, { Text("На 100 г") })
-            FilterChip(!card.weighted, { onChange(card.copy(weighted = false)) }, { Text("На порцию") })
+            DiaryFilterChip(card.weighted, { onChange(card.copy(weighted = true)) }, { Text("На 100 г") })
+            DiaryFilterChip(!card.weighted, { onChange(card.copy(weighted = false)) }, { Text("На порцию") })
         }
         ProductNumber("Ккал", card.energy) { onChange(card.copy(energy = it)) }
         ProductNumber("Белки", card.macros.protein) { onChange(card.copy(macros = card.macros.copy(protein = it))) }

@@ -110,4 +110,16 @@ class ExerciseCatalogTest {
         assertEquals(setOf("Наклоны со штангой на плечах"), names("good morning"))
         assertEquals(setOf("Болгарские сплит-приседания"), names("болгарские выпады"))
     }
+
+    @Test fun searchPhraseMatchesInAnyOrder() {
+        listOf("выпады болгарские", "болгарские выпады", "Выпады  БОЛГАРСКИЕ", "выпады болгарские гантели")
+            .forEach { assertEquals(it, setOf("Болгарские сплит-приседания"), names(it)) }
+    }
+
+    @Test fun singlePhraseWordKeepsPreviousResults() {
+        val lunges = names("выпады")
+        assertTrue("Выпады с гантелями" in lunges)
+        assertFalse("Болгарские сплит-приседания" in lunges)
+        listOf("болгарские", "сплит").forEach { assertTrue(it, "Болгарские сплит-приседания" in names(it)) }
+    }
 }

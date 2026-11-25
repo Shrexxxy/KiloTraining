@@ -43,9 +43,8 @@ internal fun searchExercises(
     equipment: Equipment? = null,
 ): List<ExercisePhoto> {
     val words = query.searchKey().split(Regex("""\s+""")).filter(String::isNotEmpty)
-    val normalized = words.joinToString(" ")
     return exerciseCatalog.filter { item ->
-        val phrase = item.searchPhrase?.takeIf { it in normalized }.orEmpty()
+        val phrase = item.searchPhrase?.takeIf { words.containsAll(it.searchKey().split(" ")) }.orEmpty()
         val text = "${item.name} ${item.muscle} ${item.keywords} $phrase".searchKey()
         (group == null || group == item.muscle) &&
             (equipment == null || equipment == item.equipment) && words.all(text::contains)
@@ -91,12 +90,12 @@ internal fun ExercisePicker(onSelect: (ExercisePhoto) -> Unit, onClose: () -> Un
         }, Modifier.fillMaxWidth(), singleLine = true,
             label = { Text("Название или группа мышц") })
         Row(Modifier.fillMaxWidth().horizontalScroll(groupScroll), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = group == null, onClick = {
+            DiaryFilterChip(selected = group == null, onClick = {
                 group = null
                 resetList()
             }, label = { Text("Все") })
             exerciseGroups.forEach { value ->
-                FilterChip(
+                DiaryFilterChip(
                     selected = group == value,
                     onClick = {
                         group = if (group == value) null else value
@@ -108,7 +107,7 @@ internal fun ExercisePicker(onSelect: (ExercisePhoto) -> Unit, onClose: () -> Un
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(equipmentScroll), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Equipment.entries.forEach { value ->
-                FilterChip(
+                DiaryFilterChip(
                     selected = equipment == value,
                     onClick = {
                         equipment = if (equipment == value) null else value

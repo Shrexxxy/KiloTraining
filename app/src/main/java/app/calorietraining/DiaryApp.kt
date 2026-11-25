@@ -124,7 +124,8 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
         DiaryBackground {
             val model: ProfileViewModel = viewModel(key = "profile-" + revision) { ProfileViewModel(app) }
             SettingsScreen(model, mode, onThemeChange,
-                onBackup = { copying = true }, onBack = { showingSettings = false })
+                onBackup = { copying = true }, onBack = { showingSettings = false },
+                photoProgress = backupState.photoProgress)
         }
         return
     }

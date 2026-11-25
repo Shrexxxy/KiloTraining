@@ -3,6 +3,8 @@ package app.calorietraining
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
@@ -113,9 +115,13 @@ class LabelEntryTest {
         restoration.emulateSavedInstanceStateRestore()
         field("Энергия, ккал").assertTextContains("100")
         see("пересчитано из кДж")
-        click("Назад")
+        ui.headerBack()
         field("Ккал на 100 г").assertTextContains("70")
     }
+
+    @Test fun headerBackDiscardsEntered() = verifyBackDiscards { ui.headerBack() }
+
+    @Test fun systemBackDiscardsEntered() = verifyBackDiscards { ui.runOnIdle { it.onBackPressed() } }
 
     @Test fun pastedScreenshot() {
         val clipboard = RuntimeEnvironment.getApplication().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -160,7 +166,7 @@ class LabelEntryTest {
         ui.setContent { FoodContent(FoodUiState(draft = draft, scanOutcome = outcome.value), {}) }
         click(entry)
         see("С этикетки")
-        click("Назад")
+        ui.headerBack()
         ui.runOnIdle { outcome.value = ScanOutcome.UNAVAILABLE }
         click(entry)
         see("С этикетки")
@@ -169,6 +175,23 @@ class LabelEntryTest {
     @Test fun entryRequiresWeightBasis() {
         ui.setContent { FoodContent(FoodUiState(draft = draft.copy(weighted = false, barcode = null)), {}) }
         ui.onNodeWithText(entry).assertDoesNotExist()
+    }
+
+    private fun verifyBackDiscards(back: (OnBackPressedDispatcher) -> Unit) {
+        val events = mutableListOf<FoodEvent>()
+        lateinit var dispatcher: OnBackPressedDispatcher
+        ui.setContent {
+            dispatcher = requireNotNull(LocalOnBackPressedDispatcherOwner.current).onBackPressedDispatcher
+            FoodContent(FoodUiState(draft = draft.copy(energy = "70")), { events.add(it) })
+        }
+        click(entry)
+        see("С этикетки")
+        amounts("200", "8", "8", "24")
+        back(dispatcher)
+        ui.onNodeWithText("С этикетки").assertDoesNotExist()
+        see("Новая запись")
+        field("Ккал на 100 г").assertTextContains("70")
+        assertEquals(emptyList<FoodEvent>(), events)
     }
 
     private fun amounts(kcal: String, protein: String, fat: String, carbs: String) {
