@@ -166,6 +166,7 @@ class WorkoutFlowTest {
         }
         show()
         reveal("Силовая").performClick()
+        await("Редактировать").performClick()
         reveal("Добавить упражнение").performClick()
         ui.onNodeWithText("Новое упражнение").assertIsDisplayed()
         ui.onNodeWithText("Удалить подход").assertDoesNotExist()
@@ -235,7 +236,7 @@ class WorkoutFlowTest {
         ui.onNodeWithText("История").performClick()
         await("Упражнения").performClick()
         reveal("Из истории").performClick()
-        await("Добавить упражнение").assertIsDisplayed()
+        await("Редактировать").assertIsDisplayed()
         ui.onNodeWithText("Из истории").assertIsDisplayed()
         ui.onNodeWithText("Другая тренировка").assertDoesNotExist()
     }
@@ -405,15 +406,15 @@ class WorkoutFlowTest {
             workouts.performClick()
             ui.awaitUntil(10_000) { model.uiState.value.busy }
             reveal("Силовая").performClick()
-            ui.onNodeWithText("Добавить упражнение").assertIsDisplayed()
+            ui.onNodeWithText("Редактировать").assertIsDisplayed()
         }
         awaitLoaded(model)
-        ui.onNodeWithText("Добавить упражнение").assertIsDisplayed()
+        ui.onNodeWithText("Редактировать").assertIsDisplayed()
         ui.onNode(hasText("История") and isSelectable()).performClick()
         await("Упражнения").performClick()
         reveal("Силовая").performClick()
         awaitLoaded(model)
-        await("Добавить упражнение")
+        await("Редактировать")
         // Открытие вкладки запускает ещё одно обновление: пока оно идёт, Refresh был бы пропущен.
         awaitLoaded(model)
         duringLoad(model) {
