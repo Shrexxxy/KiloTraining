@@ -31,12 +31,22 @@ class WorkoutStatusScreenshotTest {
     @Test fun deleteDark() = captureDelete(ThemeMode.DARK, "workout-delete-dark.png")
     @Test fun deleteLight() = captureDelete(ThemeMode.LIGHT, "workout-delete-light.png")
 
+    @Test fun menuDark() = captureMenu(ThemeMode.DARK, "workout-menu-dark.png")
+    @Test fun menuLight() = captureMenu(ThemeMode.LIGHT, "workout-menu-light.png")
+
+    private fun captureMenu(mode: ThemeMode, filename: String) {
+        val screen = ui.setScreenshotContent(mode, training = true) { WorkoutContent(state.copy(editing = workout.id), {}) }
+        ui.onNodeWithText("Действия").performClick()
+        ui.onNodeWithText("Удалить").assertIsDisplayed()
+        screen.captureScreen(filename, includePopups = true)
+    }
+
     private fun capture(mode: ThemeMode, filename: String, screen: WorkoutState) {
-        ui.setScreenshotContent(mode) { WorkoutContent(screen, {}) }.captureScreen(filename)
+        ui.setScreenshotContent(mode, training = true) { WorkoutContent(screen, {}) }.captureScreen(filename)
     }
 
     private fun captureDelete(mode: ThemeMode, filename: String) {
-        val screen = ui.setScreenshotContent(mode) { WorkoutContent(state.copy(editing = workout.id), {}) }
+        val screen = ui.setScreenshotContent(mode, training = true) { WorkoutContent(state.copy(editing = workout.id), {}) }
         ui.onNodeWithText("Действия").performClick()
         ui.onNodeWithText("Удалить").performClick()
         ui.onNodeWithText("Удалить тренировку?").assertIsDisplayed()

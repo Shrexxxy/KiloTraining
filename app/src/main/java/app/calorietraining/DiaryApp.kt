@@ -129,7 +129,10 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
         }
         return
     }
-    DiaryBackground {
+    val navScheme = if (training) trainingColorScheme(
+        MaterialTheme.colorScheme, diaryAccents(LocalDiaryDark.current, training = true), LocalDiaryDark.current,
+    ) else MaterialTheme.colorScheme
+    DiaryBackground(training) {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) {
                 if (tab == "История") historyHolder.SaveableStateProvider("history") {
@@ -187,8 +190,9 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
                                 Text(title, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp,
                                     letterSpacing = 0.sp, maxLines = 1, softWrap = false)
                             },
-                            colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
+                            colors = NavigationBarItemDefaults.colors(indicatorColor = navScheme.primaryContainer,
+                                selectedIconColor = navScheme.onPrimaryContainer,
+                                selectedTextColor = if (training) navScheme.primary else NavigationBarItemDefaults.colors().selectedTextColor))
                     }
                 }
             }

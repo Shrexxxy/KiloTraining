@@ -85,7 +85,7 @@ internal fun RestTimer(
                     FilledTonalButton(onClick = { onChange(deadline + 30_000L, total + 30_000L, 0) }) { Text("+30 с") }
                 }
                 Button(onClick = { onChange(0, 0, 0) }, colors = ButtonDefaults.buttonColors(containerColor = accent,
-                    contentColor = MaterialTheme.colorScheme.onTertiary)) { Text("Стоп") }
+                    contentColor = LocalDiaryAccents.current.onWorkout)) { Text("Стоп") }
             } else {
                 FilledTonalButton(onClick = { onChange(0, 0, 0) }) { Text("Начать снова") }
                 TextButton(onClick = { onChange(0, 0, 0) }) { Text("Закрыть") }

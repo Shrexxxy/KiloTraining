@@ -35,8 +35,15 @@ class GlassWorkoutScreenshotTest {
     @Test fun feedDark() = captureWorkout(ThemeMode.DARK, "workouts-list-dark.png", state.copy(opened = null))
     @Test fun liveDark() = captureLive(ThemeMode.DARK, "workout-live-dark.png")
     @Test fun liveLight() = captureLive(ThemeMode.LIGHT, "workout-live-light.png")
-    @Test fun newSetDark() = captureEditor("set-new-dark.png", bench.copy(id = null, doneAt = null))
-    @Test fun editSetDark() = captureEditor("set-edit-dark.png", bench)
+    @Test fun feedLight() = captureWorkout(ThemeMode.LIGHT, "workouts-list-light.png", state.copy(opened = null))
+    @Test fun newSetDark() = captureEditor(ThemeMode.DARK, "set-new-dark.png", bench.copy(id = null, doneAt = null))
+    @Test fun newSetPlanButtonIsEnabled() {
+        captureEditor(ThemeMode.DARK, "set-new-enabled.png", bench.copy(id = null, doneAt = null))
+        ui.onNodeWithText("Добавить в план").assertIsEnabled()
+        ui.onNodeWithText("Записать подход").assertIsEnabled()
+    }
+    @Test fun newSetLight() = captureEditor(ThemeMode.LIGHT, "set-new-light.png", bench.copy(id = null, doneAt = null))
+    @Test fun editSetDark() = captureEditor(ThemeMode.DARK, "set-edit-dark.png", bench)
 
     @Test fun myProductsDark() = capture(ThemeMode.DARK, "my-products-dark.png") {
         MyProductsScreen(listOf(
@@ -55,15 +62,15 @@ class GlassWorkoutScreenshotTest {
         ui.onNode(lastAddSet).assertIsDisplayed()
     }
 
-    private fun captureEditor(filename: String, draft: SetDraft) {
+    private fun captureEditor(mode: ThemeMode, filename: String, draft: SetDraft) {
         val previous = PreviousExercise(workout.day.minusDays(2), listOf(PreviousSet("57,5", "8")))
-        captureWorkout(ThemeMode.DARK, filename, state.copy(session = workout.id, draft = draft, previous = previous))
+        captureWorkout(mode, filename, state.copy(session = workout.id, draft = draft, previous = previous))
     }
 
     private fun captureWorkout(mode: ThemeMode, filename: String, screen: WorkoutState) =
-        capture(mode, filename) { WorkoutContent(screen, {}) }
+        capture(mode, filename, training = true) { WorkoutContent(screen, {}) }
 
-    private fun capture(mode: ThemeMode, filename: String, content: @Composable () -> Unit) {
-        ui.setScreenshotContent(mode, content).captureScreen(filename)
+    private fun capture(mode: ThemeMode, filename: String, training: Boolean = false, content: @Composable () -> Unit) {
+        ui.setScreenshotContent(mode, training, content).captureScreen(filename)
     }
 }

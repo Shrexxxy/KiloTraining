@@ -64,7 +64,7 @@ internal fun NextSetCard(set: SetDraft, enabled: Boolean, complete: () -> Unit) 
                 Text(set.tileLabel(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
             Button(onClick = complete, enabled = enabled, contentPadding = PaddingValues(horizontal = 14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = colors.onTertiary)) {
+                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = LocalDiaryAccents.current.onWorkout)) {
                 Text("Засчитать")
             }
         }
@@ -124,7 +124,7 @@ internal fun WorkoutSetTile(
     val (background, foreground, status) = when {
         planned -> Triple(colors.surfaceContainerHighest, colors.onSurfaceVariant, "в плане")
         warmup -> Triple(accent.copy(alpha = 0.35f).compositeOver(colors.surfaceContainer), colors.onSurface, "разминка")
-        else -> Triple(accent, colors.onTertiary, "выполнен")
+        else -> Triple(accent, LocalDiaryAccents.current.onWorkout, "выполнен")
     }
     val label = "${if (weight.isBlank()) "Свой вес" else "$weight кг"} × $reps"
     val description = when {

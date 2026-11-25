@@ -48,6 +48,10 @@ class SettingsVersionTest {
     }
 
     @Test fun bottomOfSettingsAtLargeFontDark() = bottomShot(ThemeMode.DARK, "settings-version-dark.png")
+    @Test fun topOfSettingsLight() {
+        show(ThemeMode.LIGHT).captureScreen("settings-top-light.png")
+    }
+
     @Test fun bottomOfSettingsAtLargeFontLight() = bottomShot(ThemeMode.LIGHT, "settings-version-light.png")
 
     private fun bottomShot(theme: ThemeMode, file: String) {

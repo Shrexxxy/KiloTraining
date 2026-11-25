@@ -88,7 +88,12 @@ class ProfileHistoryStyleTest {
         ui.waitForIdle()
     }
 
-    private fun history() {
+    @Test fun historyInLightTheme() {
+        history(ThemeMode.LIGHT)
+        screen.captureScreen("history-light.png")
+    }
+
+    private fun history(mode: ThemeMode = ThemeMode.DARK) {
         FoodStore(app).use { store ->
             listOf(900, 1200, 1500).forEachIndexed { i, calories ->
                 store.save(monday.plusDays(i.toLong()), FoodDraft(name = "Обед", weighted = false,
@@ -97,7 +102,7 @@ class ProfileHistoryStyleTest {
             store.saveSet(store.newWorkout(monday), SetDraft(exercise = exercise, weight = "60", reps = "8"))
         }
         val model = HistoryViewModel(app)
-        screen = ui.setScreenshotContent(ThemeMode.DARK) {
+        screen = ui.setScreenshotContent(mode) {
             HistoryScreen(model, {}, {})
         }
         ui.awaitUntil(timeoutMillis = 10_000) { !model.uiState.value.loading }

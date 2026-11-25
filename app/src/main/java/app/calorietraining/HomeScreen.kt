@@ -115,7 +115,8 @@ internal fun HomeScreen(
                     !workout.busy && workout.error == null -> Text("Тренировок пока нет")
                 }
                 workout.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                FilledTonalButton(onClick = { openWorkout(active) }, enabled = !workout.busy) {
+                Button(onClick = { openWorkout(active) }, enabled = !workout.busy,
+                    colors = ButtonDefaults.buttonColors(containerColor = accents.workout, contentColor = accents.onWorkout)) {
                     Text(if (active == null) "Начать тренировку" else "Открыть")
                 }
             }
@@ -211,7 +212,9 @@ private fun WeightCard(today: LocalDate, recent: List<Measurement>, save: suspen
                     }
                 }
             }
-            OutlinedButton(onClick = { editing = true }) { Text("Записать вес") }
+            val workout = LocalDiaryAccents.current.workout
+            OutlinedButton(onClick = { editing = true }, border = BorderStroke(1.dp, workout),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = workout)) { Text("Записать вес") }
         }
     }
     if (editing) WeightDialog(today, { editing = false }, save)
