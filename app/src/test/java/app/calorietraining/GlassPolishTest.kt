@@ -105,6 +105,6 @@ class GlassPolishTest {
     }
 
     private fun show(mode: ThemeMode = ThemeMode.DARK, content: @Composable () -> Unit) {
-        screen = ui.setScreenshotContent(mode, content)
+        screen = ui.setScreenshotContent(mode, content = content)
     }
 }

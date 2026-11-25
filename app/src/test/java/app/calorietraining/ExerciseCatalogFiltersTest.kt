@@ -74,7 +74,7 @@ class ExerciseCatalogFiltersTest {
     @Test fun lightFiltersScreenshot() = captureFilters(ThemeMode.LIGHT, "light")
 
     @Test fun emptyScreenshot() {
-        val screen = ui.setScreenshotContent { ExercisePicker({}, {}) }
+        val screen = ui.setScreenshotContent(training = true) { ExercisePicker({}, {}) }
         ui.onNodeWithText(search).performTextInput("неттакогоупражнения")
         ui.onNodeWithText("Совпадений нет").assertIsDisplayed()
         ui.onNodeWithText("Сбросить").assertExists()
@@ -84,7 +84,7 @@ class ExerciseCatalogFiltersTest {
     @Test
     @Config(qualifiers = "ru-rRU-w360dp-h1400dp")
     fun similarScreenshot() {
-        val screen = ui.setScreenshotContent { ExercisePicker({}, {}) }
+        val screen = ui.setScreenshotContent(training = true) { ExercisePicker({}, {}) }
         ui.onNodeWithText(search).performTextInput("арнольд")
         openDetails(arnold)
         ui.onNodeWithText("Похожие").assertIsDisplayed()
@@ -94,7 +94,7 @@ class ExerciseCatalogFiltersTest {
     @Test
     @Config(qualifiers = "ru-rRU-w720dp-h1750dp")
     fun newFramesScreenshot() {
-        val screen = ui.setScreenshotContent {
+        val screen = ui.setScreenshotContent(training = true) {
             Column {
                 exerciseCatalog.drop(57).chunked(2).forEach { pair ->
                     Row {
@@ -112,7 +112,7 @@ class ExerciseCatalogFiltersTest {
     }
 
     private fun captureFilters(mode: ThemeMode, suffix: String) {
-        val screen = ui.setScreenshotContent(mode) { ExercisePicker({}, {}) }
+        val screen = ui.setScreenshotContent(mode, training = true) { ExercisePicker({}, {}) }
         filterLegsAndDumbbells()
         chip("Гантели").assertIsSelected()
         screen.captureScreen("catalog-filters-$suffix.png")

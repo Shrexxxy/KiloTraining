@@ -41,7 +41,7 @@ class WorkoutScreenshotTest {
             Workout(2, workout.sets.take(3), "Верх тела", 46,
                 LocalDate.parse("2026-11-21"), LocalDateTime.parse("2026-11-21T18:00")),
             Workout(3, emptyList(), "Силовая", 34, LocalDate.parse("2026-11-20")))
-        ui.setScreenshotContent(mode) {
+        ui.setScreenshotContent(mode, training = true) {
             WorkoutContent(WorkoutState(list = entries, opened = workout.id, clock = clock), {})
         }.captureScreen(filename)
     }

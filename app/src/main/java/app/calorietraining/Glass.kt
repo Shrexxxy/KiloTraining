@@ -31,24 +31,35 @@ import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.hypot
 
 @Composable
-internal fun DiaryBackground(content: @Composable BoxScope.() -> Unit) {
+internal fun DiaryBackground(training: Boolean = false, content: @Composable BoxScope.() -> Unit) {
     val dark = LocalDiaryDark.current
     val colors = MaterialTheme.colorScheme
     val accents = LocalDiaryAccents.current
     val backgroundTop = if (dark) DarkDiaryBackgroundTop else colors.background
+    val flat = trainingBackground(dark)
     Box(Modifier.fillMaxSize().testTag("diary-background").drawWithCache {
+        if (training) {
+            val (top, bottom) = trainingGlows(dark, accents)
+            val radius = hypot(size.width, size.height) * .6f
+            val spots = listOf(
+                Brush.radialGradient(listOf(top, Color.Transparent), Offset(size.width, 0f), radius),
+                Brush.radialGradient(listOf(bottom, Color.Transparent), Offset(0f, size.height * .9f), radius),
+            )
+            return@drawWithCache onDrawBehind {
+                drawRect(flat)
+                spots.forEach { drawRect(it) }
+            }
+        }
         val base = Brush.verticalGradient(listOf(backgroundTop, colors.surface))
+        val (carbs, kcal, fat, protein) = diaryGlows(dark, accents)
         val glows = listOf(
-            Brush.radialGradient(listOf(accents.carbs.copy(alpha = if (dark) .22f else .28f), Color.Transparent),
-                Offset(0f, size.height * .30f), size.width * .55f),
-            Brush.radialGradient(listOf(accents.kcal.copy(alpha = if (dark) .28f else .30f), Color.Transparent),
-                Offset(size.width, 0f), size.width * .60f),
-            Brush.radialGradient(listOf(accents.fat.copy(alpha = if (dark) .20f else .18f), Color.Transparent),
-                Offset(size.width, size.height * .75f), size.width * .65f),
-            Brush.radialGradient(listOf(accents.protein.copy(alpha = .22f), Color.Transparent),
-                Offset(0f, size.height), size.width * .60f),
+            Brush.radialGradient(listOf(carbs, Color.Transparent), Offset(0f, size.height * .30f), size.width * .55f),
+            Brush.radialGradient(listOf(kcal, Color.Transparent), Offset(size.width, 0f), size.width * .60f),
+            Brush.radialGradient(listOf(fat, Color.Transparent), Offset(size.width, size.height * .75f), size.width * .65f),
+            Brush.radialGradient(listOf(protein, Color.Transparent), Offset(0f, size.height), size.width * .60f),
         )
         onDrawBehind {
             drawRect(base)
@@ -57,6 +68,25 @@ internal fun DiaryBackground(content: @Composable BoxScope.() -> Unit) {
     }) {
         CompositionLocalProvider(LocalContentColor provides colors.onSurface) { content() }
     }
+}
+
+/** Цвета цветных пятен фона вместе с прозрачностью: углеводы, ккал, жиры, белки. */
+internal fun diaryGlows(dark: Boolean, accents: DiaryAccents): List<Color> = listOf(
+    accents.carbs.copy(alpha = if (dark) .11f else .12f),
+    accents.kcal.copy(alpha = if (dark) .13f else .14f),
+    accents.fat.copy(alpha = .10f),
+    accents.protein.copy(alpha = if (dark) .11f else .12f),
+)
+
+/** Стальные пятна фона вкладки «Тренировки»: сверху справа и снизу слева. */
+internal fun trainingGlows(dark: Boolean, accents: DiaryAccents): List<Color> =
+    listOf(accents.workout.copy(alpha = if (dark) .20f else .12f), accents.workout.copy(alpha = if (dark) .11f else .07f))
+
+/** Заливка стекла без бликов; лежит поверх фона. */
+internal fun glassFill(accent: Color, dark: Boolean, surfaceContainer: Color): Color {
+    val start = if (dark) DarkGlassStart.copy(alpha = .42f) else surfaceContainer.copy(alpha = .70f)
+    val end = if (dark) DarkGlassEnd.copy(alpha = .38f) else surfaceContainer.copy(alpha = .58f)
+    return lerp(accent.copy(alpha = .10f).compositeOver(start), end, .5f)
 }
 
 @Composable
@@ -70,15 +100,12 @@ internal fun GlassCard(
     val dark = LocalDiaryDark.current
     val shape = MaterialTheme.shapes.large
     val colors = MaterialTheme.colorScheme
-    val glassStart = if (dark) DarkGlassStart.copy(alpha = .42f) else colors.surfaceContainer.copy(alpha = .62f)
-    val glassEnd = if (dark) DarkGlassEnd.copy(alpha = .38f) else colors.surfaceContainer.copy(alpha = .48f)
     val white = if (dark) colors.onSurface else colors.surfaceContainer
     val edge = accent.copy(alpha = .40f).compositeOver(white.copy(alpha = if (dark) .10f else .90f))
-    val glow = accent.copy(alpha = .40f)
     val frame = Modifier.testTag("glass-card")
-    val fill = lerp(accent.copy(alpha = .16f).compositeOver(glassStart), glassEnd, .5f)
+    val fill = glassFill(accent, dark, colors.surfaceContainer)
     val reflection = Brush.verticalGradient(
-        0f to white.copy(alpha = if (dark) .09f else .60f),
+        0f to white.copy(alpha = if (dark) .06f else .60f),
         .40f to Color.Transparent,
     )
     val inside = @Composable {
@@ -97,8 +124,7 @@ internal fun GlassCard(
                     clipPath(outline, ClipOp.Difference) { this@onDrawWithContent.drawContent() }
                 }
             }
-            .dropShadow(shape, Shadow(3.dp, Color.Black.copy(alpha = .24f), offset = DpOffset(0.dp, 2.dp)))
-            .dropShadow(shape, Shadow(7.dp, glow, offset = DpOffset(0.dp, 2.dp))))
+            .dropShadow(shape, Shadow(3.dp, Color.Black.copy(alpha = .24f), offset = DpOffset(0.dp, 2.dp))))
         if (onClick == null) {
             Surface(frame, shape = shape, color = Color.Transparent, contentColor = colors.onSurface, content = inside)
         } else {
@@ -131,7 +157,7 @@ internal fun GlassTonalButton(
     val colors = MaterialTheme.colorScheme
     FilledTonalButton(onClick = onClick, modifier = modifier, contentPadding = contentPadding, enabled = enabled,
         colors = ButtonDefaults.filledTonalButtonColors(
-            containerColor = LocalDiaryAccents.current.protein.copy(alpha = .16f),
+            containerColor = LocalDiaryAccents.current.workout.copy(alpha = .16f),
             contentColor = colors.onSurface,
         ),
         border = BorderStroke(1.dp, colors.outlineVariant),

@@ -1,6 +1,7 @@
 package app.calorietraining
 
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,7 +34,11 @@ private fun Workout.dateTimeCaption() = day.caption() + (startedAt?.let { " · $
 private fun Workout.captionWithStatus() = dateTimeCaption() + (status?.let { " · ${it.label}" } ?: "")
 
 @Composable
-fun WorkoutContent(state: WorkoutState, event: (WorkoutEvent) -> Unit, modifier: Modifier = Modifier) {
+fun WorkoutContent(state: WorkoutState, event: (WorkoutEvent) -> Unit, modifier: Modifier = Modifier) =
+    TrainingPalette { WorkoutContentBody(state, event, modifier) }
+
+@Composable
+private fun WorkoutContentBody(state: WorkoutState, event: (WorkoutEvent) -> Unit, modifier: Modifier) {
     var recording by rememberSaveable { mutableStateOf(false) }
     val opened = state.list.firstOrNull { it.id == state.opened }
     val session = state.session
@@ -434,7 +439,7 @@ private fun SetEditor(state: WorkoutState, session: Long, draft: SetDraft, event
         }) { Text(if (editing) "Сохранить изменения" else "Записать подход") }
         OutlinedButton(enabled = draft.valid, onClick = {
             event(WorkoutEvent.Save(planned = !draft.planned))
-        }) {
+        }, border = BorderStroke(1.dp, if (draft.valid) colors.primary else colors.outlineVariant)) {
             Text(when {
                 !editing -> "Добавить в план"
                 draft.planned -> "Отметить выполненным"

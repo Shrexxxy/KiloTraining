@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.*
@@ -32,7 +33,10 @@ class ThemeSettings(context: Context) {
 }
 
 /** Цвета показателей питания и тренировки в текущей теме. */
-data class DiaryAccents(val kcal: Color, val protein: Color, val fat: Color, val carbs: Color, val workout: Color)
+data class DiaryAccents(
+    val kcal: Color, val protein: Color, val fat: Color, val carbs: Color, val workout: Color,
+    val onWorkout: Color = Color.White,
+)
 
 private val darkColors = darkColorScheme(
     background = Color(0xFF000000),
@@ -41,20 +45,20 @@ private val darkColors = darkColorScheme(
     surfaceContainerHigh = Color(0xFF1C1C1F),
     onSurface = Color(0xFFFFFFFF),
     onBackground = Color(0xFFFFFFFF),
-    onSurfaceVariant = Color(0xFF9C9CA3),
+    onSurfaceVariant = Color(0xFFB4B4BC),
     outline = Color(0xFF3A3A40),
     outlineVariant = Color(0xFF26262A),
     primary = Color(0xFFB4F03C),
     onPrimary = Color(0xFF0B1400),
     primaryContainer = Color(0xFF2A3A0C),
     onPrimaryContainer = Color(0xFFD8FF8A),
-    secondary = Color(0xFF38D3F0),
-    onSecondary = Color(0xFF00262E),
-    tertiary = Color(0xFFFF3D7F),
-    onTertiary = Color(0xFFFFFFFF),
-    error = Color(0xFFFF6B6B),
-    secondaryContainer = Color(0xFF00262E),
-    onSecondaryContainer = Color(0xFF38D3F0),
+    secondary = Color(0xFF3DDC97),
+    onSecondary = Color(0xFF06080C),
+    tertiary = Color(0xFFFF8A4C),
+    onTertiary = Color(0xFF06080C),
+    error = Color(0xFFFF8A8A),
+    secondaryContainer = Color(0xFF0A2E22),
+    onSecondaryContainer = Color(0xFF3DDC97),
     surfaceContainerLow = Color(0xFF141416),
     surfaceContainerLowest = Color(0xFF000000),
     surfaceContainerHighest = Color(0xFF26262A),
@@ -68,20 +72,20 @@ private val lightColors = lightColorScheme(
     surfaceContainerHigh = Color(0xFFFFFFFF),
     onSurface = Color(0xFF101012),
     onBackground = Color(0xFF101012),
-    onSurfaceVariant = Color(0xFF62626B),
-    outline = Color(0xFFC8C8D0),
+    onSurfaceVariant = Color(0xFF55555E),
+    outline = Color(0xFF9A9AA4),
     outlineVariant = Color(0xFFE2E2E7),
-    primary = Color(0xFF4C8000),
+    primary = Color(0xFF487800),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFE3F5C8),
     onPrimaryContainer = Color(0xFF1E3300),
-    secondary = Color(0xFF077A96),
+    secondary = Color(0xFF08785A),
     onSecondary = Color(0xFFFFFFFF),
-    tertiary = Color(0xFFE0185F),
+    tertiary = Color(0xFFB8480F),
     onTertiary = Color(0xFFFFFFFF),
-    error = Color(0xFFC62828),
-    secondaryContainer = Color(0xFFD5F2F8),
-    onSecondaryContainer = Color(0xFF00262E),
+    error = Color(0xFFB71C1C),
+    secondaryContainer = Color(0xFFD2F0E6),
+    onSecondaryContainer = Color(0xFF06382A),
     surfaceContainerLow = Color(0xFFFFFFFF),
     surfaceContainerLowest = Color(0xFFFFFFFF),
     surfaceContainerHighest = Color(0xFFE2E2E7),
@@ -93,8 +97,48 @@ internal val DarkGlassStart = Color(0xFF1C1E24)
 internal val DarkGlassEnd = Color(0xFF121317)
 internal val LocalDiaryDark = staticCompositionLocalOf { false }
 
-private val darkAccents = with(darkColors) { DiaryAccents(primary, secondary, tertiary, Color(0xFFFFB020), tertiary) }
-private val lightAccents = with(lightColors) { DiaryAccents(primary, secondary, tertiary, Color(0xFF9A6200), tertiary) }
+private val darkAccents = with(darkColors) {
+    DiaryAccents(primary, secondary, tertiary, Color(0xFFFFC83D), Color(0xFF5B95FF), Color(0xFF06080C))
+}
+private val lightAccents = with(lightColors) {
+    DiaryAccents(primary, secondary, tertiary, Color(0xFF8A5F00), Color(0xFF1B55C4), Color.White)
+}
+private val darkTrainingAccents = darkAccents.copy(workout = Color(0xFF9DB9D6))
+private val lightTrainingAccents = lightAccents.copy(workout = Color(0xFF3B556F))
+
+/** Цвета показателей; на вкладке «Тренировки» цвет занятий другой. */
+internal fun diaryAccents(dark: Boolean, training: Boolean = false): DiaryAccents = when {
+    dark && training -> darkTrainingAccents
+    dark -> darkAccents
+    training -> lightTrainingAccents
+    else -> lightAccents
+}
+
+/** Фон вкладки «Тренировки»; у остальных экранов фон с цветными пятнами. */
+internal fun trainingBackground(dark: Boolean): Color = if (dark) Color(0xFF08090B) else Color(0xFFEFF1F3)
+
+/** Включает палитру вкладки «Тренировки» для вложенных экранов. */
+@Composable
+internal fun TrainingPalette(content: @Composable () -> Unit) {
+    val accents = diaryAccents(LocalDiaryDark.current, training = true)
+    val scheme = trainingColorScheme(MaterialTheme.colorScheme, accents, LocalDiaryDark.current)
+    CompositionLocalProvider(LocalDiaryAccents provides accents) {
+        MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, shapes = MaterialTheme.shapes, content = content)
+    }
+}
+
+/** Стальные основные цвета для кнопок, чипов, переключателей и полей вкладки «Тренировки». */
+internal fun trainingColorScheme(base: ColorScheme, accents: DiaryAccents, dark: Boolean): ColorScheme {
+    val tint = accents.workout.copy(alpha = if (dark) .36f else .26f)
+    val container = tint.compositeOver(base.surface)
+    val onContainer = if (dark) accents.workout else Color(0xFF22384D)
+    return base.copy(
+        primary = accents.workout, onPrimary = accents.onWorkout,
+        primaryContainer = container, onPrimaryContainer = onContainer,
+        secondary = accents.workout, onSecondary = accents.onWorkout,
+        secondaryContainer = container, onSecondaryContainer = onContainer,
+    )
+}
 
 /** Предоставляет цвета показателей вложенным компонентам. */
 val LocalDiaryAccents = staticCompositionLocalOf { lightAccents }

@@ -152,6 +152,12 @@ class OnboardingFlowTest {
         screen.captureScreen("onboarding-result-light.png")
     }
 
+    @Test fun rendersGoalStepInLightTheme() {
+        launch(ThemeMode.LIGHT)
+        ui.onNodeWithText("Ваша цель").assertIsDisplayed()
+        screen.captureScreen("onboarding-goal-light.png")
+    }
+
     private fun launch(mode: ThemeMode = ThemeMode.DARK) {
         screen = ui.setScreenshotContent(mode) {
             key(instance.intValue) { DiaryApp(mode, {}) }

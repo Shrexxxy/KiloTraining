@@ -33,7 +33,7 @@ class DiaryThemeTest {
         }
         ui.runOnIdle {
             assertEquals(Color(0xFFF2F2F5), background)
-            assertEquals(Color(0xFF4C8000), primary)
+            assertEquals(Color(0xFF487800), primary)
         }
     }
 }

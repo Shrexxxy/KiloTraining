@@ -23,6 +23,11 @@ class ExerciseMusclesScreenshotTest {
     @Test fun cableRowLight() = captureDetails(ThemeMode.LIGHT, "Тяга горизонтального блока", "muscles-card-light")
     @Test fun squatDark() = captureDetails(ThemeMode.DARK, "Приседания со штангой", "muscles-squat-dark")
 
+    @Test fun catalogLight() {
+        catalog(ThemeMode.LIGHT)
+        capture("catalog-light")
+    }
+
     @Test fun catalogDark() {
         catalog(ThemeMode.DARK)
         ui.onAllNodesWithContentDescription("Мышцы и техника").onFirst().assertIsDisplayed()
@@ -38,7 +43,7 @@ class ExerciseMusclesScreenshotTest {
     }
 
     private fun catalog(theme: ThemeMode) {
-        screen = ui.setScreenshotContent(theme) { ExercisePicker({}, {}, Modifier.padding(horizontal = 20.dp)) }
+        screen = ui.setScreenshotContent(theme, training = true) { ExercisePicker({}, {}, Modifier.padding(horizontal = 20.dp)) }
     }
 
     private fun capture(filename: String) {

@@ -76,13 +76,13 @@ class DiaryFilterChipTest {
     @Test fun musclesDark() = captureMuscles(ThemeMode.DARK, "dark")
 
     private fun captureCatalog(mode: ThemeMode, suffix: String) {
-        val screen = ui.setScreenshotContent(mode) { ExercisePicker({}, {}, Modifier.padding(horizontal = 20.dp)) }
+        val screen = ui.setScreenshotContent(mode, training = true) { ExercisePicker({}, {}, Modifier.padding(horizontal = 20.dp)) }
         ui.onNode(hasText("Ноги") and isSelectable()).performClick().assertIsSelected()
         screen.captureScreen("chips-catalog-$suffix.png")
     }
 
     private fun captureMuscles(mode: ThemeMode, suffix: String) {
-        val screen = ui.setScreenshotContent(mode) { CustomMusclesScreen("Мой жим") {} }
+        val screen = ui.setScreenshotContent(mode, training = true) { CustomMusclesScreen("Мой жим") {} }
         ui.awaitUntil(5_000) { ui.onAllNodesWithText("Сохранить").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithText("грудь").performScrollTo().performClick()
         ui.onNodeWithText("Основная").assertIsDisplayed()
