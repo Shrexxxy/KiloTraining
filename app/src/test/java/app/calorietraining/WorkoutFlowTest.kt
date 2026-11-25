@@ -1,6 +1,13 @@
 package app.calorietraining
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -228,4 +235,190 @@ class WorkoutFlowTest {
         ui.onNodeWithText("Из истории").assertIsDisplayed()
         ui.onNodeWithText("Другая тренировка").assertDoesNotExist()
     }
+
+    private fun loadedModel(): WorkoutViewModel = WorkoutViewModel(app, clock).also(::awaitLoaded)
+
+    private fun awaitLoaded(model: WorkoutViewModel) {
+        ui.awaitUntil(10_000) { !model.uiState.value.busy }
+    }
+
+    private fun duringLoad(
+        model: WorkoutViewModel,
+        change: (FoodStore.() -> Unit)? = null,
+        action: FoodStore.() -> Unit,
+    ) {
+        FoodStore(app).use { store ->
+            val db = store.writableDatabase
+            db.beginTransaction()
+            try {
+                change?.invoke(store)
+                db.setTransactionSuccessful()
+                store.action()
+                assertTrue(model.uiState.value.busy)
+            } finally {
+                db.endTransaction()
+            }
+        }
+    }
+
+    private fun recorded(title: String = "Силовая"): Long =
+        FoodStore(app).use { it.fixture(title, "2026-11-20") }
+
+    @Test fun opensDuringRefreshAndKeepsSelectionWithFreshRows() {
+        val id = recorded()
+        val model = loadedModel()
+        duringLoad(model, { fixture("Добавленная", "2026-11-21") }) {
+            model.event(WorkoutEvent.Refresh)
+            model.event(WorkoutEvent.Open(id))
+            assertEquals(id, model.uiState.value.opened)
+        }
+        awaitLoaded(model)
+        assertEquals(id, model.uiState.value.opened)
+        assertTrue(model.uiState.value.list.any { it.title == "Добавленная" })
+    }
+
+    @Test fun goesBackDuringRefreshAndStaysOnList() {
+        val id = recorded()
+        val model = loadedModel()
+        model.event(WorkoutEvent.Open(id))
+        duringLoad(model) {
+            model.event(WorkoutEvent.Refresh)
+            model.event(WorkoutEvent.BackToList)
+            assertNull(model.uiState.value.opened)
+        }
+        awaitLoaded(model)
+        assertNull(model.uiState.value.opened)
+    }
+
+    @Test fun lastTransitionDuringRefreshWins() {
+        val first = recorded()
+        val second = recorded("Вторая")
+        val model = loadedModel()
+        duringLoad(model) {
+            model.event(WorkoutEvent.Refresh)
+            model.event(WorkoutEvent.Open(first))
+            model.event(WorkoutEvent.BackToList)
+            model.event(WorkoutEvent.Open(second))
+            assertEquals(second, model.uiState.value.opened)
+        }
+        awaitLoaded(model)
+        assertEquals(second, model.uiState.value.opened)
+    }
+
+    @Test fun openingPreviousWorkoutTakesPriorityOverNewLiveWorkout() {
+        val id = recorded()
+        val model = loadedModel()
+        duringLoad(model) {
+            model.event(WorkoutEvent.StartLive)
+            model.event(WorkoutEvent.Open(id))
+            assertEquals(id, model.uiState.value.opened)
+        }
+        awaitLoaded(model)
+        assertEquals(id, model.uiState.value.opened)
+        assertEquals(1, model.uiState.value.list.count { it.active })
+        assertEquals(2, model.uiState.value.list.size)
+    }
+
+    @Test fun startingLiveWorkoutWithoutNavigationOpensIt() {
+        val model = loadedModel()
+        duringLoad(model) { model.event(WorkoutEvent.StartLive) }
+        awaitLoaded(model)
+        assertEquals(model.uiState.value.list.single { it.active }.id, model.uiState.value.opened)
+    }
+
+    @Test fun writesDuringLoadAreDropped() {
+        val id = recorded()
+        val model = loadedModel()
+        duringLoad(model) {
+            model.event(WorkoutEvent.StartLive)
+            model.event(WorkoutEvent.Remove(id))
+            model.event(WorkoutEvent.StartLive)
+        }
+        awaitLoaded(model)
+        FoodStore(app).use { store ->
+            assertEquals(listOf("2", "1", "1"), store.row(
+                "SELECT count(*), sum(live), sum(id=$id) FROM workout"
+            ))
+        }
+    }
+
+    @Test fun refreshErrorKeepsOpenedWorkoutAndNextRefreshClearsError() {
+        val id = recorded()
+        val model = loadedModel()
+        ui.setContent { MaterialTheme { WorkoutContent(model.uiState.collectAsState().value, model::event) } }
+        duringLoad(model, { writableDatabase.execSQL("ALTER TABLE workout RENAME TO unavailable_workout") }) {
+            model.event(WorkoutEvent.Refresh)
+            model.event(WorkoutEvent.Open(id))
+        }
+        try {
+            awaitLoaded(model)
+            assertEquals(id, model.uiState.value.opened)
+            await("Не удалось открыть или сохранить тренировку").assertIsDisplayed()
+        } finally {
+            FoodStore(app).use {
+                it.writableDatabase.execSQL("ALTER TABLE unavailable_workout RENAME TO workout")
+            }
+        }
+        model.event(WorkoutEvent.Refresh)
+        awaitLoaded(model)
+        assertEquals(id, model.uiState.value.opened)
+        ui.onNodeWithText("Не удалось открыть или сохранить тренировку").assertDoesNotExist()
+    }
+
+    @Test fun workoutRemovedDuringRefreshClosesWhenRowsArrive() {
+        val id = recorded()
+        val model = loadedModel()
+        duringLoad(model) {
+            model.event(WorkoutEvent.Refresh)
+            model.event(WorkoutEvent.Open(id))
+            writableDatabase.delete("workout", "id=?", arrayOf(id.toString()))
+            assertEquals(id, model.uiState.value.opened)
+        }
+        awaitLoaded(model)
+        assertNull(model.uiState.value.opened)
+        assertTrue(model.uiState.value.list.isEmpty())
+        assertNull(model.uiState.value.error)
+    }
+
+    @Test fun diaryOpensWorkoutDuringTabRefreshAndReturnsToHistoryDuringRefresh() {
+        val id = recorded()
+        FoodStore(app).use { it.fixtureSet(id, "bench", "Жим", "60", "8", null) }
+        val model = loadedModel()
+        val owner = object : ViewModelStoreOwner {
+            override val viewModelStore = ViewModelStore()
+        }
+        ViewModelProvider(owner, viewModelFactory { initializer { model } })
+            .get("workout-0", WorkoutViewModel::class.java)
+        OnboardingSettings(app).skipped = true
+        ui.setContent {
+            CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
+                MaterialTheme { DiaryApp(ThemeMode.DARK) {} }
+            }
+        }
+        val workouts = ui.onNode(hasText("Тренировки") and isSelectable())
+        duringLoad(model) {
+            workouts.performClick()
+            ui.awaitUntil(10_000) { model.uiState.value.busy }
+            reveal("Силовая").performClick()
+            ui.onNodeWithText("Добавить упражнение").assertIsDisplayed()
+        }
+        awaitLoaded(model)
+        ui.onNodeWithText("Добавить упражнение").assertIsDisplayed()
+        ui.onNode(hasText("История") and isSelectable()).performClick()
+        await("Упражнения").performClick()
+        reveal("Силовая").performClick()
+        awaitLoaded(model)
+        await("Добавить упражнение")
+        duringLoad(model) {
+            ui.runOnIdle { model.event(WorkoutEvent.Refresh) }
+            ui.headerBack()
+            await("Упражнения").assertIsDisplayed()
+        }
+        awaitLoaded(model)
+        workouts.performClick()
+        awaitLoaded(model)
+        reveal("Силовая").assertIsDisplayed()
+        ui.onNodeWithText("Добавить упражнение").assertDoesNotExist()
+    }
+
 }

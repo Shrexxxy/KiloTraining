@@ -48,9 +48,17 @@ class WorkoutViewModel(app: Application, private val clock: Clock = Clock.system
     private val state = MutableStateFlow(WorkoutState(day = LocalDate.now(clock), clock = clock))
     val uiState=state.asStateFlow()
     private var historyLookup: Job? = null
+    private var navigatedDuringUpdate = false
     init { update(state.value.day) }
     fun event(event:WorkoutEvent) {
         val s=state.value
+        if (event is WorkoutEvent.Open || event == WorkoutEvent.BackToList) {
+            val opened = (event as? WorkoutEvent.Open)?.id
+            navigatedDuringUpdate = s.busy
+            state.value = s.copy(opened = opened, draft = null, session = null)
+            if (!s.busy && event == WorkoutEvent.BackToList) update(s.day)
+            return
+        }
         if(s.busy) return
         when(event) {
             is WorkoutEvent.StartTemplate -> update(s.day, openCreated = true) { startTemplate(event.id, LocalDateTime.now(clock)) }
@@ -72,8 +80,7 @@ class WorkoutViewModel(app: Application, private val clock: Clock = Clock.system
             }
             WorkoutEvent.StartLive -> update(s.day, openCreated = true) { newWorkout(LocalDateTime.now(clock), live = true) }
             is WorkoutEvent.Record -> update(event.start.toLocalDate(), openCreated = true) { newWorkout(event.start, live = false) }
-            is WorkoutEvent.Open -> state.value = s.copy(opened = event.id, draft = null, session = null)
-            WorkoutEvent.BackToList -> update(s.day, opened = null)
+            is WorkoutEvent.Open, WorkoutEvent.BackToList -> Unit
             WorkoutEvent.Refresh -> update(s.day)
             is WorkoutEvent.Finish -> update(s.day) { finishWorkout(event.id) }
             is WorkoutEvent.ChangeStart -> update(event.start.toLocalDate()) { changeWorkoutStart(event.id, event.start) }
@@ -119,10 +126,11 @@ class WorkoutViewModel(app: Application, private val clock: Clock = Clock.system
     }
     private fun update(
         day: LocalDate,
-        opened: Long? = state.value.opened,
         openCreated: Boolean = false,
         change: (FoodStore.() -> Any?)? = null,
     ) {
+        val opened = state.value.opened
+        navigatedDuringUpdate = false
         state.value=state.value.copy(busy=true,error=null)
         viewModelScope.launch {
             try {
@@ -136,12 +144,13 @@ class WorkoutViewModel(app: Application, private val clock: Clock = Clock.system
                             val list = store.workouts()
                             val selected = if (openCreated) created as Long else opened
                             WorkoutState(day = day, list = list, templates = store.templates(),
-                                opened = selected?.takeIf { id -> list.any { it.id == id } }, clock = clock)
+                                opened = selected, clock = clock)
                                 .also { db.setTransactionSuccessful() }
                         } finally { db.endTransaction() }
                     }
                 }
-                state.value=rows
+                val selected = if (navigatedDuringUpdate) state.value.opened else rows.opened
+                state.value = rows.copy(opened = selected?.takeIf { id -> rows.list.any { it.id == id } })
             } catch(e:SQLException) {state.value=state.value.copy(busy=false,error="Не удалось открыть или сохранить тренировку")}
         }
     }
