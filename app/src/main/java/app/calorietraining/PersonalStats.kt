@@ -35,6 +35,58 @@ fun FoodStore.saveMeasurement(record: Measurement) {
     }, SQLiteDatabase.CONFLICT_REPLACE).also { if (it == -1L) throw android.database.SQLException("measurement") }
 }
 
+/** Замер за день или `null`, если за этот день ничего не записано. */
+internal fun FoodStore.measurementOn(day: LocalDate): Measurement? =
+    readableDatabase.rawQuery("SELECT weight,fat FROM measurement WHERE day=?", arrayOf(day.toString())).use {
+        if (it.moveToFirst()) Measurement(day, it.getString(0), it.getString(1)) else null
+    }
+
+/**
+ * Сохраняет правку замера из формы: поле, которое пользователь не менял, берётся из базы,
+ * чтобы форма, открытая до записи на другом экране, не затёрла чужое значение.
+ */
+internal fun FoodStore.saveEdited(draft: Measurement, original: Measurement?) {
+    val fresh = measurementOn(draft.day)
+    val merged = if (fresh == null || original == null) draft else Measurement(
+        draft.day,
+        if (draft.weight != original.weight) draft.weight else fresh.weight,
+        if (draft.fat != original.fat) draft.fat else fresh.fat,
+    )
+    saveMeasurement(if (merged.valid) merged else draft)
+}
+
+/** Записывает только вес дня; жир этого дня остаётся как был. */
+fun FoodStore.saveWeight(day: LocalDate, weight: String) {
+    require(weight.amount()?.signum() == 1)
+    saveField(day, "weight", weight)
+}
+
+/** Записывает только жир дня; вес этого дня остаётся как был. */
+fun FoodStore.saveFat(day: LocalDate, fat: String) {
+    require(Measurement(day, fat = fat).valid && fat.isNotEmpty())
+    saveField(day, "fat", fat)
+}
+
+// Колонка берётся из двух своих вызовов выше, не из ввода пользователя.
+private fun FoodStore.saveField(day: LocalDate, column: String, value: String) {
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+        val changed = db.update("measurement", ContentValues().apply { put(column, value) }, "day=?", arrayOf(day.toString()))
+        if (changed == 0) {
+            val inserted = db.insert("measurement", null, ContentValues().apply {
+                put("day", day.toString())
+                put("weight", if (column == "weight") value else "")
+                put("fat", if (column == "fat") value else "")
+            })
+            if (inserted == -1L) throw android.database.SQLException("measurement")
+        }
+        db.setTransactionSuccessful()
+    } finally {
+        db.endTransaction()
+    }
+}
+
 data class PeriodStats(
     val workouts: Int, val sets: Int, val reps: Long, val volume: BigDecimal,
     val benchSets: Int, val benchAverage: BigDecimal?, val benchMax: BigDecimal?,

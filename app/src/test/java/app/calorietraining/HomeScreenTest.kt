@@ -109,7 +109,7 @@ class HomeScreenTest {
         text("82,4 кг").performScrollTo().assertIsDisplayed()
         text("+0,4 кг").assertIsDisplayed()
         text("Записать вес").performScrollTo().performClick()
-        text("Вес, кг").performTextInput("81,9")
+        ui.onNode(hasSetTextAction()).performTextReplacement("81,9")
         text("Сохранить").performClick()
         waitFor(hasText("81,9 кг"))
         text("81,9 кг").assertIsDisplayed()

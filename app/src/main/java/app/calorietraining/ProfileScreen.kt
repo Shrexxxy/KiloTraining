@@ -56,15 +56,15 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
             var confirm by rememberSaveable(draft.day.toEpochDay()) { mutableStateOf(false) }
             Column(body.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ScreenHeader("Замер тела", onBack = { event(ProfileEvent.Close) })
-                DiaryDaySelector(draft.day, true, { event(ProfileEvent.Open(it)) })
-                DiaryTextField(draft.weight, { event(ProfileEvent.Edit(draft.copy(weight = it))) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                DiaryDaySelector(draft.day, true, { event(if (state.fatOnly) ProfileEvent.OpenFat(it) else ProfileEvent.Open(it)) })
+                if (!state.fatOnly) DiaryTextField(draft.weight, { event(ProfileEvent.Edit(draft.copy(weight = it))) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 DiaryTextField(draft.fat, { event(ProfileEvent.Edit(draft.copy(fat = it))) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Жир, %") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                Text("Можно заполнить одно поле. На каждую дату сохраняется один замер.")
+                Text(if (state.fatOnly) "Вес этого дня не меняется." else "Можно заполнить одно поле. На каждую дату сохраняется один замер.")
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(enabled = draft.valid && draft.day <= LocalDate.now(), onClick = { event(ProfileEvent.Save) }) { Text("Сохранить замер") }
-                if (state.stats?.measurements?.any { it.day == draft.day } == true) {
+                if (!state.fatOnly && state.stats?.measurements?.any { it.day == draft.day } == true) {
                     TextButton(onClick = { confirm = true }) { Text("Удалить замер") }
                 }
                 if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text("Удалить замер?") },
@@ -118,7 +118,12 @@ private fun ProfileContent(state: ProfileState, event: (ProfileEvent) -> Unit,
                         }
                     }
                     MeasurementTrends(profile.measurements, profile.end, state.days)
-                    Button(onClick = { event(ProfileEvent.Open(LocalDate.now())) }) { Text("Записать замер") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { event(ProfileEvent.Open(LocalDate.now())) }, Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) { Text("Записать замер") }
+                        OutlinedButton(onClick = { event(ProfileEvent.OpenFat(LocalDate.now())) }, Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) { Text("Записать % жира") }
+                    }
                     if (profile.measurements.isNotEmpty()) TextButton(onClick = { history = !history }) {
                         Text(if (history) "Скрыть историю" else "История всех замеров")
                     }
