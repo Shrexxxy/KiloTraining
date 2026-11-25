@@ -254,8 +254,26 @@ class PhotoBackupScreenTest {
         assertArrayEquals(file.readBytes(), server.stored[hash(file.readBytes())])
     }
 
-    private fun show(theme: ThemeMode = ThemeMode.DARK) = ui.setScreenshotContent(theme) {
-        BackupScreen(androidx.lifecycle.viewmodel.compose.viewModel { BackupViewModel(app) }, {})
+    @Test fun clearsPhotoProgressWhenUploadFailsWithUnexpectedError() = Fixture().use { server ->
+        var fail = true
+        show { app, photos, progress ->
+            if (fail) {
+                progress(PhotoProgress(1, 3))
+                throw IllegalStateException()
+            }
+            uploadDiary(app, photos, progress)
+        }
+        upload()
+        awaitText("Не удалось сохранить копию")
+        ui.onNodeWithText("Фото:", substring = true).assertDoesNotExist()
+        fail = false
+        upload()
+        awaitText("Копия сохранена на сервере")
+        assertEquals(1, server.posts.get())
+    }
+
+    private fun show(theme: ThemeMode = ThemeMode.DARK, upload: BackupUpload = HttpBackupServer::uploadDiary) = ui.setScreenshotContent(theme) {
+        BackupScreen(androidx.lifecycle.viewmodel.compose.viewModel { BackupViewModel(app, upload) }, {})
     }.also { awaitText("22.11.2026", substring = true) }
 
     private fun upload() = ui.onNodeWithText("Сохранить на сервер").performClick()

@@ -1,6 +1,7 @@
 package app.calorietraining
 
 import android.app.Application
+import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -49,7 +50,15 @@ internal data class BackupState(
     val missingPhotos: Int = 0
 )
 
-class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
+internal typealias BackupUpload = suspend HttpBackupServer.(Context, PhotoServer?, (PhotoProgress) -> Unit) -> UploadedDiary
+
+class BackupViewModel internal constructor(
+    private val app: Application,
+    private val uploadDiary: BackupUpload,
+) : AndroidViewModel(app) {
+    constructor(app: Application) : this(app, HttpBackupServer::uploadDiary)
+
+
     private val settings = ProductServerSettings(app)
     private val state = MutableStateFlow(BackupState())
     internal val uiState = state.asStateFlow()
@@ -178,11 +187,14 @@ class BackupViewModel(private val app: Application) : AndroidViewModel(app) {
             try {
                 state.value = withContext(Dispatchers.IO) { action() }
                 onSuccess()
-            } catch (e: CancellationException) { throw e }
-            catch (e: ProductServerException) {
-                state.value = state.value.copy(busy = false, message = backupServerMessage(e))
+            } catch (e: CancellationException) {
+                state.update { it.copy(busy = false, photoProgress = null) }
+                throw e
             }
-            catch (e: Exception) { state.value = state.value.copy(busy = false, message = failure) }
+            catch (e: ProductServerException) {
+                state.value = state.value.copy(busy = false, message = backupServerMessage(e), photoProgress = null)
+            }
+            catch (e: Exception) { state.value = state.value.copy(busy = false, message = failure, photoProgress = null) }
         }
     }
 
