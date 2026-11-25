@@ -32,6 +32,8 @@ class ExerciseCatalogWorkoutTest {
         val workoutCaption = LocalDate.now().caption()
         list.performScrollToNode(hasText(workoutCaption, substring = true))
         ui.onAllNodesWithText(workoutCaption, substring = true).onFirst().performClick()
+        await("Редактировать")
+        ui.onNodeWithText("Редактировать").performClick()
         list.performScrollToNode(hasText("Добавить упражнение"))
         ui.onNodeWithText("Добавить упражнение").performClick()
         ui.onNodeWithText("Выбрать из каталога").performClick()

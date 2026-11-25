@@ -76,6 +76,7 @@ internal fun ExerciseCard(
     sets: List<SetDraft>,
     rests: Map<Long?, Duration>,
     onMuscles: (String) -> Unit,
+    readOnly: Boolean = false,
     edit: (SetDraft) -> Unit,
 ) {
     val exercise = sets.first().exercise
@@ -85,7 +86,7 @@ internal fun ExerciseCard(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 photo?.let { Image(painterResource(it.second), null, Modifier.size(48.dp)) }
                 Text(
-                    exercise, Modifier.weight(1f, fill = false),
+                    exercise, Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
                 )
                 if (exercise.isNotBlank()) {
@@ -98,10 +99,10 @@ internal fun ExerciseCard(
                 sets.forEachIndexed { index, set ->
                     WorkoutSetTile(set.weight, set.reps, set.warmup, set.planned, index + 1,
                         caption = rests[set.id]?.let { "отдых ${formatRestElapsed(it.seconds)}" },
-                        onClick = { edit(set) })
+                        onClick = if (readOnly) null else ({ edit(set) }))
                 }
             }
-            TextButton(onClick = { edit(sets.maxBy { it.id ?: 0L }.copy(id = null, planned = false, doneAt = null)) }) {
+            if (!readOnly) TextButton(onClick = { edit(sets.maxBy { it.id ?: 0L }.copy(id = null, planned = false, doneAt = null)) }) {
                 Text("+ Подход")
             }
         }

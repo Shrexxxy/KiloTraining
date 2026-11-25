@@ -30,6 +30,8 @@ private val workoutTimeFormat = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun Workout.dateTimeCaption() = day.caption() + (startedAt?.let { " · ${it.format(workoutTimeFormat)}" } ?: "")
 
+private fun Workout.captionWithStatus() = dateTimeCaption() + (status?.let { " · ${it.label}" } ?: "")
+
 @Composable
 fun WorkoutContent(state: WorkoutState, event: (WorkoutEvent) -> Unit, modifier: Modifier = Modifier) {
     var recording by rememberSaveable { mutableStateOf(false) }
@@ -92,7 +94,7 @@ private fun ColumnScope.WorkoutFeed(state: WorkoutState, event: (WorkoutEvent) -
             items(state.list, key = { it.id }) { workout ->
                 GlassCard(accent, Modifier.fillMaxWidth(), onClick = { event(WorkoutEvent.Open(workout.id)) }) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(workout.dateTimeCaption() + if (workout.active) " · Идёт" else "",
+                        Text(workout.captionWithStatus(),
                             style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(workout.title.ifBlank { "Тренировка" }, style = MaterialTheme.typography.titleLarge)
                         WorkoutMetrics(workout, workout.elapsedMinutes(now))
@@ -141,7 +143,8 @@ private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (Workou
         return
     }
     var finishing by rememberSaveable { mutableStateOf(false) }
-    WorkoutActions(state, workout, event)
+    val viewing = workout.completed && state.editing != workout.id
+    WorkoutActions(state, workout, viewing, event)
     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     if (finishing) AlertDialog(onDismissRequest = { finishing = false },
         title = { Text("Завершить тренировку?") },
@@ -169,24 +172,26 @@ private fun WorkoutDetails(state: WorkoutState, workout: Workout, event: (Workou
         item(key = "metrics") {
             GlassCard(LocalDiaryAccents.current.workout) { WorkoutMetrics(workout, workout.elapsedMinutes(now)) }
         }
-        workout.nextPlanned()?.let { next ->
-            item(key = "next") {
-                NextSetCard(next, next.id != null) { next.id?.let { event(WorkoutEvent.Complete(workout.id, it)) } }
+        if (!viewing) {
+            workout.nextPlanned()?.let { next ->
+                item(key = "next") {
+                    NextSetCard(next, next.id != null) { next.id?.let { event(WorkoutEvent.Complete(workout.id, it)) } }
+                }
             }
-        }
-        item(key = "add-exercise") {
-            Button(onClick = { event(WorkoutEvent.Edit(workout.id, SetDraft())) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Добавить упражнение")
+            item(key = "add-exercise") {
+                Button(onClick = { event(WorkoutEvent.Edit(workout.id, SetDraft())) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Добавить упражнение")
+                }
             }
         }
         items(exercises, key = { it.first().group }) { sets ->
-            ExerciseCard(sets, rests, onMuscles = { exerciseDetails = it }) { event(WorkoutEvent.Edit(workout.id, it)) }
+            ExerciseCard(sets, rests, onMuscles = { exerciseDetails = it }, readOnly = viewing) { event(WorkoutEvent.Edit(workout.id, it)) }
         }
     }
 }
 
 @Composable
-private fun WorkoutActions(state: WorkoutState, workout: Workout, event: (WorkoutEvent) -> Unit) {
+private fun WorkoutActions(state: WorkoutState, workout: Workout, viewing: Boolean, event: (WorkoutEvent) -> Unit) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     var replacing by rememberSaveable { mutableStateOf(false) }
     var savingTemplate by rememberSaveable { mutableStateOf(false) }
@@ -262,36 +267,48 @@ private fun WorkoutActions(state: WorkoutState, workout: Workout, event: (Workou
         }) { Text("Сохранить") } },
         dismissButton = { TextButton(onClick = { renaming = false; savingTemplate = false }) { Text("Отмена") } }
     )
-    ScreenHeader(label, onBack = { event(WorkoutEvent.BackToList) }, subtitle = workout.dateTimeCaption()) {
+    ScreenHeader(label, onBack = { event(WorkoutEvent.BackToList) }, subtitle = workout.captionWithStatus()) {
         Box {
             TextButton(onClick = { menu = true }) { Text("Действия") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text(if (workout.title.isBlank()) "Задать название" else "Переименовать") },
-                    onClick = { menu = false; confirm = false; title = workout.title; renaming = true })
-                DropdownMenuItem(text = { Text("Изменить время начала") }, onClick = {
-                    menu = false
-                    editingStart = true
-                })
-                DropdownMenuItem(text = { Text("Длительность") }, onClick = {
-                    menu = false
-                    editingDuration = true
-                })
+                if (!viewing) {
+                    DropdownMenuItem(text = { Text(if (workout.title.isBlank()) "Задать название" else "Переименовать") },
+                        onClick = { menu = false; confirm = false; title = workout.title; renaming = true })
+                    DropdownMenuItem(text = { Text("Изменить время начала") }, onClick = {
+                        menu = false
+                        editingStart = true
+                    })
+                    DropdownMenuItem(text = { Text("Длительность") }, onClick = {
+                        menu = false
+                        editingDuration = true
+                    })
+                }
                 DropdownMenuItem(text = { Text("Сохранить как шаблон") }, enabled = workout.sets.isNotEmpty(),
                     onClick = { menu = false; title = workout.title; savingTemplate = true })
                 if (state.templates.isNotEmpty()) DropdownMenuItem(text = { Text("Обновить шаблон") },
                     enabled = workout.sets.isNotEmpty(), onClick = { menu = false; replacing = true })
-                DropdownMenuItem(text = { Text("Перенести на дату") },
+                if (!viewing) DropdownMenuItem(text = { Text("Перенести на дату") },
                     onClick = { menu = false; confirm = false; repeating = false; moveDate = workout.day.toEpochDay() })
                 DropdownMenuItem(text = { Text("Повторить") }, enabled = workout.sets.any { !it.planned },
                     onClick = { menu = false; confirm = false; repeating = true; moveDate = LocalDate.now(state.clock).toEpochDay() })
-                DropdownMenuItem(text = { Text("Удалить") }, onClick = { menu = false; confirm = true })
+                if (!viewing) DropdownMenuItem(text = { Text("Удалить") }, onClick = { menu = false; confirm = true })
             }
         }
     }
-    if(confirm) {
-        OutlinedButton(onClick={event(WorkoutEvent.Remove(workout.id))}) { Text("Удалить тренировку целиком") }
-        TextButton(onClick = { confirm = false }) { Text("Отмена") }
+    if (workout.completed) GlassTonalButton(onClick = {
+        event(if (viewing) WorkoutEvent.StartEdit(workout.id) else WorkoutEvent.StopEdit)
+    }, modifier = Modifier.fillMaxWidth(), contentPadding = ButtonDefaults.ContentPadding) {
+        Text(if (viewing) "Редактировать" else "Готово")
     }
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false },
+        title = { Text("Удалить тренировку?") },
+        text = { Text("Подходы тоже удалятся. Отменить нельзя.") },
+        confirmButton = {
+            Button(enabled = !state.busy, onClick = { confirm = false; event(WorkoutEvent.Remove(workout.id)) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError)) { Text("Удалить") }
+        },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Отмена") } })
 }
 
 @Composable

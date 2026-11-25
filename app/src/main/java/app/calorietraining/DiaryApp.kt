@@ -177,7 +177,11 @@ fun DiaryApp(mode: ThemeMode, onThemeChange: (ThemeMode) -> Unit) {
                 ) {
                     listOf("Главная" to R.drawable.ic_nav_home, "Питание" to R.drawable.ic_nav_food, "Тренировки" to R.drawable.ic_nav_workout,
                         "История" to R.drawable.ic_nav_history, "Профиль" to R.drawable.ic_nav_profile).forEach { (title, icon) ->
-                        NavigationBarItem(selected = tab == title, onClick = { selectTab(title) },
+                        NavigationBarItem(selected = tab == title, onClick = {
+                            val again = tab == title && title == "Тренировки"
+                            selectTab(title)
+                            if (again) workout.event(WorkoutEvent.BackToList)
+                        },
                             icon = { Icon(painterResource(icon), contentDescription = null) },
                             label = {
                                 Text(title, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp,

@@ -17,8 +17,12 @@ import java.time.Clock
 data class WorkoutState(val day:LocalDate=LocalDate.now(), val list:List<Workout> = emptyList(),
     val session:Long?=null, val draft:SetDraft?=null, val busy:Boolean=false,val error:String?=null,
     val previous: PreviousExercise? = null, val templates: List<WorkoutTemplate> = emptyList(),
-    val opened: Long? = null, val clock: Clock = Clock.systemDefaultZone()) {
+    val opened: Long? = null, val editing: Long? = null, val clock: Clock = Clock.systemDefaultZone()) {
     val activeWorkout get() = list.firstOrNull { it.active }
+
+    /** Завершённая тренировка вне правки только читается. */
+    internal fun isLocked(session: Long) =
+        list.firstOrNull { it.id == session }?.let { it.completed && editing != it.id } == true
 }
 sealed interface WorkoutEvent {
     data class Edit(val session:Long,val draft:SetDraft):WorkoutEvent
@@ -35,6 +39,8 @@ sealed interface WorkoutEvent {
     data class Record(val start: LocalDateTime) : WorkoutEvent
     data class Open(val id: Long) : WorkoutEvent
     data object BackToList : WorkoutEvent
+    data class StartEdit(val id: Long) : WorkoutEvent
+    data object StopEdit : WorkoutEvent
     data object Refresh : WorkoutEvent
     data class Finish(val id: Long) : WorkoutEvent
     data class ChangeStart(val id: Long, val start: LocalDateTime) : WorkoutEvent
@@ -54,12 +60,35 @@ class WorkoutViewModel(app: Application, private val clock: Clock = Clock.system
         val s=state.value
         if (event is WorkoutEvent.Open || event == WorkoutEvent.BackToList) {
             val opened = (event as? WorkoutEvent.Open)?.id
+            val editing = opened?.takeIf { id -> s.list.any { it.id == id && !it.completed } }
             navigatedDuringUpdate = s.busy
-            state.value = s.copy(opened = opened, draft = null, session = null)
+            state.value = s.copy(opened = opened, editing = editing, draft = null, session = null)
             if (!s.busy && event == WorkoutEvent.BackToList) update(s.day)
             return
         }
+        if (event is WorkoutEvent.StartEdit) {
+            if (s.busy) navigatedDuringUpdate = true
+            if (s.opened == event.id) state.value = s.copy(editing = event.id)
+            return
+        }
+        if (event == WorkoutEvent.StopEdit) {
+            if (s.busy) navigatedDuringUpdate = true
+            state.value = s.copy(editing = null, draft = null, session = null, error = null)
+            return
+        }
         if(s.busy) return
+        val target = when (event) {
+            is WorkoutEvent.Edit -> event.session
+            is WorkoutEvent.Remove -> event.session
+            is WorkoutEvent.Rename -> event.session
+            is WorkoutEvent.Move -> event.session
+            is WorkoutEvent.Duration -> event.session
+            is WorkoutEvent.ChangeStart -> event.id
+            is WorkoutEvent.Complete -> event.session
+            is WorkoutEvent.Save, WorkoutEvent.DeleteSet -> s.session
+            else -> null
+        }
+        if (target != null && s.isLocked(target)) return
         when(event) {
             is WorkoutEvent.StartTemplate -> update(s.day, openCreated = true) { startTemplate(event.id, LocalDateTime.now(clock)) }
             is WorkoutEvent.RenameTemplate -> if (event.title.isNotBlank()) update(s.day) { renameTemplate(event.id, event.title) }
@@ -81,8 +110,9 @@ class WorkoutViewModel(app: Application, private val clock: Clock = Clock.system
             WorkoutEvent.StartLive -> update(s.day, openCreated = true) { newWorkout(LocalDateTime.now(clock), live = true) }
             is WorkoutEvent.Record -> update(event.start.toLocalDate(), openCreated = true) { newWorkout(event.start, live = false) }
             is WorkoutEvent.Open, WorkoutEvent.BackToList -> Unit
+            is WorkoutEvent.StartEdit, WorkoutEvent.StopEdit -> Unit
             WorkoutEvent.Refresh -> update(s.day)
-            is WorkoutEvent.Finish -> update(s.day) { finishWorkout(event.id) }
+            is WorkoutEvent.Finish -> update(s.day, resetEditing = true) { finishWorkout(event.id) }
             is WorkoutEvent.ChangeStart -> update(event.start.toLocalDate()) { changeWorkoutStart(event.id, event.start) }
             is WorkoutEvent.Edit -> {
                 val changed = s.session != event.session || s.draft?.exercise != event.draft.exercise || s.draft.id != event.draft.id
@@ -127,9 +157,11 @@ class WorkoutViewModel(app: Application, private val clock: Clock = Clock.system
     private fun update(
         day: LocalDate,
         openCreated: Boolean = false,
+        resetEditing: Boolean = false,
         change: (FoodStore.() -> Any?)? = null,
     ) {
         val opened = state.value.opened
+        val editing = state.value.editing
         navigatedDuringUpdate = false
         state.value=state.value.copy(busy=true,error=null)
         viewModelScope.launch {
@@ -143,14 +175,17 @@ class WorkoutViewModel(app: Application, private val clock: Clock = Clock.system
                             val created = change?.invoke(store)
                             val list = store.workouts()
                             val selected = if (openCreated) created as Long else opened
+                            val keepEditing = if (openCreated) selected else editing.takeUnless { resetEditing }
                             WorkoutState(day = day, list = list, templates = store.templates(),
-                                opened = selected, clock = clock)
+                                opened = selected, editing = keepEditing, clock = clock)
                                 .also { db.setTransactionSuccessful() }
                         } finally { db.endTransaction() }
                     }
                 }
                 val selected = if (navigatedDuringUpdate) state.value.opened else rows.opened
-                state.value = rows.copy(opened = selected?.takeIf { id -> rows.list.any { it.id == id } })
+                val keptEditing = if (navigatedDuringUpdate) state.value.editing else rows.editing
+                state.value = rows.copy(opened = selected?.takeIf { id -> rows.list.any { it.id == id } },
+                    editing = keptEditing?.takeIf { it == selected })
             } catch(e:SQLException) {state.value=state.value.copy(busy=false,error="Не удалось открыть или сохранить тренировку")}
         }
     }

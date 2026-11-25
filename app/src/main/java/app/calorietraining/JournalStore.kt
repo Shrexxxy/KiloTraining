@@ -179,6 +179,14 @@ data class Workout(val id: Long,val sets: List<SetDraft>, val title: String = ""
     val day: LocalDate = LocalDate.now(), val startedAt: LocalDateTime? = null,
     val finishedAt: LocalDateTime? = null, val live: Boolean = false) {
     val active get() = live && finishedAt == null
+    /** Записанная задним числом или старая тренировка считается завершённой, когда все подходы выполнены. */
+    val completed get() = finishedAt != null || (!live && sets.isNotEmpty() && sets.none { it.planned })
+    val status get() = when {
+        active -> WorkoutStatus.Active
+        completed -> WorkoutStatus.Completed
+        !live && sets.any { it.planned } -> WorkoutStatus.Plan
+        else -> null
+    }
     val lastDoneAt get() = sets.filterNot { it.planned }.mapNotNull { it.doneAt }.maxOrNull()
 
     internal fun restBySet(): Map<Long?, Duration> {
@@ -189,6 +197,8 @@ data class Workout(val id: Long,val sets: List<SetDraft>, val title: String = ""
         }
     }
 }
+enum class WorkoutStatus(val label: String) { Active("Идёт"), Completed("Завершена"), Plan("План") }
+
 internal val workoutMinutesRange = 1..1440
 private val workoutMinuteFormat = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm")
 private val workoutSecondFormat = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss")
