@@ -63,7 +63,7 @@ private fun ExerciseMusclesCard(
             }
             GlassCard(accent, Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MuscleDiagram(technique, accent, secondary)
+                    MuscleDiagram(technique, accent, secondary, upperOnly = true)
                     MuscleLegend("Основные", technique.primary, accent)
                     MuscleLegend("Дополнительные", technique.secondary, secondary)
                 }

@@ -5,7 +5,7 @@ internal val backCatalog = listOf(
         "Тяга вертикального блока", "Спина", "верхний блок спина",
         R.drawable.ex_widegrip_lat_pulldown_0, R.drawable.ex_widegrip_lat_pulldown_1,
         Equipment.Cable, ExerciseTechnique(
-            listOf(Muscle.Lats), listOf(Muscle.Biceps, Muscle.MiddleBack, Muscle.Shoulders),
+            listOf(Muscle.Lats), listOf(Muscle.Biceps, Muscle.MiddleBack, Muscle.RearDelts),
             listOf(
                 "Сядьте под верхним блоком, зафиксируйте бёдра и возьмитесь за гриф широким хватом сверху.",
                 "Слегка отклонитесь назад и потяните гриф к верхней части груди, опуская локти.",
@@ -17,7 +17,7 @@ internal val backCatalog = listOf(
         "Тяга горизонтального блока", "Спина", "сидя нижний блок",
         R.drawable.ex_seated_cable_rows_0, R.drawable.ex_seated_cable_rows_1,
         Equipment.Cable, ExerciseTechnique(
-            listOf(Muscle.MiddleBack), listOf(Muscle.Biceps, Muscle.Lats, Muscle.Shoulders),
+            listOf(Muscle.MiddleBack), listOf(Muscle.Biceps, Muscle.Lats, Muscle.RearDelts),
             listOf(
                 "Сядьте, возьмите V-рукоять и упритесь в платформу, слегка согнув колени.",
                 "Выпрямите корпус и подтяните рукоять к животу, ведя локти вдоль боков.",
@@ -30,7 +30,7 @@ internal val backCatalog = listOf(
         "Тяга гантели одной рукой", "Спина", "гантели в наклоне",
         R.drawable.ex_onearm_dumbbell_row_0, R.drawable.ex_onearm_dumbbell_row_1,
         Equipment.Dumbbell, ExerciseTechnique(
-            listOf(Muscle.MiddleBack), listOf(Muscle.Biceps, Muscle.Lats, Muscle.Shoulders),
+            listOf(Muscle.MiddleBack), listOf(Muscle.Biceps, Muscle.Lats, Muscle.RearDelts),
             listOf(
                 "Обопритесь ладонью и коленом на скамью, держите спину ровно.",
                 "Свободной рукой потяните гантель к боку, не разворачивая корпус.",
@@ -67,7 +67,7 @@ internal val backCatalog = listOf(
         "Тяга штанги в наклоне", "Спина", "штанга наклон",
         R.drawable.ex_bent_over_barbell_row_0, R.drawable.ex_bent_over_barbell_row_1,
         Equipment.Barbell, ExerciseTechnique(
-            listOf(Muscle.MiddleBack), listOf(Muscle.Biceps, Muscle.Lats, Muscle.Shoulders),
+            listOf(Muscle.MiddleBack), listOf(Muscle.Biceps, Muscle.Lats, Muscle.RearDelts),
             listOf(
                 "Возьмите штангу хватом сверху, слегка согните колени и наклоните корпус с ровной спиной.",
                 "Потяните гриф к корпусу, ведя локти назад и сводя лопатки.",
@@ -92,7 +92,7 @@ internal val backCatalog = listOf(
         "Тяга верхнего блока узким хватом", "Спина", "верхний блок узкий",
         R.drawable.ex_closegrip_front_lat_pulldown_0, R.drawable.ex_closegrip_front_lat_pulldown_1,
         Equipment.Cable, ExerciseTechnique(
-            listOf(Muscle.Lats), listOf(Muscle.Biceps, Muscle.MiddleBack, Muscle.Shoulders),
+            listOf(Muscle.Lats), listOf(Muscle.Biceps, Muscle.MiddleBack, Muscle.RearDelts),
             listOf(
                 "Сядьте под верхним блоком, зафиксируйте бёдра и возьмите гриф узким хватом сверху.",
                 "Слегка отклоните корпус и потяните гриф к верхней части груди.",

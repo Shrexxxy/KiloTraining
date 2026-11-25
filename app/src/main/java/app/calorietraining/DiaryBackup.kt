@@ -39,7 +39,7 @@ private val workoutTimeFields = mapOf(
 )
 private val nullableTimeFields = setOf("started_at", "finished_at", "done_at")
 
-private const val FORMAT_VERSION = 18
+private const val FORMAT_VERSION = 19
 private val photoHashFields = mapOf("food" to "photo_hash", "venue" to "logo_hash")
 private const val FORMAT = "calorietraining/$FORMAT_VERSION"
 
@@ -259,11 +259,20 @@ fun FoodStore.readBackup(input: Reader): String {
                     }
                     if (key == "goal" && !row.containsKey("carbs_zero")) row.put("carbs_zero", "0")
                     require(row.size() == columns.size)
-                    validateRow(key, row)
-                    if (key in legacyGoalTables) {
-                        require(count == 0)
-                        legacyGoals.putAll(row)
-                    } else db.insertOrThrow(if (key == "product") "legacy_product" else key, null, row)
+                    if (key == "exercise_muscle" && version in 1..18 && row.getAsString("muscle") == "Shoulders") {
+                        // В копиях до 19 были «плечи»: разворачиваем в три дельты с той же ролью.
+                        for (delt in listOf(Muscle.FrontDelts, Muscle.SideDelts, Muscle.RearDelts)) {
+                            val part = ContentValues(row).apply { put("muscle", delt.name) }
+                            validateRow(key, part)
+                            db.insertOrThrow(key, null, part)
+                        }
+                    } else {
+                        validateRow(key, row)
+                        if (key in legacyGoalTables) {
+                            require(count == 0)
+                            legacyGoals.putAll(row)
+                        } else db.insertOrThrow(if (key == "product") "legacy_product" else key, null, row)
+                    }
                     count++
                 }
                 json.endArray()

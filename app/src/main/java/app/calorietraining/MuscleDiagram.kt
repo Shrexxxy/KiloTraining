@@ -15,15 +15,19 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
+/** При `upperOnly` фигура обрезается по поясу, если среди мышц упражнения нет ни одной мышцы ног. */
 @Composable
-internal fun MuscleDiagram(technique: ExerciseTechnique, primary: Color, secondary: Color) {
+internal fun MuscleDiagram(technique: ExerciseTechnique, primary: Color, secondary: Color, upperOnly: Boolean = false) {
     val names = technique.primary.joinToString { it.label }
-    MuscleDiagram("Основные мышцы: $names. Вид спереди и сзади.") { muscle ->
+    val worksLegs = (technique.primary + technique.secondary).any { it in legMuscles }
+    MuscleDiagram("Основные мышцы: $names. Вид спереди и сзади.", upperOnly && !worksLegs) { muscle ->
         when (muscle) {
             in technique.primary -> primary
             in technique.secondary -> secondary
@@ -33,14 +37,15 @@ internal fun MuscleDiagram(technique: ExerciseTechnique, primary: Color, seconda
 }
 
 @Composable
-internal fun MuscleDiagram(description: String, fill: (Muscle) -> Color) {
+internal fun MuscleDiagram(description: String, upperOnly: Boolean = false, fill: (Muscle) -> Color) {
     val outline = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
-        Modifier.fillMaxWidth().semantics { contentDescription = description },
+        Modifier.fillMaxWidth().testTag(if (upperOnly) "muscle-figure-upper" else "muscle-figure-full")
+            .semantics { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        BodyFigure("Спереди", frontMuscles, fill, outline, Modifier.weight(1f))
-        BodyFigure("Сзади", backMuscles, fill, outline, Modifier.weight(1f))
+        BodyFigure("Спереди", frontMuscles, fill, outline, upperOnly, Modifier.weight(1f))
+        BodyFigure("Сзади", backMuscles, fill, outline, upperOnly, Modifier.weight(1f))
     }
 }
 
@@ -50,13 +55,16 @@ private fun BodyFigure(
     regions: List<MuscleRegion>,
     fill: (Muscle) -> Color,
     outline: Color,
+    upperOnly: Boolean,
     modifier: Modifier,
 ) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Canvas(Modifier.fillMaxWidth().height(260.dp)) {
-            val factor = minOf(size.width / 100f, size.height / 216f)
-            val left = (size.width - 100f * factor) / 2f
-            val top = (size.height - 216f * factor) / 2f
+        val shown = if (upperOnly) UPPER_BODY_HEIGHT else BODY_HEIGHT
+        val canvasModifier = if (upperOnly) Modifier.fillMaxWidth().aspectRatio(100f / shown) else Modifier.fillMaxWidth().height(260.dp)
+        Canvas(canvasModifier.clipToBounds()) {
+            val factor = minOf(this.size.width / 100f, this.size.height / shown)
+            val left = (this.size.width - 100f * factor) / 2f
+            val top = (this.size.height - shown * factor) / 2f
             val border = Stroke(0.85f, cap = StrokeCap.Round, join = StrokeJoin.Round)
             translate(left, top) {
                 scale(factor, factor, Offset.Zero) {
@@ -76,6 +84,13 @@ private fun BodyFigure(
     }
 }
 
+private const val BODY_HEIGHT = 216f
+private const val UPPER_BODY_HEIGHT = 120f
+
+private val legMuscles = setOf(
+    Muscle.Abductors, Muscle.Adductors, Muscle.Calves, Muscle.Glutes, Muscle.Hamstrings, Muscle.Quadriceps,
+)
+
 private data class MuscleRegion(val muscle: Muscle, val path: Path)
 
 private fun path(data: String): Path = PathParser().parsePathString(data).toPath()
@@ -94,7 +109,8 @@ private val bodyOutline = path(
 private val frontMuscles = listOf(
     region(Muscle.Neck, "M51,36 Q54,36 56,34 L58,43 L51,48 Z"),
     region(Muscle.Traps, "M59,44 L73,49 L62,49 Z"),
-    region(Muscle.Shoulders, "M72,51 Q83,49 84,65 L75,70 Q72,65 72,51 Z"),
+    region(Muscle.FrontDelts, "M72,51 Q77,50 79,52 L78,68 L75,70 Q72,65 72,51 Z"),
+    region(Muscle.SideDelts, "M79,52 Q83,54 84,65 L78,68 Z"),
     region(Muscle.Chest, "M51,51 Q62,48 70,51 L73,66 Q63,73 51,67 Z"),
     region(Muscle.Abdominals, "M51,71 Q57,73 61,72 Q61,92 59,102 L52,114 L51,104 Z"),
     region(Muscle.Abdominals, "M63,74 L71,70 L72,79 Q67,88 68,99 L61,103 Z"),
@@ -109,7 +125,8 @@ private val frontMuscles = listOf(
 private val backMuscles = listOf(
     region(Muscle.Neck, "M51,34 L56,34 L58,44 L51,48 Z"),
     region(Muscle.Traps, "M52,49 L59,44 L73,49 Q63,51 59,61 L51,74 Z"),
-    region(Muscle.Shoulders, "M72,52 Q82,49 84,64 L76,72 Q70,65 68,56 Z"),
+    region(Muscle.RearDelts, "M72,52 Q76,50.5 78,51 L78,70 L76,72 Q70,65 68,56 Z"),
+    region(Muscle.SideDelts, "M78,51 Q83,52 84,64 L76,72 L78,70 Z"),
     region(Muscle.MiddleBack, "M62,59 L67,56 L72,70 Q63,77 52,83 L52,76 Z"),
     region(Muscle.Lats, "M73,73 Q71,84 67,96 L61,102 L55,85 Q65,82 73,73 Z"),
     region(Muscle.LowerBack, "M52,85 L59,100 L56,107 L51,105 Z"),

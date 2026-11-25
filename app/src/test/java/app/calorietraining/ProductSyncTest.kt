@@ -109,7 +109,7 @@ class ProductSyncTest {
             db.version = 14
         }
         FoodStore(context, "upgrade14.db").use { store ->
-            assertEquals(20, store.readableDatabase.version)
+            assertEquals(21, store.readableDatabase.version)
             assertEquals(1, store.pendingSyncCount())
             assertEquals("Сырок", store.myProductByBarcode(code)?.name)
         }
@@ -121,7 +121,7 @@ class ProductSyncTest {
             assertEquals(0, store.pendingSyncCount())
             store.exportDiary(backup)
         }
-        assertTrue(backup.toString().contains("calorietraining/18"))
+        assertTrue(backup.toString().contains("calorietraining/19"))
         assertFalse(backup.toString().contains("pending_sync"))
         FoodStore(context, "restored.db").use { store ->
             store.readBackup(backup.toString().reader())

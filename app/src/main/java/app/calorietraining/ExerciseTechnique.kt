@@ -15,7 +15,9 @@ internal enum class Muscle(val label: String) {
     MiddleBack("середина спины"),
     Neck("шея"),
     Quadriceps("квадрицепс"),
-    Shoulders("плечи"),
+    FrontDelts("передняя дельта"),
+    SideDelts("средняя дельта"),
+    RearDelts("задняя дельта"),
     Traps("трапеции"),
     Triceps("трицепс"),
 }

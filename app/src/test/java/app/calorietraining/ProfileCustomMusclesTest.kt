@@ -63,7 +63,7 @@ class ProfileCustomMusclesTest {
         showProfile()
         awaitMuscles("Грудь — 5")
         ui.onNodeWithText("Трицепс — 2,5").assertExists()
-        ui.onNodeWithText("Плечи — 1,5").assertExists()
+        ui.onNodeWithText("Передняя дельта — 1,5").assertExists()
         assertNoUnknownSets()
     }
 

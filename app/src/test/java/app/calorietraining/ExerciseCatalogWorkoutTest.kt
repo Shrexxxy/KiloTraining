@@ -49,7 +49,7 @@ class ExerciseCatalogWorkoutTest {
         ui.onNode(hasText("Профиль") and isSelectable()).performClick()
         await("Калории по дням")
         ui.onNode(hasScrollAction()).performScrollToNode(hasText("Мышцы за неделю"))
-        ui.onNodeWithText("Плечи — 1,5").assertExists()
+        ui.onNodeWithText("Передняя дельта — 1,5").assertExists()
         ui.onNodeWithText("Подходов без данных о мышцах", substring = true).assertDoesNotExist()
     }
 

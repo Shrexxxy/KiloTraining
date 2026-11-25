@@ -5,7 +5,7 @@ internal val chestCatalog = listOf(
         "Жим штанги лёжа", "Грудь", "жим лежа штанга",
         R.drawable.ex_barbell_bench_press_medium_grip_0, R.drawable.ex_barbell_bench_press_medium_grip_1,
         Equipment.Barbell, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders, Muscle.Triceps),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts, Muscle.Triceps),
             listOf(
                 "Лягте на скамью и снимите штангу со стоек хватом средней ширины.",
                 "На вдохе опустите гриф к середине груди.",
@@ -18,7 +18,7 @@ internal val chestCatalog = listOf(
         "Жим гантелей лёжа", "Грудь", "гантели",
         R.drawable.ex_dumbbell_bench_press_0, R.drawable.ex_dumbbell_bench_press_1,
         Equipment.Dumbbell, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders, Muscle.Triceps),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts, Muscle.Triceps),
             listOf(
                 "Лягте на горизонтальную скамью, помогая себе бёдрами поднять гантели.",
                 "Разверните ладони вперёд и выжмите гантели над грудью.",
@@ -31,7 +31,7 @@ internal val chestCatalog = listOf(
         "Жим гантелей на наклонной скамье", "Грудь", "гантели",
         R.drawable.ex_incline_dumbbell_press_0, R.drawable.ex_incline_dumbbell_press_1,
         Equipment.Dumbbell, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders, Muscle.Triceps),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts, Muscle.Triceps),
             listOf(
                 "Поднимите гантели с бёдер и лягте на наклонную скамью.",
                 "Выжмите гантели над грудью ладонями вперёд.",
@@ -44,7 +44,7 @@ internal val chestCatalog = listOf(
         "Сведение рук в кроссовере", "Грудь", "кроссовер бабочка блоки",
         R.drawable.ex_cable_crossover_0, R.drawable.ex_cable_crossover_1,
         Equipment.Cable, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts),
             listOf(
                 "Возьмите рукояти верхних блоков, шагните вперёд и слегка наклонитесь.",
                 "Сведите руки перед грудью по дуге, сохраняя небольшой сгиб в локтях.",
@@ -56,7 +56,7 @@ internal val chestCatalog = listOf(
         "Жим штанги на наклонной скамье", "Грудь", "наклонная штанга верх груди",
         R.drawable.ex_barbell_incline_bench_press_medium_grip_0, R.drawable.ex_barbell_incline_bench_press_medium_grip_1,
         Equipment.Barbell, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders, Muscle.Triceps),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts, Muscle.Triceps),
             listOf(
                 "Лягте на наклонную скамью и снимите штангу хватом средней ширины.",
                 "Плавно опустите гриф к верхней части груди.",
@@ -82,7 +82,7 @@ internal val chestCatalog = listOf(
         "Отжимания на брусьях на грудь", "Грудь", "собственный вес",
         R.drawable.ex_dips_chest_version_0, R.drawable.ex_dips_chest_version_1,
         Equipment.Bodyweight, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders, Muscle.Triceps),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts, Muscle.Triceps),
             listOf(
                 "Примите упор на брусьях и наклоните корпус вперёд.",
                 "Согните руки, позволяя локтям немного уйти в стороны.",
@@ -94,7 +94,7 @@ internal val chestCatalog = listOf(
         "Отжимания от пола", "Грудь", "собственный вес",
         R.drawable.ex_pushups_0, R.drawable.ex_pushups_1,
         Equipment.Bodyweight, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders, Muscle.Triceps),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts, Muscle.Triceps),
             listOf(
                 "Примите упор лёжа на ладонях и носках, вытянув тело в прямую линию.",
                 "Согните локти и опустите грудь почти до пола.",
@@ -106,7 +106,7 @@ internal val chestCatalog = listOf(
         "Жим в тренажёре сидя", "Грудь", "тренажер хаммер",
         R.drawable.ex_leverage_chest_press_0, R.drawable.ex_leverage_chest_press_1,
         Equipment.Machine, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders, Muscle.Triceps),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts, Muscle.Triceps),
             listOf(
                 "Настройте сиденье так, чтобы рукояти были на уровне середины или нижней части груди.",
                 "Прижмите спину к спинке и выжмите рукояти вперёд.",
@@ -118,7 +118,7 @@ internal val chestCatalog = listOf(
         "Жим гантелей на скамье с наклоном вниз", "Грудь", "жим на отрицательном наклоне",
         R.drawable.ex_decline_dumbbell_bench_press_0, R.drawable.ex_decline_dumbbell_bench_press_1,
         Equipment.Dumbbell, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders, Muscle.Triceps),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts, Muscle.Triceps),
             listOf(
                 "Зафиксируйте ноги и лягте на скамью с опущенным головным концом.",
                 "Держите гантели по бокам груди, предплечья направьте вверх.",
@@ -131,7 +131,7 @@ internal val chestCatalog = listOf(
         "Разводка гантелей на наклонной скамье", "Грудь", "наклонная разводка наклонные разведения",
         R.drawable.ex_incline_dumbbell_flyes_0, R.drawable.ex_incline_dumbbell_flyes_1,
         Equipment.Dumbbell, ExerciseTechnique(
-            listOf(Muscle.Chest), listOf(Muscle.Shoulders),
+            listOf(Muscle.Chest), listOf(Muscle.FrontDelts),
             listOf(
                 "Лягте на наклонную скамью и поднимите гантели над грудью.",
                 "Слегка согните локти и разведите руки по дуге до комфортного растяжения груди.",

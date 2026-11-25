@@ -15,7 +15,7 @@ class MuscleLoadTest {
             photoForExercise(it)?.technique
         }
 
-        assertEquals(mapOf(Muscle.Chest to BigDecimal("3"), Muscle.Shoulders to BigDecimal("1.5"),
+        assertEquals(mapOf(Muscle.Chest to BigDecimal("3"), Muscle.FrontDelts to BigDecimal("1.5"),
             Muscle.Triceps to BigDecimal("1.5")), load.scores)
         assertEquals(0, load.unknownSets)
     }
@@ -29,7 +29,7 @@ class MuscleLoadTest {
         )
         val load = muscleLoad(workouts, today) { photoForExercise(it)?.technique }
 
-        assertEquals(mapOf(Muscle.Chest to BigDecimal.ONE, Muscle.Shoulders to BigDecimal("0.5"),
+        assertEquals(mapOf(Muscle.Chest to BigDecimal.ONE, Muscle.FrontDelts to BigDecimal("0.5"),
             Muscle.Triceps to BigDecimal("0.5")), load.scores)
         assertEquals(0, load.unknownSets)
     }

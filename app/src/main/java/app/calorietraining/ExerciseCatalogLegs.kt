@@ -129,7 +129,7 @@ internal val legsCatalog = listOf(
         "Гоблет-присед", "Ноги", "присед гантель кубок",
         R.drawable.ex_goblet_squat_0, R.drawable.ex_goblet_squat_1,
         Equipment.Dumbbell, ExerciseTechnique(
-            listOf(Muscle.Quadriceps), listOf(Muscle.Calves, Muscle.Glutes, Muscle.Hamstrings, Muscle.Shoulders),
+            listOf(Muscle.Quadriceps), listOf(Muscle.Calves, Muscle.Glutes, Muscle.Hamstrings, Muscle.FrontDelts),
             listOf(
                 "Удерживайте гирю за дужку близко к груди.",
                 "Присядьте между ног, сохраняя пятки на полу и грудь поднятой.",

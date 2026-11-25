@@ -81,7 +81,7 @@ class ExerciseMusclesUiTest {
         }
         ui.onNode(hasScrollToIndexAction()).performScrollToNode(icon)
         ui.onNode(icon).performClick()
-        ui.onNodeWithContentDescription("Основные мышцы: плечи", substring = true).assertExists()
+        ui.onNodeWithContentDescription("Основные мышцы: передняя дельта", substring = true).assertExists()
         FoodStore(app).use { store ->
             store.readableDatabase.rawQuery("SELECT muscle FROM exercise_muscle WHERE exercise_key=?", arrayOf(key)).use {
                 assertTrue(it.moveToFirst())

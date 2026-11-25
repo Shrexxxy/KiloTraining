@@ -17,6 +17,6 @@ class ExerciseMusclesDataTest {
     @Test fun benchPressMatchesFreeExerciseDb() {
         val technique = exerciseCatalog.single { it.name == "Жим штанги лёжа" }.technique
         assertEquals(listOf(Muscle.Chest), technique.primary)
-        assertEquals(listOf(Muscle.Shoulders, Muscle.Triceps), technique.secondary)
+        assertEquals(listOf(Muscle.FrontDelts, Muscle.Triceps), technique.secondary)
     }
 }
