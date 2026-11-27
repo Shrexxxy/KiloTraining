@@ -96,7 +96,8 @@ private fun ScaleBody(text: String, onText: (String) -> Unit, enabled: Boolean, 
             BasicTextField(
                 value = text,
                 onValueChange = onText,
-                modifier = Modifier.offset(22.dp * scale, 24.dp * scale).size(126.dp * scale, 44.dp * scale).testTag("weight-readout"),
+                modifier = Modifier.offset(22.dp * scale, 24.dp * scale).size(126.dp * scale, 44.dp * scale).testTag("weight-readout")
+                    .semantics { contentDescription = "Вес, кг" },
                 enabled = enabled,
                 singleLine = true,
                 textStyle = TextStyle(

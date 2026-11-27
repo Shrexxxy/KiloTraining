@@ -45,7 +45,7 @@ internal fun HomeScreen(
     addFood: (LocalDate) -> Unit,
     openWorkout: (Workout?) -> Unit,
 ) {
-    val today = LocalDate.now()
+    val today = LocalDate.now(workout.clock)
     var nutrition by remember { mutableStateOf<HomeNutrition?>(null) }
     var weights by remember { mutableStateOf<List<Measurement>?>(null) }
     var loadError by remember { mutableStateOf(false) }
@@ -80,10 +80,11 @@ internal fun HomeScreen(
         Button(onClick = { addFood(today) }, modifier = Modifier.fillMaxWidth()) { Text("Добавить еду") }
         weights?.let { recent ->
             WeightCard(today, recent) { weight ->
+                val saveDay = LocalDate.now(workout.clock)
                 val updated = withContext(Dispatchers.IO) {
                     FoodStore(app).use { store ->
-                        store.saveWeight(today, weight)
-                        store.recentWeights(today)
+                        store.saveWeight(saveDay, weight)
+                        store.recentWeights(saveDay)
                     }
                 }
                 weights = updated

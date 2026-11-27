@@ -46,13 +46,25 @@ internal fun FoodStore.measurementOn(day: LocalDate): Measurement? =
  * чтобы форма, открытая до записи на другом экране, не затёрла чужое значение.
  */
 internal fun FoodStore.saveEdited(draft: Measurement, original: Measurement?) {
-    val fresh = measurementOn(draft.day)
-    val merged = if (fresh == null || original == null) draft else Measurement(
-        draft.day,
-        if (draft.weight != original.weight) draft.weight else fresh.weight,
-        if (draft.fat != original.fat) draft.fat else fresh.fat,
-    )
-    saveMeasurement(if (merged.valid) merged else draft)
+    require(draft.valid)
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+        val fresh = measurementOn(draft.day)
+        val merged = if (original == null) draft else Measurement(
+            draft.day,
+            if (draft.weight != original.weight) draft.weight else fresh?.weight.orEmpty(),
+            if (draft.fat != original.fat) draft.fat else fresh?.fat.orEmpty(),
+        )
+        if (merged.weight.isEmpty() && merged.fat.isEmpty()) {
+            db.delete("measurement", "day=?", arrayOf(draft.day.toString()))
+        } else {
+            saveMeasurement(merged)
+        }
+        db.setTransactionSuccessful()
+    } finally {
+        db.endTransaction()
+    }
 }
 
 /** Записывает только вес дня; жир этого дня остаётся как был. */

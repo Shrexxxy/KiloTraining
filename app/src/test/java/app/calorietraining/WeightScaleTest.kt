@@ -186,4 +186,10 @@ class WeightScaleTest {
             }
         }
     }
+
+    @Test fun numberFieldHasLabelWithUnit() {
+        openDialog()
+        readout.assertContentDescriptionEquals("Вес, кг")
+        assertEquals("82,4", shown())
+    }
 }

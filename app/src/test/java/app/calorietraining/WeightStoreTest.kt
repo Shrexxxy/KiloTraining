@@ -93,4 +93,30 @@ class WeightStoreTest {
         store.saveEdited(Measurement(today, "81", ""), opened)
         assertEquals("81" to "", row(store))
     }
+
+    @Test fun formOpenedOnEmptyDayKeepsWeightWrittenMeanwhile() = FoodStore(app).use { store ->
+        val opened = Measurement(today)
+        store.saveWeight(today, "82")
+        store.saveEdited(Measurement(today, fat = "19"), opened)
+        assertEquals("82" to "19", row(store))
+    }
+
+    @Test fun clearingLastRemainingValueRemovesDayInsteadOfRevivingOldFat() = FoodStore(app).use { store ->
+        val opened = Measurement(today, "82", "21")
+        store.saveMeasurement(opened)
+        store.saveMeasurement(Measurement(today, "82"))
+        store.saveEdited(Measurement(today, "", "21"), opened)
+        assertEquals(null, row(store))
+    }
+
+    @Test fun failedEditedSaveLeavesRowUntouched() = FoodStore(app).use { store ->
+        val opened = Measurement(today, "82", "21")
+        store.saveMeasurement(opened)
+        store.writableDatabase.execSQL(
+            "CREATE TRIGGER block_update BEFORE UPDATE ON measurement BEGIN SELECT RAISE(ABORT, 'x'); END")
+        store.writableDatabase.execSQL(
+            "CREATE TRIGGER block_insert BEFORE INSERT ON measurement BEGIN SELECT RAISE(ABORT, 'x'); END")
+        assertThrows(SQLException::class.java) { store.saveEdited(opened.copy(weight = "70"), opened) }
+        assertEquals("82" to "21", row(store))
+    }
 }
