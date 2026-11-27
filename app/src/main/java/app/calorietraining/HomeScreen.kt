@@ -5,7 +5,6 @@ import android.database.SQLException
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,7 +15,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
@@ -47,7 +45,7 @@ internal fun HomeScreen(
     addFood: (LocalDate) -> Unit,
     openWorkout: (Workout?) -> Unit,
 ) {
-    val today = LocalDate.now()
+    val today = LocalDate.now(workout.clock)
     var nutrition by remember { mutableStateOf<HomeNutrition?>(null) }
     var weights by remember { mutableStateOf<List<Measurement>?>(null) }
     var loadError by remember { mutableStateOf(false) }
@@ -81,11 +79,12 @@ internal fun HomeScreen(
         nutrition?.let { TodayCard(it) { openNutrition(today) } }
         Button(onClick = { addFood(today) }, modifier = Modifier.fillMaxWidth()) { Text("Добавить еду") }
         weights?.let { recent ->
-            WeightCard(today, recent) { record ->
+            WeightCard(today, recent) { weight ->
+                val saveDay = LocalDate.now(workout.clock)
                 val updated = withContext(Dispatchers.IO) {
                     FoodStore(app).use { store ->
-                        store.saveMeasurement(record)
-                        store.recentWeights(today)
+                        store.saveWeight(saveDay, weight)
+                        store.recentWeights(saveDay)
                     }
                 }
                 weights = updated
@@ -174,7 +173,7 @@ private fun MacroBar(label: String, total: String, goal: Int?, color: Color, mod
 }
 
 @Composable
-private fun WeightCard(today: LocalDate, recent: List<Measurement>, save: suspend (Measurement) -> Unit) {
+private fun WeightCard(today: LocalDate, recent: List<Measurement>, save: suspend (String) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     val latest = recent.firstOrNull()
     GlassCard(LocalDiaryAccents.current.workout, Modifier.fillMaxWidth()) {
@@ -212,22 +211,21 @@ private fun WeightCard(today: LocalDate, recent: List<Measurement>, save: suspen
                     }
                 }
             }
-            val workout = LocalDiaryAccents.current.workout
-            OutlinedButton(onClick = { editing = true }, border = BorderStroke(1.dp, workout),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = workout)) { Text("Записать вес") }
+            val accents = LocalDiaryAccents.current
+            Button(onClick = { editing = true },
+                colors = ButtonDefaults.buttonColors(containerColor = accents.workout, contentColor = accents.onWorkout)) { Text("Записать вес") }
         }
     }
-    if (editing) WeightDialog(today, { editing = false }, save)
+    if (editing) WeightDialog(latest?.weight?.amount()?.display() ?: "0", { editing = false }, save)
 }
 
 @Composable
-private fun WeightDialog(today: LocalDate, close: () -> Unit, save: suspend (Measurement) -> Unit) {
-    var weight by rememberSaveable { mutableStateOf("") }
-    var fat by rememberSaveable { mutableStateOf("") }
+private fun WeightDialog(initial: String, close: () -> Unit, save: suspend (String) -> Unit) {
+    var weight by rememberSaveable { mutableStateOf(initial) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val record = Measurement(today, weight.trim(), fat.trim())
+    val value = weight.scaleWeight()
     AlertDialog(
         onDismissRequest = { if (!saving) close() },
         modifier = Modifier.padding(horizontal = 24.dp).widthIn(max = 560.dp).fillMaxWidth(),
@@ -235,20 +233,18 @@ private fun WeightDialog(today: LocalDate, close: () -> Unit, save: suspend (Mea
         title = { Text("Записать вес") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DiaryTextField(weight, { weight = it }, Modifier.fillMaxWidth(), enabled = !saving, singleLine = true,
-                    label = { Text("Вес, кг") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                DiaryTextField(fat, { fat = it }, Modifier.fillMaxWidth(), enabled = !saving, singleLine = true,
-                    label = { Text("Жир, % (необязательно)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                WeightScale(weight, { weight = it; error = false }, enabled = !saving)
                 if (error) Text("Не удалось сохранить замер", color = MaterialTheme.colorScheme.error)
             }
         },
         confirmButton = {
-            TextButton(enabled = !saving && record.weight.isNotEmpty() && record.valid, onClick = {
+            TextButton(enabled = !saving && value != null, onClick = {
+                val record = value ?: return@TextButton
                 saving = true
                 error = false
                 scope.launch {
                     try {
-                        save(record)
+                        save(record.stripTrailingZeros().toPlainString())
                         close()
                     } catch (e: SQLException) {
                         error = true

@@ -13,12 +13,13 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 
-internal data class ProfileState(val days: Int = 30, val stats: ProfileStats? = null, val draft: Measurement? = null,
+internal data class ProfileState(val days: Int = 30, val stats: ProfileStats? = null, val draft: Measurement? = null, val fatOnly: Boolean = false, val original: Measurement? = null,
     val busy: Boolean = false, val error: String? = null, val weeklyMuscles: MuscleLoad? = null)
 
 sealed interface ProfileEvent {
     data class Period(val days: Int) : ProfileEvent
     data class Open(val day: LocalDate) : ProfileEvent
+    data class OpenFat(val day: LocalDate) : ProfileEvent
     data class Edit(val value: Measurement) : ProfileEvent
     data object Close : ProfileEvent
     data object Save : ProfileEvent
@@ -114,11 +115,20 @@ class ProfileViewModel internal constructor(
         if (s.busy) return
         when (event) {
             is ProfileEvent.Period -> refresh(event.days)
-            is ProfileEvent.Open -> state.value = s.copy(draft = s.stats?.measurements?.find { it.day == event.day }
-                ?: Measurement(event.day), error = null)
+            is ProfileEvent.Open -> {
+                val saved = s.stats?.measurements?.find { it.day == event.day } ?: Measurement(event.day)
+                state.value = s.copy(draft = saved, original = saved, fatOnly = false, error = null)
+            }
+            is ProfileEvent.OpenFat -> {
+                val saved = s.stats?.measurements?.find { it.day == event.day }
+                state.value = s.copy(draft = Measurement(event.day, fat = saved?.fat.orEmpty()),
+                    original = Measurement(event.day, fat = saved?.fat.orEmpty()), fatOnly = true, error = null)
+            }
             is ProfileEvent.Edit -> state.value = s.copy(draft = event.value)
-            ProfileEvent.Close -> state.value = s.copy(draft = null, error = null)
-            ProfileEvent.Save -> s.draft?.takeIf { it.valid }?.let { refresh(s.days) { saveMeasurement(it) } }
+            ProfileEvent.Close -> state.value = s.copy(draft = null, original = null, fatOnly = false, error = null)
+            ProfileEvent.Save -> s.draft?.takeIf { it.valid }?.let { draft ->
+                refresh(s.days) { if (s.fatOnly) saveFat(draft.day, draft.fat) else saveEdited(draft, s.original) }
+            }
             ProfileEvent.Delete -> s.draft?.let { record -> refresh(s.days) {
                 writableDatabase.delete("measurement","day=?",arrayOf(record.day.toString()))
             } }
